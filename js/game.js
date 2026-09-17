@@ -129,6 +129,8 @@ function showMenu(menuId) {
     updateMenuData();
 }
 
+function showInstallHelp() { showMenu('installMenu'); }
+
 function openShop() { showMenu('shopMenu'); }
 
 function buyUpgrade(type, baseCost) {
@@ -977,10 +979,14 @@ requestAnimationFrame(loop);
     fullscreenButton?.addEventListener('pointerdown', async (event) => {
         event.preventDefault();
         try {
+            if (!document.documentElement.requestFullscreen) {
+                showMsg('For fullscreen, use<br><b>ADD TO HOME SCREEN</b>', 3000);
+                return;
+            }
             if (!document.fullscreenElement) await document.documentElement.requestFullscreen();
             else await document.exitFullscreen();
         } catch (error) {
-            // Fullscreen is optional and may be denied by the browser.
+            showMsg('Use <b>PHONE / INSTALL</b><br>for fullscreen mode.', 3000);
         }
     });
 
@@ -989,8 +995,40 @@ requestAnimationFrame(loop);
 
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./service-worker.js').catch(() => {
+        navigator.serviceWorker.register('./service-worker.js').then(registration => {
+            registration.update();
+            const banner = document.getElementById('updateBanner');
+            const updateButton = document.getElementById('updateButton');
+            const showUpdate = () => { if (banner) banner.style.display = 'flex'; };
+            if (registration.waiting) showUpdate();
+            registration.addEventListener('updatefound', () => {
+                const worker = registration.installing;
+                worker?.addEventListener('statechange', () => {
+                    if (worker.state === 'installed' && navigator.serviceWorker.controller) showUpdate();
+                });
+            });
+            updateButton?.addEventListener('click', () => {
+                if (registration.waiting) registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+                else window.location.reload();
+            });
+            navigator.serviceWorker.addEventListener('controllerchange', () => window.location.reload());
+        }).catch(() => {
             // The game remains playable if offline caching is unavailable.
         });
     });
 }
+
+let deferredInstallPrompt = null;
+window.addEventListener('beforeinstallprompt', event => {
+    event.preventDefault();
+    deferredInstallPrompt = event;
+    const installButton = document.getElementById('installButton');
+    if (installButton) installButton.style.display = 'block';
+});
+document.getElementById('installButton')?.addEventListener('click', async () => {
+    if (!deferredInstallPrompt) return;
+    deferredInstallPrompt.prompt();
+    await deferredInstallPrompt.userChoice;
+    deferredInstallPrompt = null;
+    document.getElementById('installButton').style.display = 'none';
+});

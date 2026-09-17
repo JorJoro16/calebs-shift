@@ -5,6 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="theme-color" content="#0a0a0a">
     <link rel="manifest" href="manifest.json">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Caleb's Shift">
+    <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
     <title>The Backrooms: Caleb's Shift</title>
         <link rel="stylesheet" href="css/style.css">
 </head>
@@ -29,7 +34,25 @@
         <button onclick="showMenu('diffMenu')">PLAY</button>
         <button onclick="openShop()">SHOP</button>
         <button onclick="showMenu('infoMenu')">INFO</button>
+        <button onclick="showInstallHelp()">PHONE / INSTALL</button>
         <button onclick="showMenu('settingsMenu')">SETTINGS</button>
+    </div>
+
+    <div id="updateBanner" role="status">
+        <span>New version available.</span>
+        <button id="updateButton">RELOAD</button>
+    </div>
+
+    <div id="installMenu" class="menu-panel">
+        <h2>PHONE SETUP</h2>
+        <div style="text-align:left; font-size:14px; line-height:1.5;">
+            <b>Best fullscreen:</b> install the game from your browser's menu, then launch it from the Home Screen.<br><br>
+            <b>iPhone:</b> open in Safari → Share → Add to Home Screen → Add.<br><br>
+            <b>Android:</b> open in Chrome → menu ⋮ → Install app or Add to Home screen.<br><br>
+            Once installed, the browser bar should disappear and the game can work offline after its first online load.
+        </div>
+        <button id="installButton" style="display:none; border-color:#0f0; color:#0f0;">INSTALL APP</button>
+        <button onclick="showMenu('mainMenu')" style="margin-top:15px; border-color:#ff4444; color:#ff4444;">BACK</button>
     </div>
 
     <!-- End Menu -->
@@ -175,4 +198,3 @@
     <script src="js/game.js"></script>
 </body>
 </html>
-

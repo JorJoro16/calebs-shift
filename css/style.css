@@ -114,6 +114,31 @@ canvas {
     z-index: 120;
     pointer-events: none;
 }
+#updateBanner {
+    display: none;
+    position: fixed;
+    top: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 300;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 10px 8px 14px;
+    color: #fff;
+    background: rgba(15,15,15,0.94);
+    border: 1px solid #0f0;
+    border-radius: 8px;
+    box-shadow: 0 4px 18px #000;
+    font: bold 13px 'Courier New', monospace;
+}
+#updateButton {
+    padding: 6px 10px;
+    border: 1px solid #0f0;
+    border-radius: 5px;
+    color: #0f0;
+    background: transparent;
+    font: bold 12px 'Courier New', monospace;
+}
 .joystick {
     position: absolute;
     left: max(22px, env(safe-area-inset-left));
@@ -218,6 +243,7 @@ canvas {
         max-width: 58vw;
     }
     #mutations, #inventory { font-size: 11px; }
+    #updateBanner { top: max(8px, env(safe-area-inset-top)); max-width: 86vw; }
 }
 @media (orientation: portrait) and (max-width: 700px) {
     #gameCanvas { max-height: 58vh; }

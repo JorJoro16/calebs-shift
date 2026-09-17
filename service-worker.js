@@ -1,19 +1,23 @@
-const CACHE_NAME = 'calebs-shift-v2';
+const CACHE_NAME = 'calebs-shift-v3';
 const FILES_TO_CACHE = [
   './',
   './index.html',
   './css/style.css',
   './js/game.js',
   './manifest.json',
-  './assets/icon.svg'
+  './assets/icon.svg',
+  './assets/apple-touch-icon.png'
 ];
 
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(cache => cache.addAll(FILES_TO_CACHE))
-      .then(() => self.skipWaiting())
   );
+});
+
+self.addEventListener('message', event => {
+  if (event.data?.type === 'SKIP_WAITING') self.skipWaiting();
 });
 
 self.addEventListener('activate', event => {
