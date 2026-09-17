@@ -616,17 +616,14 @@ function update() {
             const speed = player.speed;
             const tileCenterX = Math.floor(player.x / TS) * TS + TS / 2;
             const tileCenterY = Math.floor(player.y / TS) * TS + TS / 2;
-            const centerAssist = Math.min(speed * 1.5, 3.5);
-
-            // Keep the player centered in the corridor while moving along it.
-            // This prevents circle-vs-corner collision from catching the player.
+            // Lock the player to the centerline of the corridor while moving.
+            // This gives the maze true Pac-Man-style lane movement and prevents
+            // circle-vs-corner collision from catching the player.
             if (moveKey === 'a' || moveKey === 'd') {
-                const correction = tileCenterY - player.y;
-                if (Math.abs(correction) > 0.5) moveEntity(player, 0, Math.sign(correction) * Math.min(Math.abs(correction), centerAssist));
+                player.y = tileCenterY;
                 moveEntity(player, moveKey === 'a' ? -speed : speed, 0);
             } else {
-                const correction = tileCenterX - player.x;
-                if (Math.abs(correction) > 0.5) moveEntity(player, Math.sign(correction) * Math.min(Math.abs(correction), centerAssist), 0);
+                player.x = tileCenterX;
                 moveEntity(player, 0, moveKey === 'w' ? -speed : speed);
             }
         }
