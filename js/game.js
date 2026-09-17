@@ -24,7 +24,14 @@ function initAudio() {
 }
 
 function playSound(type) {
+    if (!audioCtx) initAudio();
     if (!audioCtx || setVolM == 0 || setVolS == 0) return;
+    if (audioCtx.state === 'suspended') {
+        audioCtx.resume().then(() => {
+            if (audioCtx.state === 'running') playSound(type);
+        }).catch(() => {});
+        return;
+    }
     let osc = audioCtx.createOscillator();
     let gain = audioCtx.createGain();
     osc.connect(gain); gain.connect(audioCtx.destination);
@@ -179,7 +186,7 @@ const TS = 40; const COLS = 31; const ROWS = 23;
 let state = 0; let currentDiff = 0; let rewardTokens = 0;
 
 let map = [], floors = [];
-let player = { x: 0, y: 0, r: 12, baseSpeed: 3.8, speed: 3.8, boostTimer: 0, stunTimer: 0, direction: null, queuedDirection: 'd' };
+let player = { x: 0, y: 0, r: 12, baseSpeed: 3.8, speed: 3.8, boostTimer: 0, stunTimer: 0 };
 let monster = { name: '', x: 0, y: 0, r: 14, drawRadius: 14, speed: 2.2, baseSpeed: 2.2, color: '', textColor: '', activeMutations: [], isReinforced: false, hasGloom: false, isResilient: false, hasScrambler: false, hasHexed: false, stunTimer: 0, lastTargetC: -1, lastTargetR: -1 };
 let camera = { x: 0, y: 0, targetZoom: 1.0, zoom: 1.0 };
 let nearGen = null; 
@@ -198,7 +205,6 @@ let scNeedle = 0, scSpeed = 0, scZoneStart = 0, scZoneEnd = 0, scHits = 0, scReq
 let lastTime = 0, frames = 0;
 let lastFrameTime = 0, gameAccumulator = 0;
 const keys = { w: false, a: false, s: false, d: false };
-let lastDirection = 'd';
 
 window.addEventListener('keydown', (e) => {
     let k = e.key.toLowerCase();
@@ -288,18 +294,12 @@ window.addEventListener('keydown', (e) => {
     }
     if (k in keys) {
         keys[k] = true;
-        lastDirection = k;
-        player.queuedDirection = k;
     }
 });
 window.addEventListener('keyup', (e) => {
     let k = e.key.toLowerCase();
     if (k in keys) {
         keys[k] = false;
-        if (lastDirection === k) {
-            const heldDirection = ['w', 'a', 's', 'd'].find(direction => keys[direction]);
-            if (heldDirection) lastDirection = heldDirection;
-        }
     }
 });
 
@@ -347,7 +347,6 @@ function startGame(diffLevel) {
     player.baseSpeed = 3.8 * (1 + (upgShoe * 0.05));
     player.speed = player.baseSpeed;
     player.boostTimer = 0; player.stunTimer = 0;
-    player.direction = null; player.queuedDirection = 'd';
     camera.targetZoom = 1.0; camera.zoom = 1.0;
     nearGen = null; flashAlpha = 0;
     
@@ -532,61 +531,6 @@ function moveEntity(ent, dx, dy) {
     ent.y += dy; if (checkWall(ent)) ent.y -= dy;
 }
 
-const directionVectors = {
-    w: { x: 0, y: -1 },
-    a: { x: -1, y: 0 },
-    s: { x: 0, y: 1 },
-    d: { x: 1, y: 0 }
-};
-const oppositeDirections = { w: 's', s: 'w', a: 'd', d: 'a' };
-
-function canEnterTile(c, r) {
-    return r >= 0 && r < ROWS && c >= 0 && c < COLS && map[r][c] === 0;
-}
-
-function canMoveInDirection(direction) {
-    const vector = directionVectors[direction];
-    const c = Math.floor(player.x / TS) + vector.x;
-    const r = Math.floor(player.y / TS) + vector.y;
-    return canEnterTile(c, r);
-}
-
-function updateGridPlayerMovement() {
-    const heldDirection = keys[player.queuedDirection]
-        ? player.queuedDirection
-        : ['w', 'a', 's', 'd'].find(direction => keys[direction]);
-
-    if (!heldDirection) {
-        player.direction = null;
-        return;
-    }
-
-    const currentDirection = player.direction;
-    const isReverse = currentDirection && oppositeDirections[currentDirection] === heldDirection;
-    // Reverse immediately. A valid perpendicular turn is also accepted
-    // immediately, then the lane coordinate snaps to the new corridor.
-    if (!currentDirection || isReverse || (heldDirection !== currentDirection && canMoveInDirection(heldDirection))) {
-        if (isReverse || !currentDirection || canMoveInDirection(heldDirection)) {
-            player.direction = heldDirection;
-        }
-    }
-
-    if (!player.direction) return;
-
-    const vector = directionVectors[player.direction];
-    const movingHorizontally = vector.x !== 0;
-    const tileCenterX = Math.floor(player.x / TS) * TS + TS / 2;
-    const tileCenterY = Math.floor(player.y / TS) * TS + TS / 2;
-
-    // Snap only the lane coordinate. The movement coordinate remains smooth.
-    if (movingHorizontally) {
-        player.y = tileCenterY;
-    } else {
-        player.x = tileCenterX;
-    }
-    moveEntity(player, vector.x * player.speed, vector.y * player.speed);
-}
-
 function checkWall(ent) {
     let mc = Math.floor((ent.x - ent.r) / TS), xc = Math.floor((ent.x + ent.r) / TS);
     let mr = Math.floor((ent.y - ent.r) / TS), xr = Math.floor((ent.y + ent.r) / TS);
@@ -683,7 +627,13 @@ function update() {
             if (player.boostTimer <= 0) player.speed = player.baseSpeed;
         }
 
-        if (state === 1 || state === 3) updateGridPlayerMovement();
+        let dx = 0, dy = 0;
+        if (keys.w && (state === 1 || state === 3)) dy -= player.speed;
+        if (keys.s && (state === 1 || state === 3)) dy += player.speed;
+        if (keys.a && (state === 1 || state === 3)) dx -= player.speed;
+        if (keys.d && (state === 1 || state === 3)) dx += player.speed;
+        if (dx !== 0 && dy !== 0) { dx *= 0.707; dy *= 0.707; }
+        if (dx !== 0 || dy !== 0) moveEntity(player, dx, dy);
     }
 
     nearGen = null;
@@ -998,11 +948,9 @@ requestAnimationFrame(loop);
         const deadzone = 12;
         if (Math.hypot(dx, dy) < deadzone) return;
         if (Math.abs(dx) > Math.abs(dy)) {
-            player.queuedDirection = dx > 0 ? 'd' : 'a';
-            keys[player.queuedDirection] = true;
+            keys[dx > 0 ? 'd' : 'a'] = true;
         } else {
-            player.queuedDirection = dy > 0 ? 's' : 'w';
-            keys[player.queuedDirection] = true;
+            keys[dy > 0 ? 's' : 'w'] = true;
         }
     }
 
@@ -1078,6 +1026,8 @@ requestAnimationFrame(loop);
 
 // Mobile browsers require audio to be created or resumed from a user gesture.
 window.addEventListener('pointerdown', () => initAudio(), { passive: true });
+window.addEventListener('touchstart', () => initAudio(), { passive: true });
+window.addEventListener('touchend', () => initAudio(), { passive: true });
 document.addEventListener('visibilitychange', () => {
     if (!document.hidden && audioCtx?.state === 'suspended') audioCtx.resume();
 });
