@@ -7,11 +7,20 @@ const msgBox = document.getElementById('message');
 
 // Audio Context Setup
 let audioCtx = null;
+let audioUnlocked = false;
 function initAudio() {
     const AudioCtor = window.AudioContext || window.webkitAudioContext;
     if (!AudioCtor) return;
     if (!audioCtx) audioCtx = new AudioCtor();
     if (audioCtx.state === 'suspended') audioCtx.resume();
+    if (!audioUnlocked) {
+        const unlockBuffer = audioCtx.createBuffer(1, 1, audioCtx.sampleRate);
+        const unlockSource = audioCtx.createBufferSource();
+        unlockSource.buffer = unlockBuffer;
+        unlockSource.connect(audioCtx.destination);
+        unlockSource.start(0);
+        audioUnlocked = true;
+    }
 }
 
 function playSound(type) {
@@ -133,8 +142,9 @@ function showMenu(menuId) {
 
 function showInstallHelp() { showMenu('installMenu'); }
 
-function testSound() {
+async function testSound() {
     initAudio();
+    if (audioCtx?.state === 'suspended') await audioCtx.resume();
     playSound('success');
 }
 
@@ -553,12 +563,9 @@ function updateGridPlayerMovement() {
 
     const currentDirection = player.direction;
     const isReverse = currentDirection && oppositeDirections[currentDirection] === heldDirection;
-    const axisPosition = currentDirection === 'a' || currentDirection === 'd' ? player.x : player.y;
-    const axisCenter = Math.floor(axisPosition / TS) * TS + TS / 2;
-    const isAtTileCenter = Math.abs(axisPosition - axisCenter) <= player.speed + 1;
-
-    // Reverse immediately; perpendicular turns wait until the next tile center.
-    if (!currentDirection || isReverse || (heldDirection !== currentDirection && isAtTileCenter)) {
+    // Reverse immediately. A valid perpendicular turn is also accepted
+    // immediately, then the lane coordinate snaps to the new corridor.
+    if (!currentDirection || isReverse || (heldDirection !== currentDirection && canMoveInDirection(heldDirection))) {
         if (isReverse || !currentDirection || canMoveInDirection(heldDirection)) {
             player.direction = heldDirection;
         }
