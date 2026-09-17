@@ -947,11 +947,10 @@ requestAnimationFrame(loop);
         knob.style.transform = `translate(${dx}px, ${dy}px)`;
         const deadzone = 12;
         if (Math.hypot(dx, dy) < deadzone) return;
-        if (Math.abs(dx) > Math.abs(dy)) {
-            keys[dx > 0 ? 'd' : 'a'] = true;
-        } else {
-            keys[dy > 0 ? 's' : 'w'] = true;
-        }
+        const horizontalThreshold = maxDistance * 0.28;
+        const verticalThreshold = maxDistance * 0.28;
+        if (Math.abs(dx) >= horizontalThreshold) keys[dx > 0 ? 'd' : 'a'] = true;
+        if (Math.abs(dy) >= verticalThreshold) keys[dy > 0 ? 's' : 'w'] = true;
     }
 
     joystick.addEventListener('pointerdown', (event) => {
