@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#0a0a0a">
+    <link rel="manifest" href="manifest.json">
+    <title>The Backrooms: Caleb's Shift</title>
+        <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+    <div id="crtFilter"></div>
+    <div id="fpsCounter">60 FPS</div>
+
+    <div id="gameHUD">
+        Generators: <span id="genCount">0/0</span>
+        <div id="inventory"></div>
+        <div id="mutations"></div>
+    </div>
+    
+    <!-- In-Game Alert Messages -->
+    <div id="message" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(10, 10, 10, 0.85); backdrop-filter: blur(10px); padding: 30px 50px; border: 2px solid rgba(255,255,255,0.3); border-radius: 15px; font-size: 30px; text-align: center; display: none; pointer-events: none; z-index: 200; box-shadow: 0 10px 30px rgba(0,0,0,0.8);"></div>
+
+    <!-- Main Menu -->
+    <div id="mainMenu" class="menu-panel" style="display: flex;">
+        <h1>THE BACKROOMS</h1>
+        <div class="token-display" id="tokenDisplayMain">Tokens: 0</div>
+        <button onclick="showMenu('diffMenu')">PLAY</button>
+        <button onclick="openShop()">SHOP</button>
+        <button onclick="showMenu('infoMenu')">INFO</button>
+        <button onclick="showMenu('settingsMenu')">SETTINGS</button>
+    </div>
+
+    <!-- End Menu -->
+    <div id="endMenu" class="menu-panel">
+        <h1 id="endTitle">YOU WIN</h1>
+        <h2 id="endDesc" style="font-weight: normal; margin-bottom: 25px;"></h2>
+        <button onclick="startGame(currentDiff)">PLAY AGAIN</button>
+        <button onclick="showMenu('mainMenu'); state = 0;">MAIN MENU</button>
+    </div>
+
+    <!-- Difficulty Menu -->
+    <div id="diffMenu" class="menu-panel">
+        <h2>SELECT DIFFICULTY</h2>
+        <button onclick="startGame(0)">EASY (10 Tokens)<br><span style="font-size:12px;color:#aaa">Slow Speed | Typing Puzzles | 0-1 Mutations</span></button>
+        <button onclick="startGame(1)">NORMAL (25 Tokens)<br><span style="font-size:12px;color:#aaa">Standard Speed | Mixed Puzzles | 1-2 Mutations</span></button>
+        <button onclick="startGame(2)">HARD (40 Tokens)<br><span style="font-size:12px;color:#aaa">Fast Speed | Skill Checks | 2-3 Mutations</span></button>
+        <button onclick="showMenu('mainMenu')" style="margin-top: 15px; border-color: #ff4444; color: #ff4444;">BACK</button>
+    </div>
+
+    <!-- Info/Database Menu -->
+    <div id="infoMenu" class="menu-panel" style="max-height: 80vh; overflow-y: auto;">
+        <h2>DATABASE & TIPS</h2>
+        <div style="text-align: left; font-size: 14px; line-height: 1.5;">
+            <h3 style="color:#ff4444; margin-bottom:5px; border-bottom: 1px solid #ff4444;">MONSTERS</h3>
+            <b>Caleb:</b> Standard patrol. Periodically unleashes an EMP that blinds you.<br>
+            <b>Malakai:</b> Highly aggressive and fast, but cannot spawn with 'All-Seeing'.<br>
+            <b>Jordan:</b> Disguises himself as a generator. If triggered, he rapidly enrages.<br>
+            
+            <h3 style="color:#ff4444; margin-bottom:5px; margin-top: 15px; border-bottom: 1px solid #ff4444;">MUTATIONS</h3>
+            <b>Speed Demon:</b> Flat speed boost.<br>
+            <b>Frenzy:</b> Gains a speed boost with every repaired generator.<br>
+            <b>Giant:</b> Massive visual size.<br>
+            <b>Camouflage:</b> Color blends perfectly into the floor.<br>
+            <b>Phantom:</b> Glides slowly through solid walls.<br>
+            <b>All-Seeing:</b> Periodically tracks your exact location.<br>
+            <b>Gloom:</b> Significantly darkens the map's shadows.<br>
+            <b>Reinforced:</b> Generators require an extra interaction to fix.<br>
+            <b>Lethargy:</b> Player base running speed is reduced by 10%.<br>
+            <b>Resilient:</b> Flashbang stun duration is halved.<br>
+            <b>Scrambler:</b> Hides your generator progress UI.<br>
+            <b>Hexed:</b> Player boosts (Adrenaline) only last half as long.<br>
+            
+            <h3 style="color:#0f0; margin-bottom:5px; margin-top: 15px; border-bottom: 1px solid #0f0;">TIPS</h3>
+            - Use <b>'E'</b> to repair generators.<br>
+            - Skill check needles now loop endlessly! Take your time to hit the green zone.<br>
+            - Jordan has a 30-second cooldown before he can sabotage multiple generators.<br>
+        </div>
+        <button onclick="showMenu('mainMenu')" style="margin-top: 15px; border-color: #ff4444; color: #ff4444;">BACK</button>
+    </div>
+
+    <!-- Shop Menu -->
+    <div id="shopMenu" class="menu-panel" style="max-height: 80vh; overflow-y: auto;">
+        <h2>BLACK MARKET</h2>
+        <div class="token-display" id="tokenDisplayShop">Tokens: 0</div>
+        
+        <div class="shop-item">
+            <div>
+                <div>Running Shoes (Tier <span id="shoeTier">0</span>/3)</div>
+                <div class="shop-desc">+5% permanent speed</div>
+            </div>
+            <button id="btnShoe" onclick="buyUpgrade('shoe', 50)">50 T</button>
+        </div>
+        <div class="shop-item">
+            <div>
+                <div>Hacker Gloves (Tier <span id="hackTier">0</span>/2)</div>
+                <div class="shop-desc">-1 key/skill hit required</div>
+            </div>
+            <button id="btnHack" onclick="buyUpgrade('hack', 75)">75 T</button>
+        </div>
+        <div class="shop-item">
+            <div>
+                <div>Quick Hands (Tier <span id="quickTier">0</span>/3)</div>
+                <div class="shop-desc">-10% skill check needle speed</div>
+            </div>
+            <button id="btnQuick" onclick="buyUpgrade('quick', 40)">40 T</button>
+        </div>
+        <div class="shop-item">
+            <div>
+                <div>Lucky Coin (Tier <span id="coinTier">0</span>/1)</div>
+                <div class="shop-desc">+50% tokens earned</div>
+            </div>
+            <button id="btnCoin" onclick="buyUpgrade('coin', 150)">150 T</button>
+        </div>
+        <div class="shop-item">
+            <div>
+                <div>Adrenaline Syringe</div>
+                <div class="shop-desc">Press SPACE for 4s speed boost.</div>
+            </div>
+            <button onclick="buyConsumable('adrenaline', 15)">15 T</button>
+        </div>
+        <div class="shop-item">
+            <div>
+                <div>Flashbang</div>
+                <div class="shop-desc">Press F to stun monster for 4s.</div>
+            </div>
+            <button onclick="buyConsumable('flashbang', 20)">20 T</button>
+        </div>
+        <button onclick="showMenu('mainMenu')" style="margin-top: 15px; border-color: #ff4444; color: #ff4444;">BACK</button>
+    </div>
+
+    <!-- Settings Menu -->
+    <div id="settingsMenu" class="menu-panel">
+        <h2>SETTINGS</h2>
+        <div class="setting-item">
+            <span>Master Volume</span>
+            <input type="range" id="volMaster" min="0" max="100" value="100" oninput="saveSettings()">
+        </div>
+        <div class="setting-item">
+            <span>SFX Volume</span>
+            <input type="range" id="volSFX" min="0" max="100" value="100" oninput="saveSettings()">
+        </div>
+        <div class="setting-item">
+            <span>Show FPS</span>
+            <button id="btnFPS" onclick="toggleSetting('fps')" style="padding: 5px 10px; font-size:14px;">OFF</button>
+        </div>
+        <div class="setting-item">
+            <span>Retro CRT Filter</span>
+            <button id="btnCRT" onclick="toggleSetting('crt')" style="padding: 5px 10px; font-size:14px;">OFF</button>
+        </div>
+        <button onclick="showMenu('mainMenu')" style="margin-top: 15px; border-color: #ff4444; color: #ff4444;">BACK</button>
+    </div>
+
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+
+    <div id="touchControls" aria-label="Touch controls">
+        <div id="joystick" class="joystick" aria-label="Movement joystick">
+            <div id="joystickKnob" class="joystick-knob"></div>
+        </div>
+        <div class="touch-actions">
+            <button id="touchInteract" class="touch-button interact-button" aria-label="Interact">E</button>
+            <button id="touchBoost" class="touch-button boost-button" aria-label="Use adrenaline">⚡</button>
+            <button id="touchFlash" class="touch-button flash-button" aria-label="Use flashbang">F</button>
+            <button id="touchFullscreen" class="touch-button fullscreen-button" aria-label="Toggle fullscreen">⛶</button>
+        </div>
+    </div>
+
+    <script src="js/game.js"></script>
+</body>
+</html>
+
+
