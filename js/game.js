@@ -8,7 +8,9 @@ const msgBox = document.getElementById('message');
 // Audio Context Setup
 let audioCtx = null;
 function initAudio() {
-    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const AudioCtor = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtor) return;
+    if (!audioCtx) audioCtx = new AudioCtor();
     if (audioCtx.state === 'suspended') audioCtx.resume();
 }
 
@@ -131,6 +133,11 @@ function showMenu(menuId) {
 
 function showInstallHelp() { showMenu('installMenu'); }
 
+function testSound() {
+    initAudio();
+    playSound('success');
+}
+
 function openShop() { showMenu('shopMenu'); }
 
 function buyUpgrade(type, baseCost) {
@@ -162,7 +169,7 @@ const TS = 40; const COLS = 31; const ROWS = 23;
 let state = 0; let currentDiff = 0; let rewardTokens = 0;
 
 let map = [], floors = [];
-let player = { x: 0, y: 0, r: 12, baseSpeed: 3.8, speed: 3.8, boostTimer: 0, stunTimer: 0 };
+let player = { x: 0, y: 0, r: 12, baseSpeed: 3.8, speed: 3.8, boostTimer: 0, stunTimer: 0, direction: null, queuedDirection: 'd' };
 let monster = { name: '', x: 0, y: 0, r: 14, drawRadius: 14, speed: 2.2, baseSpeed: 2.2, color: '', textColor: '', activeMutations: [], isReinforced: false, hasGloom: false, isResilient: false, hasScrambler: false, hasHexed: false, stunTimer: 0, lastTargetC: -1, lastTargetR: -1 };
 let camera = { x: 0, y: 0, targetZoom: 1.0, zoom: 1.0 };
 let nearGen = null; 
@@ -272,6 +279,7 @@ window.addEventListener('keydown', (e) => {
     if (k in keys) {
         keys[k] = true;
         lastDirection = k;
+        player.queuedDirection = k;
     }
 });
 window.addEventListener('keyup', (e) => {
@@ -329,6 +337,7 @@ function startGame(diffLevel) {
     player.baseSpeed = 3.8 * (1 + (upgShoe * 0.05));
     player.speed = player.baseSpeed;
     player.boostTimer = 0; player.stunTimer = 0;
+    player.direction = null; player.queuedDirection = 'd';
     camera.targetZoom = 1.0; camera.zoom = 1.0;
     nearGen = null; flashAlpha = 0;
     
@@ -513,6 +522,64 @@ function moveEntity(ent, dx, dy) {
     ent.y += dy; if (checkWall(ent)) ent.y -= dy;
 }
 
+const directionVectors = {
+    w: { x: 0, y: -1 },
+    a: { x: -1, y: 0 },
+    s: { x: 0, y: 1 },
+    d: { x: 1, y: 0 }
+};
+const oppositeDirections = { w: 's', s: 'w', a: 'd', d: 'a' };
+
+function canEnterTile(c, r) {
+    return r >= 0 && r < ROWS && c >= 0 && c < COLS && map[r][c] === 0;
+}
+
+function canMoveInDirection(direction) {
+    const vector = directionVectors[direction];
+    const c = Math.floor(player.x / TS) + vector.x;
+    const r = Math.floor(player.y / TS) + vector.y;
+    return canEnterTile(c, r);
+}
+
+function updateGridPlayerMovement() {
+    const heldDirection = keys[player.queuedDirection]
+        ? player.queuedDirection
+        : ['w', 'a', 's', 'd'].find(direction => keys[direction]);
+
+    if (!heldDirection) {
+        player.direction = null;
+        return;
+    }
+
+    const currentDirection = player.direction;
+    const isReverse = currentDirection && oppositeDirections[currentDirection] === heldDirection;
+    const axisPosition = currentDirection === 'a' || currentDirection === 'd' ? player.x : player.y;
+    const axisCenter = Math.floor(axisPosition / TS) * TS + TS / 2;
+    const isAtTileCenter = Math.abs(axisPosition - axisCenter) <= player.speed + 1;
+
+    // Reverse immediately; perpendicular turns wait until the next tile center.
+    if (!currentDirection || isReverse || (heldDirection !== currentDirection && isAtTileCenter)) {
+        if (isReverse || !currentDirection || canMoveInDirection(heldDirection)) {
+            player.direction = heldDirection;
+        }
+    }
+
+    if (!player.direction) return;
+
+    const vector = directionVectors[player.direction];
+    const movingHorizontally = vector.x !== 0;
+    const tileCenterX = Math.floor(player.x / TS) * TS + TS / 2;
+    const tileCenterY = Math.floor(player.y / TS) * TS + TS / 2;
+
+    // Snap only the lane coordinate. The movement coordinate remains smooth.
+    if (movingHorizontally) {
+        player.y = tileCenterY;
+    } else {
+        player.x = tileCenterX;
+    }
+    moveEntity(player, vector.x * player.speed, vector.y * player.speed);
+}
+
 function checkWall(ent) {
     let mc = Math.floor((ent.x - ent.r) / TS), xc = Math.floor((ent.x + ent.r) / TS);
     let mr = Math.floor((ent.y - ent.r) / TS), xr = Math.floor((ent.y + ent.r) / TS);
@@ -609,24 +676,7 @@ function update() {
             if (player.boostTimer <= 0) player.speed = player.baseSpeed;
         }
 
-        let moveKey = (state === 1 || state === 3) && keys[lastDirection]
-            ? lastDirection
-            : ['w', 'a', 's', 'd'].find(direction => keys[direction]);
-        if (moveKey) {
-            const speed = player.speed;
-            const tileCenterX = Math.floor(player.x / TS) * TS + TS / 2;
-            const tileCenterY = Math.floor(player.y / TS) * TS + TS / 2;
-            // Lock the player to the centerline of the corridor while moving.
-            // This gives the maze true Pac-Man-style lane movement and prevents
-            // circle-vs-corner collision from catching the player.
-            if (moveKey === 'a' || moveKey === 'd') {
-                player.y = tileCenterY;
-                moveEntity(player, moveKey === 'a' ? -speed : speed, 0);
-            } else {
-                player.x = tileCenterX;
-                moveEntity(player, 0, moveKey === 'w' ? -speed : speed);
-            }
-        }
+        if (state === 1 || state === 3) updateGridPlayerMovement();
     }
 
     nearGen = null;
@@ -940,8 +990,13 @@ requestAnimationFrame(loop);
         knob.style.transform = `translate(${dx}px, ${dy}px)`;
         const deadzone = 12;
         if (Math.hypot(dx, dy) < deadzone) return;
-        if (Math.abs(dx) > Math.abs(dy)) keys[dx > 0 ? 'd' : 'a'] = true;
-        else keys[dy > 0 ? 's' : 'w'] = true;
+        if (Math.abs(dx) > Math.abs(dy)) {
+            player.queuedDirection = dx > 0 ? 'd' : 'a';
+            keys[player.queuedDirection] = true;
+        } else {
+            player.queuedDirection = dy > 0 ? 's' : 'w';
+            keys[player.queuedDirection] = true;
+        }
     }
 
     joystick.addEventListener('pointerdown', (event) => {
@@ -1013,6 +1068,12 @@ requestAnimationFrame(loop);
 
     document.addEventListener('contextmenu', event => event.preventDefault());
 })();
+
+// Mobile browsers require audio to be created or resumed from a user gesture.
+window.addEventListener('pointerdown', () => initAudio(), { passive: true });
+document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && audioCtx?.state === 'suspended') audioCtx.resume();
+});
 
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
