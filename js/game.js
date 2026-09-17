@@ -181,6 +181,7 @@ let scNeedle = 0, scSpeed = 0, scZoneStart = 0, scZoneEnd = 0, scHits = 0, scReq
 let lastTime = 0, frames = 0;
 let lastFrameTime = 0, gameAccumulator = 0;
 const keys = { w: false, a: false, s: false, d: false };
+let lastDirection = 'd';
 
 window.addEventListener('keydown', (e) => {
     let k = e.key.toLowerCase();
@@ -268,11 +269,20 @@ window.addEventListener('keydown', (e) => {
         }
         return;
     }
-    if (k in keys) keys[k] = true;
+    if (k in keys) {
+        keys[k] = true;
+        lastDirection = k;
+    }
 });
 window.addEventListener('keyup', (e) => {
     let k = e.key.toLowerCase();
-    if (k in keys) keys[k] = false;
+    if (k in keys) {
+        keys[k] = false;
+        if (lastDirection === k) {
+            const heldDirection = ['w', 'a', 's', 'd'].find(direction => keys[direction]);
+            if (heldDirection) lastDirection = heldDirection;
+        }
+    }
 });
 
 function generateMaze() {
@@ -599,13 +609,27 @@ function update() {
             if (player.boostTimer <= 0) player.speed = player.baseSpeed;
         }
 
-        let dx = 0, dy = 0;
-        if (keys.w && (state === 1 || state === 3)) dy -= player.speed;
-        if (keys.s && (state === 1 || state === 3)) dy += player.speed;
-        if (keys.a && (state === 1 || state === 3)) dx -= player.speed;
-        if (keys.d && (state === 1 || state === 3)) dx += player.speed;
-        if (dx !== 0 && dy !== 0) { dx *= 0.707; dy *= 0.707; }
-        if (dx !== 0 || dy !== 0) moveEntity(player, dx, dy);
+        let moveKey = (state === 1 || state === 3) && keys[lastDirection]
+            ? lastDirection
+            : ['w', 'a', 's', 'd'].find(direction => keys[direction]);
+        if (moveKey) {
+            const speed = player.speed;
+            const tileCenterX = Math.floor(player.x / TS) * TS + TS / 2;
+            const tileCenterY = Math.floor(player.y / TS) * TS + TS / 2;
+            const centerAssist = Math.min(speed * 1.5, 3.5);
+
+            // Keep the player centered in the corridor while moving along it.
+            // This prevents circle-vs-corner collision from catching the player.
+            if (moveKey === 'a' || moveKey === 'd') {
+                const correction = tileCenterY - player.y;
+                if (Math.abs(correction) > 0.5) moveEntity(player, 0, Math.sign(correction) * Math.min(Math.abs(correction), centerAssist));
+                moveEntity(player, moveKey === 'a' ? -speed : speed, 0);
+            } else {
+                const correction = tileCenterX - player.x;
+                if (Math.abs(correction) > 0.5) moveEntity(player, Math.sign(correction) * Math.min(Math.abs(correction), centerAssist), 0);
+                moveEntity(player, 0, moveKey === 'w' ? -speed : speed);
+            }
+        }
     }
 
     nearGen = null;
