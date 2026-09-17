@@ -1,9 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="80" fill="#0a0a0a"/>
-  <rect x="56" y="56" width="400" height="400" rx="24" fill="#8b7355" stroke="#2d2216" stroke-width="24"/>
-  <circle cx="256" cy="280" r="72" fill="#800" stroke="#120000" stroke-width="14"/>
-  <circle cx="232" cy="266" r="10" fill="#fff"/>
-  <circle cx="280" cy="266" r="10" fill="#fff"/>
-  <path d="M210 315 Q256 350 302 315" fill="none" stroke="#ff4444" stroke-width="12"/>
-  <text x="256" y="135" text-anchor="middle" fill="#fff" font-family="monospace" font-size="54" font-weight="bold">SHIFT</text>
-</svg>
