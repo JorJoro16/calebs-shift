@@ -177,6 +177,7 @@ let empTimer = 0, empWarning = 0, empActive = 0, flashAlpha = 0;
 let scNeedle = 0, scSpeed = 0, scZoneStart = 0, scZoneEnd = 0, scHits = 0, scRequired = 0, scDelay = 0;
 
 let lastTime = 0, frames = 0;
+let lastFrameTime = 0, gameAccumulator = 0;
 const keys = { w: false, a: false, s: false, d: false };
 
 window.addEventListener('keydown', (e) => {
@@ -457,6 +458,7 @@ function checkPhase() {
         state = 3; 
         monster.speed = 4.0; 
         player.speed = player.baseSpeed + 1.0; 
+        showMsg(`<span style="color:#0f0">POWER RESTORED</span><br>GO CATCH ${monster.name}`, 3500);
         
         if (monster.isPhantom) {
             monster.isPhantom = false;
@@ -865,7 +867,16 @@ function loop(timestamp) {
         }
         frames++;
     }
-    update();
+    if (!lastFrameTime) lastFrameTime = timestamp;
+    gameAccumulator += Math.min(100, timestamp - lastFrameTime);
+    lastFrameTime = timestamp;
+    const fixedStep = 1000 / 60;
+    let updatesThisFrame = 0;
+    while (gameAccumulator >= fixedStep && updatesThisFrame < 6) {
+        update();
+        gameAccumulator -= fixedStep;
+        updatesThisFrame++;
+    }
     draw();
     requestAnimationFrame(loop);
 }
@@ -888,9 +899,9 @@ requestAnimationFrame(loop);
     let joystickPointerId = null;
     const maxDistance = 39;
 
-    function clearMovement() {
+    function clearMovement(resetKnob = true) {
         movementKeys.forEach(key => keys[key] = false);
-        knob.style.transform = 'translate(0px, 0px)';
+        if (resetKnob) knob.style.transform = 'translate(0px, 0px)';
     }
 
     function updateJoystick(clientX, clientY) {
@@ -902,8 +913,8 @@ requestAnimationFrame(loop);
             dx = dx / distance * maxDistance;
             dy = dy / distance * maxDistance;
         }
-        knob.style.transform = `translate(${dx}px, ${dy}px)`;
         clearMovement();
+        knob.style.transform = `translate(${dx}px, ${dy}px)`;
         const deadzone = 12;
         if (Math.hypot(dx, dy) < deadzone) return;
         if (Math.abs(dx) > Math.abs(dy)) keys[dx > 0 ? 'd' : 'a'] = true;
@@ -949,6 +960,19 @@ requestAnimationFrame(loop);
     bindAction('touchBoost', ' ');
     bindAction('touchFlash', 'f');
 
+    document.querySelectorAll('[data-puzzle-key]').forEach(button => {
+        button.addEventListener('pointerdown', event => {
+            event.preventDefault();
+            triggerKey(button.dataset.puzzleKey);
+        });
+    });
+
+    const puzzlePad = document.getElementById('touchPuzzle');
+    function updatePuzzlePad() {
+        if (puzzlePad) puzzlePad.style.display = state === 2 ? 'grid' : 'none';
+    }
+    setInterval(updatePuzzlePad, 100);
+
     const fullscreenButton = document.getElementById('touchFullscreen');
     fullscreenButton?.addEventListener('pointerdown', async (event) => {
         event.preventDefault();
@@ -970,4 +994,3 @@ if ('serviceWorker' in navigator) {
         });
     });
 }
-

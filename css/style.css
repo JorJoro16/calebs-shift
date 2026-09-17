@@ -146,6 +146,28 @@ canvas {
     box-shadow: 0 2px 8px #000;
     pointer-events: none;
 }
+.touch-puzzle {
+    display: none;
+    position: absolute;
+    left: 50%;
+    bottom: max(22px, env(safe-area-inset-bottom));
+    transform: translateX(-50%);
+    grid-template-columns: repeat(4, 52px);
+    gap: 8px;
+    pointer-events: auto;
+}
+.puzzle-button {
+    width: 52px;
+    height: 52px;
+    border: 2px solid #ffcc00;
+    border-radius: 10px;
+    color: #ffcc00;
+    background: rgba(20,20,20,0.8);
+    font: bold 20px 'Courier New', monospace;
+    touch-action: none;
+    -webkit-tap-highlight-color: transparent;
+}
+.puzzle-button:active { transform: scale(0.92); background: rgba(255,204,0,0.3); }
 .touch-actions {
     position: absolute;
     right: max(18px, env(safe-area-inset-right));
@@ -202,5 +224,6 @@ canvas {
     .joystick { width: 112px; height: 112px; }
     .touch-actions { grid-template-columns: repeat(2, 58px); }
     .touch-button { width: 58px; height: 58px; }
+    .touch-puzzle { grid-template-columns: repeat(4, 48px); gap: 6px; }
+    .puzzle-button { width: 48px; height: 48px; }
 }
-
