@@ -16,3 +16,4 @@
 - Emergency lights now let the monster track the player through walls; hiding spots now punish entering while visibly spotted but remain safe when line of sight is broken first.
 - Added Phase 3 modes: Normal, Endless rounds with scaling and multiple monsters, and configurable Survival Mode using Caleb, Malakai, and Jordan.
 - Optimized multi-monster pathfinding and prevented repeated game-over processing from freezing multi-monster rounds.
+- Fixed the extra-monster shadow renderer, which was throwing a canvas error every frame when a second monster appeared.
