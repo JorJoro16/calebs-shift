@@ -4,7 +4,7 @@ A small browser survival-horror game built for desktop and mobile.
 
 ## Play
 
-Live game: https://jorjoro16.github.io/calebs-shift/backrooms-game/
+Live game: https://jorjoro16.github.io/calebs-shift/
 
 ## Goal
 
