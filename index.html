@@ -23,6 +23,8 @@
         Generators: <span id="genCount">0/0</span>
         <div id="inventory"></div>
         <div id="mutations"></div>
+        <button id="monsterRosterToggle" onclick="toggleMonsterRoster()" style="display:none;">MONSTERS ▾</button>
+        <div id="monsterRoster" style="display:none;"></div>
     </div>
     
     <!-- In-Game Alert Messages -->
@@ -36,8 +38,22 @@
         <button onclick="showMenu('modeMenu')">PLAY</button>
         <button onclick="openShop()">SHOP</button>
         <button onclick="showMenu('infoMenu')">INFO</button>
+        <button onclick="showMenu('statsMenu')">STATISTICS</button>
+        <button onclick="showMenu('cosmeticsMenu')">COSMETICS</button>
         <button onclick="showInstallHelp()">PHONE / INSTALL</button>
         <button onclick="showMenu('settingsMenu')">SETTINGS</button>
+    </div>
+
+    <div id="statsMenu" class="menu-panel">
+        <h2>RUN RECORDS</h2>
+        <div id="statsContent" style="text-align:left; line-height:1.7;"></div>
+        <button onclick="showMenu('mainMenu')">BACK</button>
+    </div>
+
+    <div id="cosmeticsMenu" class="menu-panel" style="max-height:80vh; overflow-y:auto;">
+        <h2>COSMETICS</h2>
+        <div id="cosmeticsContent" style="text-align:left; line-height:1.7;"></div>
+        <button onclick="showMenu('mainMenu')">BACK</button>
     </div>
 
     <div id="updateBanner" role="status">
@@ -134,6 +150,12 @@
             <b>Scrambler:</b> Hides your generator progress UI.<br>
             <b>Hexed:</b> Player boosts (Adrenaline) only last half as long.<br>
             <b>Hallucinations:</b> Creates harmless visual decoys nearby. Do not chase every shape you see.<br>
+            <span style="color:#aaa">They can also fake generator markers, alerts, and HUD progress. They never deal damage.</span><br>
+
+            <h3 style="color:#d8b4ff; margin-bottom:5px; margin-top:15px; border-bottom:1px solid #d8b4ff;">PROGRESSION</h3>
+            <b>Cosmetics:</b> Colors and trails are cosmetic-only rewards for Hard wins, monster catches, Endless progress, and item-free wins.<br>
+            <b>Statistics:</b> The Statistics screen records wins, losses, generators, catches, Endless best, fastest win, item use, and favorite monster.<br>
+            <b>Inventory:</b> You can carry up to five consumables. Batteries restore lights with R; Breath Filters extend your next breath hold.<br>
             
             <h3 style="color:#0f0; margin-bottom:5px; margin-top: 15px; border-bottom: 1px solid #0f0;">TIPS</h3>
             - Use <b>'E'</b> to repair generators.<br>
@@ -150,16 +172,12 @@
             <b>Crouch:</b> Hold the crouch button to slow yourself and the monster while you reposition.<br>
             <b>Hold Breath:</b> Hold your breath briefly to avoid the All-Seeing mutation. It has a cooldown.<br>
             <b>Noise Maker:</b> Throw a sound somewhere else to pull the monster away. Completed generators also make noise.<br>
-            <h3 style="color:#0ff; margin-bottom:5px; margin-top: 15px; border-bottom: 1px solid #0ff;">MOBILE BUTTONS</h3>
+            <h3 style="color:#0ff; margin-bottom:5px; margin-top: 15px; border-bottom: 1px solid #0ff;">MOBILE CONTROLS</h3>
             <b>Joystick:</b> Move freely in any direction.<br>
             <b>E:</b> Interact with generators, fuses, rooms, and hiding spots.<br>
-            <b>⚡:</b> Use Adrenaline for a speed burst.<br>
-            <b>F:</b> Use a Flashbang to stun the monster.<br>
-            <b>◎:</b> Crouch while held; you and the monster slow down.<br>
-            <b>◉:</b> Hold your breath to hide from All-Seeing.<br>
-            <b>▣:</b> Hide when near a hiding spot.<br>
-            <b>♬:</b> Use a Noise Maker to distract the monster.<br>
-            <b>⛶:</b> Toggle fullscreen when the browser allows it.<br>
+            <b>◎ Abilities:</b> Pauses the game and opens Crouch, Hold Breath, and Hide. Crouch is a toggle on phone.<br>
+            <b>▣ Items:</b> Pauses the game and opens Adrenaline, Flashbang, Noise Maker, and Battery.<br>
+            <b>☰ Menu:</b> Pauses the game and opens Fullscreen, Info, and Settings.<br>
             <br><span style="color:#888;">Version <span id="infoVersion">1.0.0</span> · Created for local play with friends.</span>
         </div>
         <button onclick="showMenu('mainMenu')" style="margin-top: 15px; border-color: #ff4444; color: #ff4444;">BACK</button>
@@ -177,6 +195,8 @@
             </div>
             <button id="btnShoe" onclick="buyUpgrade('shoe', 50)">50 T</button>
         </div>
+        <div class="shop-item"><div><div>Emergency Battery</div><div class="shop-desc">Press R to restore the lights during an outage.</div></div><button onclick="buyConsumable('battery', 22)">22 T</button></div>
+        <div class="shop-item"><div><div>Breath Filter</div><div class="shop-desc">Your next breath hold lasts longer.</div></div><button onclick="buyConsumable('breathFilter', 16)">16 T</button></div>
         <div class="shop-item">
             <div>
                 <div>Hacker Gloves (Tier <span id="hackTier">0</span>/2)</div>
@@ -267,13 +287,17 @@
         </div>
         <div class="touch-actions">
             <button id="touchInteract" class="touch-button interact-button" aria-label="Interact">E</button>
-            <button id="touchBoost" class="touch-button boost-button" aria-label="Use adrenaline">⚡</button>
-            <button id="touchFlash" class="touch-button flash-button" aria-label="Use flashbang">F</button>
-            <button id="touchCrouch" class="touch-button crouch-button" aria-label="Crouch">◎</button>
-            <button id="touchBreath" class="touch-button breath-button" aria-label="Hold breath">◉</button>
-            <button id="touchHide" class="touch-button hide-button" aria-label="Hide">▣</button>
-            <button id="touchNoise" class="touch-button noise-button" aria-label="Use noise maker">♬</button>
-            <button id="touchFullscreen" class="touch-button fullscreen-button" aria-label="Toggle fullscreen">⛶</button>
+            <button id="touchAbilities" class="touch-button boost-button" aria-label="Abilities">◎</button>
+            <button id="touchItems" class="touch-button flash-button" aria-label="Items">▣</button>
+            <button id="touchMenu" class="touch-button fullscreen-button" aria-label="Pause menu">☰</button>
+        </div>
+    </div>
+
+    <div id="mobileActionMenu" class="mobile-action-menu" style="display:none;">
+        <div class="mobile-action-card">
+            <h2 id="mobileActionTitle">ABILITIES</h2>
+            <div id="mobileActionContent"></div>
+            <button onclick="closeMobileActionMenu()">RESUME</button>
         </div>
     </div>
 

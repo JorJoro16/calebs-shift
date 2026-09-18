@@ -4,7 +4,7 @@ A small browser survival-horror game built for desktop and mobile.
 
 ## Play
 
-Live game: https://jorjoro16.github.io/calebs-shift/
+Live game: https://jorjoro16.github.io/calebs-shift/backrooms-game/
 
 ## Goal
 
@@ -31,7 +31,22 @@ Explore the maze, repair every generator, survive the monster's mutations, and c
 
 ### Phone
 
-Use the virtual joystick and on-screen action buttons. For the best experience, open the live game in Safari or Chrome and add it to the Home Screen. Launching it from the icon enables the cleanest app-like display and offline play after the first online load.
+Use the virtual joystick and the four on-screen buttons:
+
+- **E:** interact with generators, fuses, rooms, and hiding spots.
+- **Abilities:** opens crouch, hold breath, and hide. Crouch is a toggle on phone.
+- **Items:** opens Adrenaline, Flashbang, Noise Maker, and Emergency Battery.
+- **Menu:** opens fullscreen, Info, and Settings.
+
+These three menus safely pause the run while they are open. For the best experience, open the live game in Safari or Chrome and add it to the Home Screen. Launching it from the icon enables the cleanest app-like display and offline play after the first online load.
+
+## Progression and atmosphere
+
+- Cosmetic player colors and trails are unlocked by challenges such as winning on Hard, catching specific monsters, clearing Endless rounds, and winning without items.
+- The Statistics screen tracks games, wins, repairs, catches, Endless progress, item use, and favorite monster.
+- Inventory is limited to five consumables total. The shop includes Adrenaline, Flashbangs, Noise Makers, Emergency Batteries, and Breath Filters.
+- When more than one monster is active, the HUD keeps the main view small and offers a **MONSTERS** roster with each monster's mutations.
+- Chase music fades in while danger is close. Hallucination mutations can create fake silhouettes, generator signals, alerts, and HUD readings without directly harming the player.
 
 The info screen inside the game lists every mobile button and the special map events, generators, rooms, and mutations.
 

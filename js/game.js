@@ -8,6 +8,7 @@ const msgBox = document.getElementById('message');
 // Audio Context Setup
 let audioCtx = null;
 let audioUnlocked = false;
+let chaseOsc = null, chaseGain = null;
 function initAudio() {
     const AudioCtor = window.AudioContext || window.webkitAudioContext;
     if (!AudioCtor) return;
@@ -70,9 +71,31 @@ function playSound(type) {
     }
 }
 
+function updateChaseMusic(active) {
+    if (!audioCtx || audioCtx.state !== 'running') return;
+    const target = active ? Math.min(0.11, (Number(setVolM) / 100) * 0.10) : 0.0001;
+    if (active && !chaseOsc) {
+        chaseOsc = audioCtx.createOscillator();
+        chaseGain = audioCtx.createGain();
+        chaseOsc.type = 'sawtooth';
+        chaseOsc.frequency.setValueAtTime(55, audioCtx.currentTime);
+        chaseOsc.frequency.linearRampToValueAtTime(92, audioCtx.currentTime + 0.45);
+        chaseOsc.connect(chaseGain); chaseGain.connect(audioCtx.destination);
+        chaseGain.gain.setValueAtTime(0.0001, audioCtx.currentTime);
+        chaseOsc.start();
+    }
+    if (!chaseGain) return;
+    chaseGain.gain.cancelScheduledValues(audioCtx.currentTime);
+    chaseGain.gain.linearRampToValueAtTime(target, audioCtx.currentTime + (active ? 0.18 : 0.75));
+    if (!active && chaseOsc) {
+        const oldOsc = chaseOsc, oldGain = chaseGain;
+        setTimeout(() => { if (chaseOsc === oldOsc) { oldOsc.stop(); chaseOsc = null; chaseGain = null; } }, 850);
+    }
+}
+
 // Versioned local progress with a backup copy and import/export support.
-const GAME_VERSION = '1.1.0';
-const SAVE_SCHEMA_VERSION = 3;
+const GAME_VERSION = '1.2.0';
+const SAVE_SCHEMA_VERSION = 4;
 const SAVE_KEY = 'br_save_v2';
 const SAVE_BACKUP_KEY = 'br_save_backup_v2';
 
@@ -83,6 +106,43 @@ function safeStorageGet(key) {
 function boundedInt(value, min, max, fallback = min) {
     const number = Number(value);
     return Number.isFinite(number) ? Math.max(min, Math.min(max, Math.floor(number))) : fallback;
+}
+
+function normalizeCosmetics(value) {
+    const source = value && typeof value === 'object' ? value : {};
+    const colors = ['blue', 'crimson', 'violet', 'green', 'amber'];
+    const trails = ['none', 'spark', 'ghost'];
+    const unlocked = Array.isArray(source.unlocked) ? source.unlocked.filter(id => colors.includes(id) || trails.includes(id)) : [];
+    return {
+        color: colors.includes(source.color) ? source.color : 'blue',
+        trail: trails.includes(source.trail) ? source.trail : 'none',
+        unlocked: Array.from(new Set(['blue', 'none', ...unlocked]))
+    };
+}
+
+function normalizeStats(value) {
+    const source = value && typeof value === 'object' ? value : {};
+    const names = ['CALEB', 'MALAKAI', 'JORDAN'];
+    const encounters = {};
+    names.forEach(name => encounters[name] = boundedInt(source.encounters?.[name], 0, 999999, 0));
+    const encounteredNames = names.filter(name => encounters[name] > 0);
+    const favorite = names.includes(source.favoriteMonster) && encounters[source.favoriteMonster] > 0
+        ? source.favoriteMonster
+        : (encounteredNames.sort((a, b) => encounters[b] - encounters[a])[0] || 'None');
+    return {
+        games: boundedInt(source.games, 0, 999999, 0),
+        wins: boundedInt(source.wins, 0, 999999, 0),
+        losses: boundedInt(source.losses, 0, 999999, 0),
+        generators: boundedInt(source.generators, 0, 999999, 0),
+        caught: boundedInt(source.caught, 0, 999999, 0),
+        timesCaught: boundedInt(source.timesCaught, 0, 999999, 0),
+        bestEndless: boundedInt(source.bestEndless, 0, 999999, 0),
+        fastestWin: boundedInt(source.fastestWin, 0, 86400000, 0),
+        mostGenerators: boundedInt(source.mostGenerators, 0, 999999, 0),
+        itemsUsed: boundedInt(source.itemsUsed, 0, 999999, 0),
+        favoriteMonster: favorite,
+        encounters
+    };
 }
 
 function normalizeProgress(raw) {
@@ -98,7 +158,11 @@ function normalizeProgress(raw) {
         upgCoin: boundedInt(source.upgCoin, 0, 1, 0),
         invAdrenaline: boundedInt(source.invAdrenaline, 0, 9999, 0),
         invFlashbang: boundedInt(source.invFlashbang, 0, 9999, 0),
-        invNoiseMaker: boundedInt(source.invNoiseMaker, 0, 9999, 0)
+        invNoiseMaker: boundedInt(source.invNoiseMaker, 0, 9999, 0),
+        invBattery: boundedInt(source.invBattery, 0, 9999, 0),
+        invBreathFilter: boundedInt(source.invBreathFilter, 0, 9999, 0),
+        cosmetics: normalizeCosmetics(source.cosmetics),
+        stats: normalizeStats(source.stats)
     };
 }
 
@@ -121,7 +185,7 @@ function loadProgress() {
         invAdrenaline: safeStorageGet('br_adrenaline'),
         invFlashbang: safeStorageGet('br_flashbang'),
         invNoiseMaker: safeStorageGet('br_noiseMaker')
-    }) || { tokens: 0, upgShoe: 0, upgHack: 0, upgQuick: 0, upgCoin: 0, invAdrenaline: 0, invFlashbang: 0, invNoiseMaker: 0 };
+    }) || { tokens: 0, upgShoe: 0, upgHack: 0, upgQuick: 0, upgCoin: 0, invAdrenaline: 0, invFlashbang: 0, invNoiseMaker: 0, invBattery: 0, invBreathFilter: 0, cosmetics: { color: 'blue', trail: 'none', unlocked: ['blue', 'none'] }, stats: {} };
 }
 
 const loadedProgress = loadProgress();
@@ -133,6 +197,10 @@ let upgCoin = loadedProgress.upgCoin;
 let invAdrenaline = loadedProgress.invAdrenaline;
 let invFlashbang = loadedProgress.invFlashbang;
 let invNoiseMaker = loadedProgress.invNoiseMaker;
+let invBattery = loadedProgress.invBattery;
+let invBreathFilter = loadedProgress.invBreathFilter;
+let cosmetics = normalizeCosmetics(loadedProgress.cosmetics);
+let stats = normalizeStats(loadedProgress.stats);
 
 // Settings Data
 let setFPS = localStorage.getItem('br_fps') === 'true';
@@ -141,7 +209,7 @@ let setVolM = localStorage.getItem('br_volM') || 100;
 let setVolS = localStorage.getItem('br_volS') || 100;
 
 function currentProgress() {
-    return { tokens, upgShoe, upgHack, upgQuick, upgCoin, invAdrenaline, invFlashbang, invNoiseMaker };
+    return { tokens, upgShoe, upgHack, upgQuick, upgCoin, invAdrenaline, invFlashbang, invNoiseMaker, invBattery, invBreathFilter, cosmetics, stats };
 }
 
 function setSaveStatus(text, color = '#8f8') {
@@ -241,6 +309,10 @@ function importSave(event) {
             invAdrenaline = imported.invAdrenaline;
             invFlashbang = imported.invFlashbang;
             invNoiseMaker = imported.invNoiseMaker;
+            invBattery = imported.invBattery;
+            invBreathFilter = imported.invBreathFilter;
+            cosmetics = normalizeCosmetics(imported.cosmetics);
+            stats = normalizeStats(imported.stats);
             saveData();
             setSaveStatus('Save imported successfully');
         } catch (error) {
@@ -254,7 +326,7 @@ function importSave(event) {
 
 function resetProgress() {
     if (!confirm('Reset all tokens, upgrades, and items? Your previous save will remain in the backup slot.')) return;
-    tokens = 0; upgShoe = 0; upgHack = 0; upgQuick = 0; upgCoin = 0; invAdrenaline = 0; invFlashbang = 0; invNoiseMaker = 0;
+    tokens = 0; upgShoe = 0; upgHack = 0; upgQuick = 0; upgCoin = 0; invAdrenaline = 0; invFlashbang = 0; invNoiseMaker = 0; invBattery = 0; invBreathFilter = 0;
     saveData();
     setSaveStatus('Progress reset; previous save kept as backup');
 }
@@ -284,11 +356,30 @@ function updateMenuData() {
     else { btnCoin.innerText = `150 T`; btnCoin.disabled = false; }
 }
 
+function renderStats() {
+    const fastest = stats.fastestWin ? `${(stats.fastestWin / 1000).toFixed(1)}s` : '—';
+    document.getElementById('statsContent').innerHTML = `Games: <b>${stats.games}</b><br>Wins / Losses: <b>${stats.wins} / ${stats.losses}</b><br>Generators repaired: <b>${stats.generators}</b><br>Monsters caught: <b>${stats.caught}</b><br>Times caught: <b>${stats.timesCaught}</b><br>Best Endless round: <b>${stats.bestEndless}</b><br>Fastest win: <b>${fastest}</b><br>Most generators in one run: <b>${stats.mostGenerators}</b><br>Items used: <b>${stats.itemsUsed}</b><br>Favorite monster: <b>${stats.favoriteMonster}</b>`;
+}
+
+function selectCosmetic(type, value) {
+    cosmetics[type] = value;
+    saveData(); renderCosmetics();
+}
+
+function renderCosmetics() {
+    const colors = [{ id:'blue', label:'Default Blue' }, { id:'crimson', label:'Crimson — win Hard' }, { id:'violet', label:'Violet — catch Malakai' }, { id:'green', label:'Green — catch Jordan' }, { id:'amber', label:'Amber — fast win' }];
+    const trails = [{ id:'none', label:'No trail' }, { id:'spark', label:'Spark trail — clear Endless round 3' }, { id:'ghost', label:'Ghost trail — win with no items' }];
+    const locked = (item) => cosmetics.unlocked.includes(item.id);
+    document.getElementById('cosmeticsContent').innerHTML = `<b>PLAYER COLOR</b><br>${colors.map(item => `<button ${locked(item) ? '' : 'disabled'} onclick="selectCosmetic('color','${item.id}')">${cosmetics.color === item.id ? '✓ ' : ''}${item.label}${locked(item) ? '' : ' (locked)'}</button>`).join('')}<br><br><b>TRAIL</b><br>${trails.map(item => `<button ${locked(item) ? '' : 'disabled'} onclick="selectCosmetic('trail','${item.id}')">${cosmetics.trail === item.id ? '✓ ' : ''}${item.label}${locked(item) ? '' : ' (locked)'}</button>`).join('')}`;
+}
+
 function showMenu(menuId) {
     document.querySelectorAll('.menu-panel').forEach(p => p.style.display = 'none');
     hud.style.display = 'none';
     document.getElementById(menuId).style.display = 'flex';
     updateMenuData();
+    if (menuId === 'statsMenu') renderStats();
+    if (menuId === 'cosmeticsMenu') renderCosmetics();
 }
 
 function showInstallHelp() { showMenu('installMenu'); }
@@ -346,11 +437,15 @@ function buyUpgrade(type, baseCost) {
     }
 }
 function buyConsumable(type, cost) {
+    const carried = invAdrenaline + invFlashbang + invNoiseMaker + invBattery + invBreathFilter;
+    if (carried >= 5) { setSaveStatus('Inventory full — carry at most 5 consumables', '#ffcc66'); return; }
     if (tokens >= cost) {
         tokens -= cost;
         if (type === 'adrenaline') invAdrenaline++;
         if (type === 'flashbang') invFlashbang++;
         if (type === 'noiseMaker') invNoiseMaker++;
+        if (type === 'battery') invBattery++;
+        if (type === 'breathFilter') invBreathFilter++;
         saveData();
     }
 }
@@ -382,6 +477,8 @@ let empTimer = 0, empWarning = 0, empActive = 0, flashAlpha = 0;
 let powerOutageTimer = 0, powerOutageCooldown = 0, flickerTimer = 0, flickerCooldown = 0, emergencyTimer = 0, emergencyCooldown = 0, outageFlickerTimer = 0;
 let noiseTarget = null, noiseTimer = 0;
 let ambienceClock = 0;
+let runStartedAt = 0, runItemsUsed = 0, hallucinationHudTimer = 0;
+let mobileMenuPaused = false;
 
 // Skill Check Variables
 let scNeedle = 0, scSpeed = 0, scZoneStart = 0, scZoneEnd = 0, scHits = 0, scRequired = 0, scDelay = 0;
@@ -396,10 +493,21 @@ function clearMovementKeys() {
 
 function activateBreath() {
     if ((state === 1 || state === 3) && !player.hidden && player.breathCooldown <= 0 && player.breathTimer <= 0) {
-        player.breathTimer = 300;
+        const filtered = invBreathFilter > 0;
+        if (filtered) invBreathFilter--;
+        player.breathTimer = filtered ? 480 : 300;
         player.breathing = true;
+        if (filtered) { runItemsUsed++; stats.itemsUsed++; saveData(); }
         showMsg('<span style="color:#b8aaff">HOLDING BREATH</span>', 800);
     }
+}
+
+function useBattery() {
+    if ((state !== 1 && state !== 3) || invBattery <= 0 || powerOutageTimer <= 0) return;
+    invBattery--; runItemsUsed++; stats.itemsUsed++;
+    powerOutageTimer = 0; powerOutageCooldown = 1500;
+    playSound('success'); saveData(); updateHUD();
+    showMsg('<span style="color:#b8eaff">EMERGENCY BATTERY USED</span>', 900);
 }
 
 function toggleHide() {
@@ -428,6 +536,7 @@ function toggleHide() {
 function useNoiseMaker() {
     if ((state !== 1 && state !== 3) || invNoiseMaker <= 0 || player.hidden) return;
     invNoiseMaker--;
+    runItemsUsed++; stats.itemsUsed++;
     const options = floors.filter(tile => Math.hypot(tile.c * TS + TS / 2 - player.x, tile.r * TS + TS / 2 - player.y) > 240);
     const tile = options[Math.floor(Math.random() * Math.max(1, options.length))] || floors[0];
     noiseTarget = { x: tile.c * TS + TS / 2, y: tile.r * TS + TS / 2 };
@@ -460,6 +569,7 @@ function finishGeneratorInteraction() {
     noiseTarget = { x: currentGen.x, y: currentGen.y };
     noiseTimer = 300;
     activeGens++;
+    stats.generators++;
     playSound('success');
     showMsg('<span style="color:#0f0">GENERATOR ONLINE</span>', 900);
     state = 1;
@@ -474,6 +584,7 @@ window.addEventListener('keydown', (e) => {
     // Adrenaline
     if ((state === 1 || state === 3) && k === ' ' && invAdrenaline > 0 && player.boostTimer <= 0 && player.stunTimer <= 0) {
         invAdrenaline--;
+        runItemsUsed++; stats.itemsUsed++;
         player.boostTimer = monsters.some(enemy => enemy.hasHexed) ? 120 : 240; 
         saveData(); updateHUD();
     }
@@ -481,6 +592,7 @@ window.addEventListener('keydown', (e) => {
     // Flashbang
     if ((state === 1 || state === 3) && k === 'f' && invFlashbang > 0 && monsters.some(enemy => enemy.stunTimer <= 0)) {
         invFlashbang--;
+        runItemsUsed++; stats.itemsUsed++;
         for (const enemy of monsters) enemy.stunTimer = enemy.isResilient ? 120 : 240;
         flashAlpha = 1.0;
         playSound('emp');
@@ -491,6 +603,7 @@ window.addEventListener('keydown', (e) => {
     if ((state === 1 || state === 3) && k === 'b') activateBreath();
     if (state === 1 && k === 'h') toggleHide();
     if ((state === 1 || state === 3) && k === 'n') useNoiseMaker();
+    if ((state === 1 || state === 3) && k === 'r') useBattery();
 
     // Generator Interaction
     if (state === 1 && k === 'e' && player.stunTimer <= 0) {
@@ -740,6 +853,8 @@ function createExtraMonster(name, diffData, index) {
 function startGame(diffLevel) {
     initAudio();
     currentDiff = diffLevel;
+    runStartedAt = performance.now(); runItemsUsed = 0;
+    stats.games++;
     document.querySelectorAll('.menu-panel').forEach(p => p.style.display = 'none');
     hud.style.display = 'block';
     
@@ -927,15 +1042,24 @@ function startGame(diffLevel) {
         hidingSpots.push({ x: storageRoom.x, y: storageRoom.y, occupied: false });
     }
     
+    stats.encounters[monster.name] = (stats.encounters[monster.name] || 0) + 1;
+    stats.favoriteMonster = Object.entries(stats.encounters).sort((a,b) => b[1] - a[1])[0]?.[0] || 'None';
     canvas.classList.remove('shake');
     state = 1; updateHUD();
 }
 
+function unlockCosmetic(id) {
+    if (!cosmetics.unlocked.includes(id)) cosmetics.unlocked.push(id);
+}
+
 function endGame(isWin, sourceMonster = monster) {
     if (state === 4 || (gameMode === 'endless' && state === 0)) return;
+    updateChaseMusic(false);
     if (isWin && gameMode === 'endless') {
         const earned = Math.floor(rewardTokens * (upgCoin > 0 ? 1.5 : 1));
         tokens += earned;
+        stats.wins++; stats.caught++; stats.bestEndless = Math.max(stats.bestEndless, endlessRound);
+        if (endlessRound >= 3) unlockCosmetic('spark');
         saveData();
         playSound('success');
         endlessRound++;
@@ -954,10 +1078,21 @@ function endGame(isWin, sourceMonster = monster) {
     if (isWin) {
         let earned = Math.floor(rewardTokens * (upgCoin > 0 ? 1.5 : 1));
         tokens += earned;
+        stats.wins++; stats.caught++;
+        stats.mostGenerators = Math.max(stats.mostGenerators, totalGens);
+        const elapsed = performance.now() - runStartedAt;
+        if (!stats.fastestWin || elapsed < stats.fastestWin) stats.fastestWin = elapsed;
+        if (elapsed < 120000) unlockCosmetic('amber');
+        if (currentDiff === 2) unlockCosmetic('crimson');
+        if (sourceMonster.name === 'MALAKAI') unlockCosmetic('violet');
+        if (sourceMonster.name === 'JORDAN') unlockCosmetic('green');
+        if (runItemsUsed === 0) unlockCosmetic('ghost');
         saveData();
         playSound('success');
         document.getElementById('endDesc').innerHTML = `You caught ${sourceMonster.name}.<br>+${earned} Tokens`;
     } else {
+        stats.losses++; stats.timesCaught++;
+        saveData();
         playSound('fail');
         document.getElementById('endDesc').innerHTML = `${sourceMonster.name} tore you apart.`;
     }
@@ -998,12 +1133,15 @@ function showMsg(text, time = 0) {
 function hideMsg() { msgBox.style.display = 'none'; msgBox.classList.remove('top-alert'); }
 
 function updateHUD() {
-    document.getElementById('genCount').innerText = monsters.some(enemy => enemy.hasScrambler) ? "?/?" : `${activeGens}/${totalGens}`;
+    const shownGens = hallucinationHudTimer > 0 ? `${Math.max(0, activeGens + (ambienceClock % 2 ? 1 : -1))}/${totalGens}` : `${activeGens}/${totalGens}`;
+    document.getElementById('genCount').innerText = monsters.some(enemy => enemy.hasScrambler) ? "?/?" : shownGens;
     
     let invText = [];
     if (invAdrenaline > 0) invText.push(`Adrenaline: ${invAdrenaline} (SPACE)`);
     if (invFlashbang > 0) invText.push(`Flashbang: ${invFlashbang} (F)`);
     if (invNoiseMaker > 0) invText.push(`Noise: ${invNoiseMaker} (N)`);
+    if (invBattery > 0) invText.push(`Battery: ${invBattery} (R)`);
+    if (invBreathFilter > 0) invText.push(`Filter: ${invBreathFilter}`);
     if (player.crouching) invText.push('CROUCHING');
     if (player.breathing) invText.push(`BREATH: ${Math.ceil(player.breathTimer / 60)}s`);
     if (fuses.some(fuse => !fuse.collected)) invText.push(`Fuses: ${fuses.filter(fuse => !fuse.collected).length}`);
@@ -1012,9 +1150,22 @@ function updateHUD() {
     
     let mText = monster.activeMutations.length > 0 ? `[${monster.activeMutations.join(', ')}]` : '[None]';
     let title = monster.name === 'JORDAN' && jordanState === 'mimic' ? '???' : monster.name;
-    const extraText = monsters.slice(1).map(enemy => `${enemy.name}${enemy.activeMutations.length ? ` [${enemy.activeMutations.join(', ')}]` : ''}`).join(' · ');
     const modeText = gameMode === 'endless' ? `ROUND ${endlessRound}` : gameMode === 'survival' ? 'SURVIVAL' : 'NORMAL';
-    document.getElementById('mutations').innerHTML = `<span style="color:${monster.textColor}">${title}</span> <br> ${modeText} · Mutations: ${mText}${extraText ? `<br><span style="color:#ff9d9d">${extraText}</span>` : ''}`;
+    const multiNotice = monsters.length > 1 ? '<br><span style="color:#ffb0b0">Multiple monsters — open roster</span>' : '';
+    document.getElementById('mutations').innerHTML = `<span style="color:${monster.textColor}">${title}</span> <br> ${modeText} · Mutations: ${mText}${multiNotice}`;
+    const toggle = document.getElementById('monsterRosterToggle');
+    const roster = document.getElementById('monsterRoster');
+    if (monsters.length > 1) {
+        toggle.style.display = 'block';
+        roster.innerHTML = monsters.map((enemy, index) => `${index + 1}. <b style="color:${enemy.textColor}">${enemy.name}</b><br><span>${enemy.activeMutations.length ? enemy.activeMutations.join(', ') : 'No mutations'}</span>`).join('<hr>');
+    } else { toggle.style.display = 'none'; roster.style.display = 'none'; }
+}
+
+function toggleMonsterRoster() {
+    const roster = document.getElementById('monsterRoster');
+    const expanded = roster.style.display === 'block';
+    roster.style.display = expanded ? 'none' : 'block';
+    document.getElementById('monsterRosterToggle').textContent = expanded ? 'MONSTERS ▾' : 'MONSTERS ▴';
 }
 
 function moveEntity(ent, dx, dy) {
@@ -1133,6 +1284,7 @@ function updateExtraMonsters() {
 }
 
 function update() {
+    if (mobileMenuPaused) return;
     if (state !== 1 && state !== 3 && state !== 5 && state !== 6) return;
 
     if (flashAlpha > 0) flashAlpha -= 0.02;
@@ -1156,6 +1308,12 @@ function update() {
             if (nearHide) nearHide.occupied = false;
             showMsg('HIDING SPOT EXPIRED', 900);
         }
+    }
+    if (hallucinationHudTimer > 0) hallucinationHudTimer--;
+    if (monsters.some(enemy => enemy.hasHallucinations) && state === 1 && Math.random() < 0.0025) {
+        hallucinationHudTimer = 120;
+        if (Math.random() < 0.3) showMsg('<span style="color:#77ffdd">POWER RESTORED</span>', 700);
+        updateHUD();
     }
 
     if ((state === 1 || state === 3) && eventsEnabled) {
@@ -1385,6 +1543,8 @@ function update() {
         }
     }
     if (state === 1 || state === 3) updateExtraMonsters();
+    const chaseAudio = state === 3 || jordanState === 'enrage' || monsters.some(enemy => !player.hidden && !isSafeRoom(player.x, player.y) && (emergencyTimer > 0 || monsterCanSeeUnhiddenPlayer(enemy) || Math.hypot(enemy.x - player.x, enemy.y - player.y) < 180));
+    updateChaseMusic(chaseAudio);
 }
 
 function draw() {
@@ -1516,6 +1676,16 @@ function draw() {
                 ctx.fillStyle = 'rgba(255,0,0,0.35)'; ctx.font = 'bold 9px Arial'; ctx.fillText('?', hx, hy - 18);
             }
         }
+        const fakeTile = floors[(hallucinationSeed * 43 + 9) % Math.max(1, floors.length)];
+        if (fakeTile) {
+            const fx = fakeTile.c * TS + TS / 2, fy = fakeTile.r * TS + TS / 2;
+            if (Math.hypot(fx - player.x, fy - player.y) < 300) {
+                ctx.globalAlpha = 0.45;
+                ctx.fillStyle = '#00ff99'; ctx.beginPath(); ctx.arc(fx, fy, 12, 0, Math.PI * 2); ctx.fill();
+                ctx.fillStyle = '#afffb0'; ctx.font = 'bold 9px Arial'; ctx.fillText('ONLINE', fx, fy + 24);
+                ctx.globalAlpha = 1;
+            }
+        }
     }
 
     let dist = Math.hypot(player.x - monster.x, player.y - monster.y);
@@ -1558,9 +1728,15 @@ function draw() {
     }
 
     if (!player.hidden) {
+        const playerColors = { blue:'#00f', crimson:'#d22', violet:'#a64dff', green:'#19c76b', amber:'#e7a21a' };
+        if (cosmetics.trail !== 'none') {
+            const trailColor = cosmetics.trail === 'spark' ? 'rgba(255,215,80,0.42)' : 'rgba(180,210,255,0.3)';
+            ctx.fillStyle = trailColor;
+            ctx.beginPath(); ctx.arc(player.x - player.speed * 2, player.y - player.speed * 2, cosmetics.trail === 'spark' ? 7 : 10, 0, Math.PI * 2); ctx.fill();
+        }
         ctx.fillStyle = 'rgba(0,0,0,0.35)';
         ctx.beginPath(); ctx.ellipse(player.x, player.y + player.r * 0.7, player.r * 0.9, player.r * 0.35, 0, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = player.boostTimer > 0 ? '#0ff' : (player.stunTimer > 0 ? '#ff0' : '#00f');
+        ctx.fillStyle = player.boostTimer > 0 ? '#0ff' : (player.stunTimer > 0 ? '#ff0' : (playerColors[cosmetics.color] || '#00f'));
         ctx.beginPath(); ctx.arc(player.x, player.y, player.r, 0, Math.PI * 2); ctx.fill();
     }
     ctx.restore();
@@ -1668,6 +1844,42 @@ applySettings();
 updateMenuData();
 requestAnimationFrame(loop);
 
+function mobileKey(key) {
+    window.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
+    if (key !== ' ') window.dispatchEvent(new KeyboardEvent('keyup', { key, bubbles: true }));
+}
+
+async function toggleFullscreen() {
+    try {
+        if (!document.documentElement.requestFullscreen) { showMsg('For fullscreen, use<br><b>ADD TO HOME SCREEN</b>', 3000); return; }
+        if (!document.fullscreenElement) await document.documentElement.requestFullscreen();
+        else await document.exitFullscreen();
+    } catch (error) { showMsg('Use <b>PHONE / INSTALL</b><br>for fullscreen mode.', 3000); }
+}
+
+function closeMobileActionMenu() {
+    document.getElementById('mobileActionMenu').style.display = 'none';
+    mobileMenuPaused = false;
+}
+
+function openMobileActionMenu(kind) {
+    if (state !== 1 && state !== 3) return;
+    mobileMenuPaused = true;
+    const title = document.getElementById('mobileActionTitle');
+    const content = document.getElementById('mobileActionContent');
+    document.getElementById('mobileActionMenu').style.display = 'flex';
+    if (kind === 'abilities') {
+        title.textContent = 'ABILITIES';
+        content.innerHTML = `<button onclick="player.crouching=!player.crouching; updateHUD(); closeMobileActionMenu()">${player.crouching ? 'STOP CROUCHING' : 'CROUCH'}</button><button onclick="activateBreath(); closeMobileActionMenu()">HOLD BREATH</button><button onclick="toggleHide(); closeMobileActionMenu()">HIDE / LEAVE HIDING</button><p style="font-size:12px;color:#aaa">Crouching is a toggle on phone. It slows both you and the monsters.</p>`;
+    } else if (kind === 'items') {
+        title.textContent = 'ITEMS';
+        content.innerHTML = `<button onclick="mobileKey(' '); closeMobileActionMenu()">ADRENALINE (${invAdrenaline})</button><button onclick="mobileKey('f'); closeMobileActionMenu()">FLASHBANG (${invFlashbang})</button><button onclick="mobileKey('n'); closeMobileActionMenu()">NOISE MAKER (${invNoiseMaker})</button><button onclick="mobileKey('r'); closeMobileActionMenu()">EMERGENCY BATTERY (${invBattery})</button>`;
+    } else {
+        title.textContent = 'GAME MENU';
+        content.innerHTML = `<button onclick="toggleFullscreen(); closeMobileActionMenu()">FULLSCREEN</button><button onclick="closeMobileActionMenu(); showMenu('infoMenu')">INFO / CONTROLS</button><button onclick="closeMobileActionMenu(); showMenu('settingsMenu')">SETTINGS</button>`;
+    }
+}
+
 
 
 
@@ -1757,12 +1969,9 @@ requestAnimationFrame(loop);
     }
 
     bindAction('touchInteract', 'e');
-    bindAction('touchBoost', ' ');
-    bindAction('touchFlash', 'f');
-    bindAction('touchHide', 'h');
-    bindAction('touchNoise', 'n');
-    bindHoldAction('touchCrouch', 'Shift');
-    bindHoldAction('touchBreath', 'b');
+    document.getElementById('touchAbilities')?.addEventListener('pointerdown', event => { event.preventDefault(); openMobileActionMenu('abilities'); });
+    document.getElementById('touchItems')?.addEventListener('pointerdown', event => { event.preventDefault(); openMobileActionMenu('items'); });
+    document.getElementById('touchMenu')?.addEventListener('pointerdown', event => { event.preventDefault(); openMobileActionMenu('menu'); });
 
     document.querySelectorAll('[data-puzzle-key]').forEach(button => {
         button.addEventListener('pointerdown', event => {
@@ -1777,20 +1986,6 @@ requestAnimationFrame(loop);
     }
     setInterval(updatePuzzlePad, 100);
 
-    const fullscreenButton = document.getElementById('touchFullscreen');
-    fullscreenButton?.addEventListener('pointerdown', async (event) => {
-        event.preventDefault();
-        try {
-            if (!document.documentElement.requestFullscreen) {
-                showMsg('For fullscreen, use<br><b>ADD TO HOME SCREEN</b>', 3000);
-                return;
-            }
-            if (!document.fullscreenElement) await document.documentElement.requestFullscreen();
-            else await document.exitFullscreen();
-        } catch (error) {
-            showMsg('Use <b>PHONE / INSTALL</b><br>for fullscreen mode.', 3000);
-        }
-    });
 
     document.addEventListener('contextmenu', event => event.preventDefault());
 })();
