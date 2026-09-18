@@ -67,18 +67,41 @@ function playSound(type) {
         gain.gain.setValueAtTime(vol * 0.18, audioCtx.currentTime);
         gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.45);
         osc.start(); osc.stop(audioCtx.currentTime + 0.45);
+    } else if (type === 'menuHover') {
+        osc.type = 'triangle'; osc.frequency.setValueAtTime(520, audioCtx.currentTime);
+        gain.gain.setValueAtTime(vol * 0.035, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.07);
+        osc.start(); osc.stop(audioCtx.currentTime + 0.07);
+    } else if (type === 'menuSelect') {
+        osc.type = 'sine'; osc.frequency.setValueAtTime(360, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(720, audioCtx.currentTime + 0.12);
+        gain.gain.setValueAtTime(vol * 0.12, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.18);
+        osc.start(); osc.stop(audioCtx.currentTime + 0.18);
+    } else if (type === 'menuBack') {
+        osc.type = 'triangle'; osc.frequency.setValueAtTime(260, audioCtx.currentTime);
+        gain.gain.setValueAtTime(vol * 0.08, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.13);
+        osc.start(); osc.stop(audioCtx.currentTime + 0.13);
+    } else if (type === 'unlock') {
+        osc.type = 'sine'; osc.frequency.setValueAtTime(460, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(920, audioCtx.currentTime + 0.22);
+        gain.gain.setValueAtTime(vol * 0.14, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.35);
+        osc.start(); osc.stop(audioCtx.currentTime + 0.35);
     }
 }
 
 // Versioned local progress with a backup copy and import/export support.
-const GAME_VERSION = '2.0.1';
-const SAVE_SCHEMA_VERSION = 6;
+const GAME_VERSION = '2.1.0';
+const SAVE_SCHEMA_VERSION = 7;
 const SAVE_KEY = 'br_save_v2';
 const SAVE_BACKUP_KEY = 'br_save_backup_v2';
 
 const MAP_DEFINITIONS = {
     level0: { id: 'level0', name: 'LEVEL 0 — THE MAZE', description: 'The original shifting maze.', campaignOrder: 0 },
-    boilerworks: { id: 'boilerworks', name: 'LEVEL 3 — THE BOILERWORKS', description: 'Long industrial halls, hot machinery, and Aeson.', campaignOrder: 1 }
+    boilerworks: { id: 'boilerworks', name: 'LEVEL 3 — THE BOILERWORKS', description: 'Long industrial halls, hot machinery, and Aeson.', campaignOrder: 1 },
+    hotel: { id: 'hotel', name: 'THE ENDLESS HOTEL', description: 'Carpeted wings, guest rooms, employees, and Bassam.', campaignOrder: 2 }
 };
 
 const LOADOUT_DEFINITIONS = {
@@ -120,7 +143,7 @@ function normalizeCosmetics(value) {
 
 function normalizeStats(value) {
     const source = value && typeof value === 'object' ? value : {};
-    const names = ['CALEB', 'MALAKAI', 'JORDAN', 'AESON'];
+    const names = ['CALEB', 'MALAKAI', 'JORDAN', 'AESON', 'BASSAM'];
     const encounters = {};
     names.forEach(name => encounters[name] = boundedInt(source.encounters?.[name], 0, 999999, 0));
     const encounteredNames = names.filter(name => encounters[name] > 0);
@@ -427,6 +450,11 @@ function updateMenuData() {
     document.getElementById('hackTier').innerText = upgHack;
     document.getElementById('quickTier').innerText = upgQuick;
     document.getElementById('coinTier').innerText = upgCoin;
+    const status = document.getElementById('menuStatusRow');
+    if (status) {
+        const dailyReady = daily.objectives.filter(objective => objective.progress >= objective.target && !objective.claimed).length;
+        status.innerHTML = `<span>${unlockedMaps.length}/${Object.keys(MAP_DEFINITIONS).length} MAPS</span><span>${dailyReady ? `${dailyReady} DAILY READY` : 'DAILY ACTIVE'}</span><span>${LOADOUT_DEFINITIONS[selectedLoadout].name}</span>`;
+    }
     
     let btnShoe = document.getElementById('btnShoe');
     if (upgShoe >= 3) { btnShoe.innerText = "MAX"; btnShoe.disabled = true; }
@@ -462,6 +490,20 @@ function renderCosmetics() {
     document.getElementById('cosmeticsContent').innerHTML = `<b>PLAYER COLOR</b><br>${colors.map(item => `<button ${locked(item) ? '' : 'disabled'} onclick="selectCosmetic('color','${item.id}')">${cosmetics.color === item.id ? '✓ ' : ''}${item.label}${locked(item) ? '' : ' (locked)'}</button>`).join('')}<br><br><b>TRAIL</b><br>${trails.map(item => `<button ${locked(item) ? '' : 'disabled'} onclick="selectCosmetic('trail','${item.id}')">${cosmetics.trail === item.id ? '✓ ' : ''}${item.label}${locked(item) ? '' : ' (locked)'}</button>`).join('')}`;
 }
 
+function renderCollection() {
+    const content = document.getElementById('collectionContent');
+    if (!content) return;
+    const monsterRows = [
+        ['CALEB', 'The Disruptor', 'EMP blackout hunter'],
+        ['MALAKAI', 'The Blood Hunter', 'Tracks loud mistakes'],
+        ['JORDAN', 'The Mimic', 'Generator impersonator'],
+        ['AESON', 'The Firestarter', 'Ignites the Boilerworks'],
+        ['BASSAM', 'The Concierge', unlockedMaps.includes('hotel') ? 'Employee-disguise predator' : 'Unlock the Endless Hotel']
+    ];
+    const mutationRows = ['Speed Demon','Phantom','Frenzy','Camouflage','Giant','Gloom','Reinforced','Lethargy','Resilient','Scrambler','Hexed','Hallucinations','All-Seeing','Locked In','Echo','False Objective','Watcher','Panic','Heavy Footfall','Afterimage'];
+    content.innerHTML = `<b>MONSTERS</b>${monsterRows.map(row => `<div class="collection-row"><strong>${row[0]}</strong><span>${row[1]} · ${row[2]}</span></div>`).join('')}<br><b>MAPS</b>${Object.values(MAP_DEFINITIONS).map(mapDef => `<div class="collection-row"><strong>${mapDef.name}</strong><span>${unlockedMaps.includes(mapDef.id) ? 'UNLOCKED' : 'LOCKED'}</span></div>`).join('')}<br><b>MUTATIONS</b><div class="collection-tags">${mutationRows.map(name => `<span>${name}</span>`).join('')}</div>`;
+}
+
 function showMenu(menuId) {
     document.querySelectorAll('.menu-panel').forEach(p => p.style.display = 'none');
     hud.style.display = 'none';
@@ -471,6 +513,7 @@ function showMenu(menuId) {
     if (menuId === 'cosmeticsMenu') renderCosmetics();
     if (menuId === 'objectivesMenu') renderDailyObjectives();
     if (menuId === 'loadoutsMenu') renderLoadouts();
+    if (menuId === 'collectionMenu') renderCollection();
     if (menuId === 'mapMenu') renderMapMenu();
 }
 
@@ -512,11 +555,12 @@ function startSurvival() {
     if (document.getElementById('survivalMalakai').checked) names.push('MALAKAI');
     if (document.getElementById('survivalJordan').checked) names.push('JORDAN');
     if (document.getElementById('survivalAeson').checked) names.push('AESON');
+    if (document.getElementById('survivalBassam')?.checked) names.push('BASSAM');
     if (names.length === 0) { showMsg('SELECT AT LEAST ONE MONSTER', 1600); return; }
     gameMode = 'survival';
     endlessRound = 1;
     currentMapId = document.getElementById('survivalMap').value;
-    if (!unlockedMaps.includes(currentMapId)) { showMsg('UNLOCK THE BOILERWORKS IN CAMPAIGN FIRST', 1400); return; }
+    if (!unlockedMaps.includes(currentMapId)) { showMsg('UNLOCK THIS MAP IN CAMPAIGN FIRST', 1400); return; }
     survivalConfig = {
         names,
         count: Number(document.getElementById('survivalCount').value),
@@ -575,11 +619,14 @@ let state = 0; let currentDiff = 0; let rewardTokens = 0;
 let gameMode = 'normal', endlessRound = 1, survivalConfig = null, eventsEnabled = true, safeRoomsReliable = true;
 let currentMapId = 'level0';
 
-let map = [], floors = [], rooms = [], fuses = [], hidingSpots = [], coolingValves = [];
+let map = [], floors = [], rooms = [], fuses = [], hidingSpots = [], coolingValves = [], employees = [];
+let reservedObjectTiles = new Set(), hotelDoorTiles = [], hotelBlockedDoor = null;
 let centralBoiler = null, boilerShutdown = false, boilerReadyShown = false;
-let nearFuse = null, nearHide = null, nearValve = null, nearBoiler = false;
+let hotelElevator = null, hotelElevatorOpenTimer = 0, hotelLockdownTimer = 0, hotelEventCooldown = 0, hotelLockdownActive = false;
+let employeeTasksCompleted = 0, hotelEmployeesRequired = 3, elevatorUsed = false;
+let nearFuse = null, nearHide = null, nearValve = null, nearBoiler = false, nearEmployee = null, nearElevator = false;
 let player = { x: 0, y: 0, r: 12, baseSpeed: 3.8, speed: 3.8, boostTimer: 0, stunTimer: 0, crouching: false, breathing: false, breathTimer: 0, breathCooldown: 0, heat: 0, inHeatZone: false, hidden: false, hideTimer: 0, hideCompromised: false };
-let monster = { name: '', x: 0, y: 0, r: 14, drawRadius: 14, speed: 2.2, baseSpeed: 2.2, color: '', textColor: '', activeMutations: [], isReinforced: false, hasGloom: false, isResilient: false, hasScrambler: false, hasHexed: false, hasHallucinations: false, allSeeing: false, heatAlertTimer: 0, heatAlertX: 0, heatAlertY: 0, stunTimer: 0, lastTargetC: -1, lastTargetR: -1 };
+let monster = { name: '', x: 0, y: 0, r: 14, drawRadius: 14, speed: 2.2, baseSpeed: 2.2, color: '', textColor: '', activeMutations: [], isReinforced: false, hasGloom: false, isResilient: false, hasScrambler: false, hasHexed: false, hasHallucinations: false, hasLockedIn: false, hasEcho: false, hasFalseObjective: false, hasWatcher: false, hasPanic: false, hasHeavyFootfall: false, hasAfterimage: false, allSeeing: false, heatAlertTimer: 0, heatAlertX: 0, heatAlertY: 0, stunTimer: 0, lastTargetC: -1, lastTargetR: -1 };
 let monsters = [];
 let camera = { x: 0, y: 0, targetZoom: 1.0, zoom: 1.0 };
 let nearGen = null; 
@@ -589,7 +636,7 @@ let puzzleSequence = [], circuitSequence = [], circuitStage = 0, circuitRequired
 let lastSingleMutation = null; 
 
 // AI & Item Variables
-let jordanState = 'saboteur', mimicTimer = 0, stateTimer = 0, jordanSabotageCooldown = 0;
+let jordanState = 'saboteur', mimicTimer = 0, stateTimer = 0, jordanSabotageCooldown = 0, bassamState = 'roaming', bassamDisguiseIndex = -1;
 let empTimer = 0, empWarning = 0, empActive = 0, flashAlpha = 0;
 let powerOutageTimer = 0, powerOutageCooldown = 0, flickerTimer = 0, flickerCooldown = 0, emergencyTimer = 0, emergencyCooldown = 0, outageFlickerTimer = 0;
 let noiseTarget = null, noiseTimer = 0, bearTraps = [], heatZones = [], heatEventCooldown = 0;
@@ -717,7 +764,8 @@ function beginFinalChase() {
     for (const enemy of monsters) enemy.speed = Math.max(enemy.speed, 4.0 + (gameMode === 'endless' ? (endlessRound - 1) * 0.18 : 0));
     player.speed = player.baseSpeed + 1.0;
     const targetText = monsters.length === 1 ? monster.name : 'THE MONSTERS';
-    showMsg(`<span style="color:#0f0">${currentMapId === 'boilerworks' ? 'CENTRAL BOILER SHUT DOWN' : 'POWER RESTORED'}</span><br>GO CATCH ${targetText}`, 3500);
+    const objectiveCompleteText = currentMapId === 'boilerworks' ? 'CENTRAL BOILER SHUT DOWN' : currentMapId === 'hotel' ? 'ELEVATOR ESCAPE STARTED' : 'POWER RESTORED';
+    showMsg(`<span style="color:#0f0">${objectiveCompleteText}</span><br>GO CATCH ${targetText}`, 3500);
     if (monster.isPhantom) {
         monster.isPhantom = false;
         let closestFloor = floors[0], minDist = Infinity;
@@ -807,6 +855,7 @@ window.addEventListener('keydown', (e) => {
             showMsg('<span style="color:#ffcc00">MAINTENANCE POWER RESTORED</span>', 1200);
             return;
         }
+        if (nearEmployee) { interactWithEmployee(); return; }
         if (nearValve) { activateCoolingValve(); return; }
         if (currentMapId === 'boilerworks' && nearBoiler) {
             if (!boilerObjectiveComplete()) {
@@ -817,6 +866,7 @@ window.addEventListener('keydown', (e) => {
             beginFinalChase();
             return;
         }
+        if (currentMapId === 'hotel' && nearElevator) { useHotelElevator(); return; }
         if (nearFuse) {
             nearFuse.collected = true;
             const fuseGenerator = generators.find(generator => generator.type === 'fuse');
@@ -854,6 +904,7 @@ window.addEventListener('keydown', (e) => {
             scRequired = Math.max(1, 3 - upgHack + (monsters.some(enemy => enemy.isReinforced) ? 1 : 0));
             scSpeed = (currentDiff === 0 ? 0.0195 : currentDiff === 1 ? 0.0325 : 0.0455) * (1 - (upgQuick * 0.10));
             let zoneWidth = currentDiff === 0 ? Math.PI/2 : currentDiff === 1 ? Math.PI/3 : Math.PI/5;
+            if (monsters.some(enemy => enemy.hasPanic && Math.hypot(enemy.x - player.x, enemy.y - player.y) < 260)) zoneWidth *= 0.72;
             scZoneStart = Math.random() * (Math.PI*2 - zoneWidth);
             scZoneEnd = scZoneStart + zoneWidth;
             scDelay = 60; 
@@ -877,7 +928,9 @@ window.addEventListener('keydown', (e) => {
                 finishGeneratorInteraction();
             } else {
                 scZoneStart = Math.random() * (Math.PI*2 - (scZoneEnd - scZoneStart));
-                scZoneEnd = scZoneStart + (currentDiff === 0 ? Math.PI/2 : currentDiff === 1 ? Math.PI/3 : Math.PI/5);
+                let nextZoneWidth = currentDiff === 0 ? Math.PI/2 : currentDiff === 1 ? Math.PI/3 : Math.PI/5;
+                if (monsters.some(enemy => enemy.hasPanic && Math.hypot(enemy.x - player.x, enemy.y - player.y) < 260)) nextZoneWidth *= 0.72;
+                scZoneEnd = scZoneStart + nextZoneWidth;
                 scNeedle = 0;
             }
         } else {
@@ -939,6 +992,7 @@ function rebuildFloors() {
 
 function generateMaze() {
     map = Array.from({length: ROWS}, () => Array(COLS).fill(1));
+    reservedObjectTiles = new Set(); hotelDoorTiles = []; employees = [];
     function carve(r, c) {
         map[r][c] = 0;
         let dirs = [[0, -2], [0, 2], [-2, 0], [2, 0]];
@@ -980,9 +1034,27 @@ function carveBoilerCorridor(a, b) {
     carve(b.c, b.r); carve(b.c + 1, b.r);
 }
 
+function reserveObjectTile(c, r, radius = 1) {
+    for (let row = r - radius; row <= r + radius; row++) {
+        for (let col = c - radius; col <= c + radius; col++) reservedObjectTiles.add(`${col},${row}`);
+    }
+}
+
+function isReservedObjectSpot(x, y, distance = TS * 1.5) {
+    const c = Math.floor(x / TS), r = Math.floor(y / TS);
+    const radius = Math.ceil(distance / TS);
+    for (let row = r - radius; row <= r + radius; row++) {
+        for (let col = c - radius; col <= c + radius; col++) {
+            if (reservedObjectTiles.has(`${col},${row}`)) return true;
+        }
+    }
+    return false;
+}
+
 function generateBoilerworks() {
     map = Array.from({length: ROWS}, () => Array(COLS).fill(1));
-    rooms = []; hidingSpots = []; coolingValves = []; fuses = [];
+    rooms = []; hidingSpots = []; coolingValves = []; fuses = []; employees = [];
+    reservedObjectTiles = new Set(); hotelDoorTiles = [];
     const nodes = [];
     const roomCount = 12;
     for (let i = 0; i < roomCount; i++) {
@@ -993,8 +1065,12 @@ function generateBoilerworks() {
         carveBoilerRect(c, r, width, height);
         nodes.push({ c, r, width, height });
         const type = i === 0 ? 'maintenance' : i === roomCount - 1 ? 'boiler' : [1, 4, 7].includes(i) ? 'cooling' : i === 2 ? 'storage' : i === 9 ? 'control' : 'industrial';
-        rooms.push({ type, side: 'interior', c, r, x: c * TS + TS / 2, y: r * TS + TS / 2 });
+        rooms.push({ type, side: 'interior', c, r, width, height, x: c * TS + TS / 2, y: r * TS + TS / 2 });
         if (i > 0) carveBoilerCorridor(nodes[i - 1], nodes[i]);
+        if (i > 0) {
+            const previous = nodes[i - 1], directionC = Math.sign(previous.c - c), directionR = Math.sign(previous.r - r);
+            reserveObjectTile(c + (directionC * (Math.floor(width / 2) + 1)), r + (directionR * (Math.floor(height / 2) + 1)), 1);
+        }
     }
     // A few cross-connections keep the long halls navigable and prevent one-route dead ends.
     for (let i = 0; i < 3; i++) {
@@ -1012,7 +1088,66 @@ function generateBoilerworks() {
 
     const valveRooms = [rooms[1], rooms[4], rooms[7]].filter(Boolean);
     coolingValves = valveRooms.map((room, index) => ({ x: room.x, y: room.y, active: false, index }));
-    // Keep the spawn and objective objects separated inside the connected floor network.
+    // Room interiors and door thresholds are reserved before object placement.
+}
+
+function carveHotelCorridor(a, b) {
+    let c = a.c, r = a.r;
+    const carve = (col, row) => { if (map[row]?.[col] !== undefined) map[row][col] = 0; };
+    const horizontalFirst = Math.random() < 0.5;
+    const horizontal = () => { while (c !== b.c) { carve(c, r); carve(c, r + 1); c += Math.sign(b.c - c); } };
+    const vertical = () => { while (r !== b.r) { carve(c, r); carve(c + 1, r); r += Math.sign(b.r - r); } };
+    if (horizontalFirst) { horizontal(); vertical(); } else { vertical(); horizontal(); }
+    carve(b.c, b.r); carve(b.c + 1, b.r);
+}
+
+function generateHotel() {
+    map = Array.from({length: ROWS}, () => Array(COLS).fill(1));
+    rooms = []; hidingSpots = []; coolingValves = []; fuses = []; employees = [];
+    reservedObjectTiles = new Set(); hotelDoorTiles = [];
+    const roomTypes = [
+        'lobby', 'guest', 'guest', 'guest', 'guest', 'laundry', 'conference', 'kitchen',
+        'service', 'guest', 'guest', 'office', 'elevator', 'guest', 'storage'
+    ];
+    const nodes = [];
+    const slots = [];
+    for (let row = 0; row < 3; row++) {
+        for (let col = 0; col < 5; col++) slots.push({ c: 9 + col * 14, r: 9 + row * 18 });
+    }
+    for (let i = 0; i < roomTypes.length; i++) {
+        const slot = slots[i];
+        const node = { c: slot.c + Math.floor(Math.random() * 3) - 1, r: slot.r + Math.floor(Math.random() * 3) - 1, width: 7 + Math.floor(Math.random() * 3), height: 5 + Math.floor(Math.random() * 2) };
+        carveBoilerRect(node.c, node.r, node.width, node.height);
+        nodes.push(node);
+        rooms.push({ type: roomTypes[i], side: 'interior', ...node, x: node.c * TS + TS / 2, y: node.r * TS + TS / 2 });
+    }
+    // A central corridor spine and randomized room branches create long hotel wings.
+    carveHotelCorridor({ c: 4, r: 28 }, { c: 68, r: 28 });
+    for (const node of nodes) carveHotelCorridor(node, { c: node.c, r: 28 });
+    for (let i = 0; i < 4; i++) {
+        const a = nodes[Math.floor(Math.random() * nodes.length)];
+        const b = nodes[Math.floor(Math.random() * nodes.length)];
+        if (a !== b) carveHotelCorridor(a, b);
+    }
+    for (const room of rooms) {
+        const door = Math.abs(room.r - 28) <= 2
+            ? { c: room.c + (room.c < COLS / 2 ? Math.floor(room.width / 2) + 1 : -Math.floor(room.width / 2) - 1), r: room.r }
+            : { c: room.c, r: room.r + (room.r < 28 ? 1 : -1) * (Math.floor(room.height / 2) + 1) };
+        hotelDoorTiles.push(door);
+        reserveObjectTile(door.c, door.r, 1);
+    }
+    rebuildFloors();
+    const employeeRooms = rooms.filter(room => ['lobby','laundry','conference','kitchen','office'].includes(room.type));
+    employeeRooms.slice(0, 4).forEach((room, index) => {
+        employees.push({ x: room.x, y: room.y, department: ['FRONT DESK','MAINTENANCE','HOUSEKEEPING','KITCHEN'][index], task: ['Find the master keycard.', 'Check the wing fuse.', 'Deliver the room ledger.', 'Inspect the service lift.'][index], completed: false, index });
+        reserveObjectTile(Math.floor(room.x / TS), Math.floor(room.y / TS), 1);
+    });
+    const storageRoom = rooms.find(room => room.type === 'storage');
+    const serviceRoom = rooms.find(room => room.type === 'service');
+    if (storageRoom) hidingSpots.push({ x: storageRoom.x, y: storageRoom.y, occupied: false });
+    if (serviceRoom) hidingSpots.push({ x: serviceRoom.x, y: serviceRoom.y, occupied: false });
+    const elevatorRoom = rooms.find(room => room.type === 'elevator') || rooms[rooms.length - 1];
+    hotelElevator = elevatorRoom ? { x: elevatorRoom.x, y: elevatorRoom.y } : null;
 }
 
 function isInHeatZone(x, y) {
@@ -1028,6 +1163,42 @@ function updateAesonEvents() {
     heatEventCooldown = 720;
     playSound('alarm');
     showMsg('<span style="color:#ff6b2b">AESON IGNITED A SECTION</span>', 950);
+}
+
+function isDynamicBlockedCell(c, r) {
+    return currentMapId === 'hotel' && hotelLockdownActive && hotelBlockedDoor && hotelBlockedDoor.c === c && hotelBlockedDoor.r === r;
+}
+
+function updateHotelEvents() {
+    if (currentMapId !== 'hotel' || state !== 1 || !eventsEnabled) return;
+    if (hotelLockdownActive) {
+        hotelLockdownTimer--;
+        if (hotelLockdownTimer <= 0) {
+            hotelLockdownActive = false;
+            hotelBlockedDoor = null;
+            notify('HOTEL LOCKDOWN RELEASED', 'info');
+        }
+        return;
+    }
+    if (hotelElevatorOpenTimer > 0) {
+        hotelElevatorOpenTimer--;
+        if (hotelElevatorOpenTimer === 0) notify('THE ELEVATOR DOORS CLOSE', 'warning');
+    }
+    if (hotelEventCooldown > 0) { hotelEventCooldown--; return; }
+    hotelEventCooldown = 1200;
+    if (Math.random() < 0.58 && hotelDoorTiles.length) {
+        const candidates = hotelDoorTiles.filter(door => Math.hypot(door.c * TS + TS / 2 - player.x, door.r * TS + TS / 2 - player.y) > 180);
+        hotelBlockedDoor = candidates[Math.floor(Math.random() * Math.max(1, candidates.length))] || hotelDoorTiles[0];
+        hotelLockdownActive = true;
+        hotelLockdownTimer = 720 + (monster.hasLockedIn ? 300 : 0);
+        playSound('alarm');
+        notify('HOTEL LOCKDOWN · ONE ROUTE SEALED', 'danger');
+        showMsg('<span style="color:#ff4444">HOTEL LOCKDOWN</span><br>FIND ANOTHER ROUTE', 1200);
+    } else if (hotelElevator) {
+        hotelElevatorOpenTimer = 360;
+        playSound('alarm');
+        notify(hotelObjectiveComplete() ? 'ELEVATOR ARRIVAL · MOVE NOW' : 'AN ELEVATOR ARRIVED TOO EARLY', 'warning');
+    }
 }
 
 function updateHeat() {
@@ -1061,6 +1232,7 @@ function updateHeat() {
 function generateSpecialRooms() {
     rooms = [];
     hidingSpots = [];
+    employees = [];
     const roomTypes = ['storage', 'maintenance', 'empty', 'safe'].sort(() => Math.random() - 0.5);
     const sides = ['north', 'south', 'west', 'east'].sort(() => Math.random() - 0.5);
     const mazeRight = MAZE_LEFT + MAZE_COLS - 1;
@@ -1094,7 +1266,11 @@ function generateSpecialRooms() {
 }
 
 function getRoomAt(x, y) {
-    return rooms.find(room => Math.abs(room.x - x) <= TS * 1.5 && Math.abs(room.y - y) <= TS * 1.5) || null;
+    return rooms.find(room => {
+        const halfWidth = Math.max(1, Math.floor((room.width || 3) / 2)) * TS;
+        const halfHeight = Math.max(1, Math.floor((room.height || 3) / 2)) * TS;
+        return Math.abs(room.x - x) <= halfWidth && Math.abs(room.y - y) <= halfHeight;
+    }) || null;
 }
 
 function isSafeRoom(x, y) {
@@ -1107,10 +1283,77 @@ function monsterCanSeeUnhiddenPlayer(enemy = monster) {
 }
 
 function isOpenObjectSpot(x, y, distance = TS * 1.5) {
+    const tile = map[Math.floor(y / TS)]?.[Math.floor(x / TS)];
+    if (tile !== 0 || isReservedObjectSpot(x, y, distance)) return false;
     if (generators.some(generator => Math.hypot(generator.x - x, generator.y - y) < distance)) return false;
     if (hidingSpots.some(spot => Math.hypot(spot.x - x, spot.y - y) < distance)) return false;
     if (fuses.some(fuse => Math.hypot(fuse.x - x, fuse.y - y) < distance)) return false;
+    if (employees.some(employee => Math.hypot(employee.x - x, employee.y - y) < distance)) return false;
+    if (currentMapId === 'hotel' && hotelElevator && Math.hypot(hotelElevator.x - x, hotelElevator.y - y) < distance) return false;
     return true;
+}
+
+function hotelObjectiveComplete() {
+    return currentMapId !== 'hotel' || (activeGens >= totalGens && employeeTasksCompleted >= hotelEmployeesRequired);
+}
+
+function helpEmployee(employee) {
+    if (!employee || employee.completed) return;
+    employee.completed = true;
+    employeeTasksCompleted = Math.min(employees.length, employeeTasksCompleted + 1);
+    playSound('success');
+    notify(`${employee.department}: TASK COMPLETE`, 'info');
+    showMsg(`<span style="color:#d4c09a">${employee.department}</span><br>${employee.task}<br><span style="color:#0f0">HELPED ${employeeTasksCompleted}/${hotelEmployeesRequired}</span>`, 1500);
+    if (employeeTasksCompleted >= hotelEmployeesRequired && activeGens >= totalGens) {
+        hotelElevatorOpenTimer = Math.max(hotelElevatorOpenTimer, 720);
+        notify('THE HOTEL ELEVATOR IS READY', 'unlock');
+    }
+    updateHUD();
+}
+
+function interactWithEmployee() {
+    if (!nearEmployee) return false;
+    if (nearEmployee.isBassam) {
+        bassamState = 'revealed';
+        bassamDisguiseIndex = -1;
+        monster.path = [];
+        triggerBloodHunt();
+        playSound('fail');
+        showMsg('<span style="color:#ff4444">THAT IS NOT AN EMPLOYEE</span><br>BASSAM FOUND YOU', 1600);
+        notify('BASSAM DROPPED THE DISGUISE', 'danger');
+        updateHUD();
+        return true;
+    }
+    helpEmployee(nearEmployee);
+    return true;
+}
+
+function useHotelElevator() {
+    if (!hotelElevator || !nearElevator) return false;
+    if (!hotelObjectiveComplete()) {
+        showMsg('<span style="color:#ffcc66">ELEVATOR LOCKED</span><br>REPAIR THE GENERATORS AND HELP THE EMPLOYEES', 1300);
+        return true;
+    }
+    if (hotelElevatorOpenTimer <= 0) {
+        showMsg('<span style="color:#ffcc66">THE ELEVATOR DOORS ARE CLOSED</span><br>WAIT FOR THE NEXT ARRIVAL', 1200);
+        return true;
+    }
+    elevatorUsed = true;
+    hotelElevatorOpenTimer = 0;
+    beginFinalChase();
+    return true;
+}
+
+function moveBassamToEmployee() {
+    if (currentMapId !== 'hotel' || employees.length === 0) return;
+    const choices = employees.filter(employee => !employee.completed);
+    const employee = choices[Math.floor(Math.random() * Math.max(1, choices.length))] || employees[0];
+    bassamDisguiseIndex = employees.indexOf(employee);
+    monster.x = employee.x;
+    monster.y = employee.y;
+    monster.path = [];
+    bassamState = 'disguised';
+    stateTimer = 720;
 }
 
 function modeMonsterCount() {
@@ -1123,7 +1366,7 @@ function modeMonsterCount() {
 function createExtraMonster(name, diffData, index) {
     const candidates = floors.filter(tile => {
         const x = tile.c * TS + TS / 2, y = tile.r * TS + TS / 2;
-        return !isSafeRoom(x, y) && monsters.every(other => Math.hypot(other.x - x, other.y - y) > TS * 6);
+        return !isSafeRoom(x, y) && !isReservedObjectSpot(x, y, TS * 2) && (currentMapId === 'level0' || !getRoomAt(x, y)) && monsters.every(other => Math.hypot(other.x - x, other.y - y) > TS * 6);
     });
     const tile = candidates[Math.floor(Math.random() * Math.max(1, candidates.length))] || floors[0];
     const enemy = {
@@ -1131,12 +1374,13 @@ function createExtraMonster(name, diffData, index) {
         r: 14, drawRadius: 14, speed: diffData.mSpd, baseSpeed: diffData.mSpd,
         color: '#800', textColor: 'red', allSeeing: false, isPhantom: false,
         isFrenzy: false, isReinforced: false, hasGloom: false, isResilient: false,
-        hasScrambler: false, hasHexed: false, hasHallucinations: false,
+        hasScrambler: false, hasHexed: false, hasHallucinations: false, hasLockedIn: false, hasEcho: false, hasFalseObjective: false, hasWatcher: false, hasPanic: false, hasHeavyFootfall: false, hasAfterimage: false,
         heatAlertTimer: 0, heatAlertX: 0, heatAlertY: 0, stunTimer: 0, bloodHuntTimer: 0, bloodHuntX: 0, bloodHuntY: 0, lastTargetC: -1, lastTargetR: -1, path: [], activeMutations: [], extra: true
     };
     if (name === 'MALAKAI') { enemy.baseSpeed += 0.45; enemy.speed = enemy.baseSpeed; enemy.color = '#50a'; enemy.textColor = '#d4f'; }
     if (name === 'JORDAN') { enemy.baseSpeed += 0.18; enemy.speed = enemy.baseSpeed; enemy.color = '#050'; enemy.textColor = '#0f0'; }
     if (name === 'AESON') { enemy.baseSpeed += 0.12; enemy.speed = enemy.baseSpeed; enemy.color = '#d43b18'; enemy.textColor = '#ff9a66'; }
+    if (name === 'BASSAM') { enemy.baseSpeed += 0.05; enemy.speed = enemy.baseSpeed; enemy.color = '#8d7654'; enemy.textColor = '#d4c09a'; }
     const count = gameMode === 'survival' ? (survivalConfig?.mutations || 0) : Math.min(3, Math.floor((endlessRound - 1) / 2));
     const pool = ['Speed Demon', 'Giant', 'Reinforced', 'Resilient', 'All-Seeing'];
     for (let i = 0; i < count; i++) {
@@ -1162,11 +1406,15 @@ function startGame(diffLevel) {
     hud.style.display = 'block';
     
     if (currentMapId === 'boilerworks') { COLS = 65; ROWS = 49; }
+    else if (currentMapId === 'hotel') { COLS = 73; ROWS = 57; }
     else { COLS = 41; ROWS = 33; }
     if (currentMapId === 'boilerworks') generateBoilerworks();
+    else if (currentMapId === 'hotel') generateHotel();
     else { generateMaze(); generateSpecialRooms(); }
+    if (currentMapId !== 'hotel') hotelElevator = null;
+    if (currentMapId !== 'boilerworks') { centralBoiler = null; coolingValves = []; }
     
-    const spawnRoom = currentMapId === 'boilerworks' ? rooms[0] : null;
+    const spawnRoom = (currentMapId === 'boilerworks' || currentMapId === 'hotel') ? rooms[0] : null;
     player.x = spawnRoom?.x || (MAZE_LEFT + 1.5) * TS; player.y = spawnRoom?.y || (MAZE_TOP + 1.5) * TS;
     player.baseSpeed = 4.3 * (1 + (upgShoe * 0.05));
     player.speed = player.baseSpeed;
@@ -1175,6 +1423,8 @@ function startGame(diffLevel) {
     camera.targetZoom = 1.0; camera.zoom = 1.0;
     nearGen = null; nearValve = null; nearBoiler = false; flashAlpha = 0;
     boilerShutdown = false; boilerReadyShown = false; heatZones = []; heatEventCooldown = currentMapId === 'boilerworks' ? 360 : 0;
+    hotelElevatorOpenTimer = 0; hotelLockdownTimer = 0; hotelEventCooldown = currentMapId === 'hotel' ? 480 : 0; hotelLockdownActive = false; hotelBlockedDoor = null;
+    employeeTasksCompleted = 0; elevatorUsed = false; bassamState = 'roaming'; bassamDisguiseIndex = -1;
     
     const roundScale = gameMode === 'endless' ? endlessRound - 1 : 0;
     eventsEnabled = gameMode !== 'survival' || survivalConfig?.events !== false;
@@ -1203,7 +1453,12 @@ function startGame(diffLevel) {
 
     let rand = Math.random();
     let monsterName = 'CALEB';
-    if (currentMapId === 'boilerworks' && gameMode !== 'survival') {
+    if (currentMapId === 'hotel' && gameMode !== 'survival') {
+        if (rand < 0.58) monsterName = 'BASSAM';
+        else if (rand < 0.78) monsterName = 'JORDAN';
+        else if (rand < 0.91) monsterName = 'CALEB';
+        else monsterName = 'MALAKAI';
+    } else if (currentMapId === 'boilerworks' && gameMode !== 'survival') {
         if (rand < 0.58) monsterName = 'AESON';
         else if (rand < 0.78) monsterName = 'JORDAN';
         else if (rand < 0.91) monsterName = 'CALEB';
@@ -1220,15 +1475,19 @@ function startGame(diffLevel) {
     }
     if (gameMode === 'survival' && survivalConfig) monsterName = survivalConfig.names[0];
 
-    let startTile = floors.filter(tile => !isSafeRoom(tile.c * TS + TS / 2, tile.r * TS + TS / 2)).at(-1) || floors.at(-1);
+    const monsterTiles = floors.filter(tile => {
+        const x = tile.c * TS + TS / 2, y = tile.r * TS + TS / 2;
+        return !isSafeRoom(x, y) && !isReservedObjectSpot(x, y, TS * 2) && (currentMapId === 'level0' || !getRoomAt(x, y)) && Math.hypot(player.x - x, player.y - y) > TS * 8;
+    });
+    let startTile = monsterTiles.at(-1) || floors.at(-1);
     
     monster = { 
         name: monsterName,
         x: startTile.c * TS + TS / 2, y: startTile.r * TS + TS / 2, 
         r: 14, drawRadius: 14, 
         speed: diffData.mSpd, baseSpeed: diffData.mSpd,
-        color: '#800', textColor: 'red',
-        allSeeing: false, isPhantom: false, isFrenzy: false, isReinforced: false, hasGloom: false, isResilient: false, hasScrambler: false, hasHexed: false, hasHallucinations: false, stunTimer: 0, bloodHuntTimer: 0, bloodHuntX: 0, bloodHuntY: 0, lastTargetC: -1, lastTargetR: -1,
+         color: '#800', textColor: 'red',
+         allSeeing: false, isPhantom: false, isFrenzy: false, isReinforced: false, hasGloom: false, isResilient: false, hasScrambler: false, hasHexed: false, hasHallucinations: false, hasLockedIn: false, hasEcho: false, hasFalseObjective: false, hasWatcher: false, hasPanic: false, hasHeavyFootfall: false, hasAfterimage: false, stunTimer: 0, bloodHuntTimer: 0, bloodHuntX: 0, bloodHuntY: 0, lastTargetC: -1, lastTargetR: -1,
         path: [], activeMutations: []
     };
     monsters = [monster];
@@ -1249,6 +1508,10 @@ function startGame(diffLevel) {
     } else if (monsterName === 'AESON') {
         monster.baseSpeed += 0.12; monster.speed = monster.baseSpeed;
         monster.color = '#d43b18'; monster.textColor = '#ff9a66';
+    } else if (monsterName === 'BASSAM') {
+        monster.baseSpeed += 0.05; monster.speed = monster.baseSpeed;
+        monster.color = '#8d7654'; monster.textColor = '#d4c09a';
+        bassamState = 'disguised';
     } else if (monsterName === 'CALEB') {
         empTimer = Math.floor(Math.random() * 600) + 600; 
     }
@@ -1266,7 +1529,14 @@ function startGame(diffLevel) {
         { name: 'Resilient', apply: (m) => m.isResilient = true },
         { name: 'Scrambler', apply: (m) => m.hasScrambler = true },
         { name: 'Hexed', apply: (m) => m.hasHexed = true },
-        { name: 'Hallucinations', apply: (m) => m.hasHallucinations = true }
+        { name: 'Hallucinations', apply: (m) => m.hasHallucinations = true },
+        { name: 'Locked In', apply: (m) => m.hasLockedIn = true },
+        { name: 'Echo', apply: (m) => m.hasEcho = true },
+        { name: 'False Objective', apply: (m) => m.hasFalseObjective = true },
+        { name: 'Watcher', apply: (m) => { m.hasWatcher = true; m.allSeeing = true; } },
+        { name: 'Panic', apply: (m) => m.hasPanic = true },
+        { name: 'Heavy Footfall', apply: (m) => { m.hasHeavyFootfall = true; m.baseSpeed = Math.max(1.8, m.baseSpeed - 0.22); m.speed = m.baseSpeed; } },
+        { name: 'Afterimage', apply: (m) => m.hasAfterimage = true }
     ];
 
     if (Math.random() > 0.25) possibleMutations = possibleMutations.filter(mut => mut.name !== 'Phantom');
@@ -1310,6 +1580,7 @@ function startGame(diffLevel) {
     }
     
     totalGens = Math.floor(Math.random() * (diffData.gMax - diffData.gMin + 1)) + diffData.gMin;
+    if (currentMapId === 'hotel') totalGens = Math.max(4, Math.min(7, totalGens + 1));
     activeGens = 0; generators = [];
     
     let genPool = floors.filter(tile => !getRoomAt(tile.c * TS + TS / 2, tile.r * TS + TS / 2)).sort(() => Math.random() - 0.5);
@@ -1325,6 +1596,16 @@ function startGame(diffLevel) {
         if (!tile) break; // Breakout to prevent infinite generation looping
         let tx = tile.c * TS + TS / 2, ty = tile.r * TS + TS / 2;
         if (isOpenObjectSpot(tx, ty, TS * 2)) generators.push({ x: tx, y: ty, r: 12, active: false, type: 'normal', isFalse: false, repairFlash: 0, stage: 0, requiredStages: 3, requiredFuses: 2, collectedFuses: 0 });
+    }
+    // A crowded procedural seed should never create an unwinnable run. Relax only
+    // the spacing distance for a final pass; rooms, doors, walls, and other objects
+    // are still protected by isOpenObjectSpot.
+    if (generators.length < totalGens) {
+        for (const tile of floors) {
+            if (generators.length >= totalGens) break;
+            const tx = tile.c * TS + TS / 2, ty = tile.r * TS + TS / 2;
+            if (isOpenObjectSpot(tx, ty, TS)) generators.push({ x: tx, y: ty, r: 12, active: false, type: 'normal', isFalse: false, repairFlash: 0, stage: 0, requiredStages: 3, requiredFuses: 2, collectedFuses: 0 });
+        }
     }
 
     let fuseGeneratorAssigned = false;
@@ -1350,11 +1631,6 @@ function startGame(diffLevel) {
     // Decoys never count toward the power objective.
     totalGens = generators.filter(generator => !generator.isFalse).length;
     const storageRoom = rooms.find(room => room.type === 'storage');
-    if (storageRoom && Math.random() < 0.55 && generators.length > 0) {
-        const roomGenerator = generators[Math.floor(Math.random() * generators.length)];
-        roomGenerator.x = storageRoom.x;
-        roomGenerator.y = storageRoom.y;
-    }
     if (storageRoom && !generators.some(generator => generator.x === storageRoom.x && generator.y === storageRoom.y)) {
         hidingSpots.push({ x: storageRoom.x, y: storageRoom.y, occupied: false });
     }
@@ -1366,7 +1642,10 @@ function startGame(diffLevel) {
 }
 
 function unlockCosmetic(id) {
-    if (!cosmetics.unlocked.includes(id)) cosmetics.unlocked.push(id);
+    if (!cosmetics.unlocked.includes(id)) {
+        cosmetics.unlocked.push(id);
+        notify(`UNLOCKED: ${id.toUpperCase()}`, 'unlock');
+    }
 }
 
 function endGame(isWin, sourceMonster = monster) {
@@ -1409,7 +1688,10 @@ function endGame(isWin, sourceMonster = monster) {
         if (gameMode === 'campaign') {
             if (!campaignCleared.includes(currentMapId)) campaignCleared.push(currentMapId);
             const nextMap = Object.values(MAP_DEFINITIONS).find(mapDef => mapDef.campaignOrder === MAP_DEFINITIONS[currentMapId].campaignOrder + 1);
-            if (nextMap && !unlockedMaps.includes(nextMap.id)) unlockedMaps.push(nextMap.id);
+            if (nextMap && !unlockedMaps.includes(nextMap.id)) {
+                unlockedMaps.push(nextMap.id);
+                notify(`${nextMap.name} UNLOCKED`, 'unlock');
+            }
         }
         saveData();
         playSound('success');
@@ -1449,6 +1731,16 @@ function checkPhase() {
             }
             return;
         }
+        if (currentMapId === 'hotel') {
+            if (employeeTasksCompleted < hotelEmployeesRequired) {
+                showMsg(`<span style="color:#d4c09a">GENERATORS ONLINE</span><br>HELP ${hotelEmployeesRequired - employeeTasksCompleted} EMPLOYEE(S)`, 1300);
+            } else if (!elevatorUsed) {
+                hotelElevatorOpenTimer = Math.max(hotelElevatorOpenTimer, 720);
+                notify('THE ELEVATOR IS READY', 'unlock');
+                showMsg('<span style="color:#d4c09a">EMPLOYEES CLEARED THE LOBBY</span><br>FIND THE ELEVATOR', 1500);
+            }
+            return;
+        }
         beginFinalChase();
     }
 }
@@ -1461,14 +1753,33 @@ function showMsg(text, time = 0) {
 }
 function hideMsg() { msgBox.style.display = 'none'; msgBox.classList.remove('top-alert'); }
 
+function notify(text, tone = 'info', duration = 2600) {
+    const stack = document.getElementById('notificationStack');
+    if (!stack) return;
+    const item = document.createElement('div');
+    item.className = `notification notification-${tone}`;
+    item.textContent = text;
+    stack.appendChild(item);
+    if (tone === 'unlock') playSound('unlock');
+    setTimeout(() => {
+        item.classList.add('notification-leave');
+        setTimeout(() => item.remove(), 280);
+    }, duration);
+}
+
 function updateHUD() {
     const shownGens = hallucinationHudTimer > 0 ? `${Math.max(0, activeGens + (ambienceClock % 2 ? 1 : -1))}/${totalGens}` : `${activeGens}/${totalGens}`;
     document.getElementById('genCount').innerText = monsters.some(enemy => enemy.hasScrambler) ? "?/?" : shownGens;
     const objective = document.getElementById('mapObjective');
     if (objective) {
-        objective.textContent = currentMapId === 'boilerworks'
-            ? `Cooling valves: ${coolingValves.filter(valve => valve.active).length}/${coolingValves.length || 3}${boilerReadyShown ? ' · FIND THE BOILER' : ''}`
-            : 'Find and repair every generator';
+        const falseObjective = monster.hasFalseObjective && Math.floor(ambienceClock / 180) % 2 === 1;
+        objective.textContent = falseObjective
+            ? 'Objective signal corrupted · CHECK THE LANDMARKS'
+            : currentMapId === 'boilerworks'
+                ? `Cooling valves: ${coolingValves.filter(valve => valve.active).length}/${coolingValves.length || 3}${boilerReadyShown ? ' · FIND THE BOILER' : ''}`
+                : currentMapId === 'hotel'
+                    ? `Hotel: ${activeGens}/${totalGens} generators · Employees ${employeeTasksCompleted}/${hotelEmployeesRequired}${hotelObjectiveComplete() ? ' · USE THE ELEVATOR' : ''}`
+                    : 'Find and repair every generator';
     }
     
     let invText = [];
@@ -1486,9 +1797,9 @@ function updateHUD() {
     document.getElementById('inventory').innerText = invText.join(' | ');
     
     let mText = monsters.length > 1 ? '[Open roster]' : (monster.activeMutations.length > 0 ? `[${monster.activeMutations.join(', ')}]` : '[None]');
-    let title = monsters.length > 1 ? 'MULTIPLE MONSTERS' : (monster.name === 'JORDAN' && jordanState === 'mimic' ? '???' : monster.name);
+    let title = monsters.length > 1 ? 'MULTIPLE MONSTERS' : ((monster.name === 'JORDAN' && jordanState === 'mimic') || (monster.name === 'BASSAM' && bassamState === 'disguised') ? '???' : monster.name);
     const titleColor = monsters.length > 1 ? '#ffb0b0' : monster.textColor;
-    const modeText = gameMode === 'endless' ? `ROUND ${endlessRound}` : gameMode === 'survival' ? 'SURVIVAL' : 'NORMAL';
+    const modeText = gameMode === 'endless' ? `ROUND ${endlessRound}` : gameMode === 'survival' ? 'SURVIVAL' : gameMode.toUpperCase();
     const multiNotice = monsters.length > 1 ? '<br><span style="color:#ffb0b0">Multiple monsters — open roster</span>' : '';
     document.getElementById('mutations').innerHTML = `<span style="color:${titleColor}">${title}</span> <br> ${modeText} · Mutations: ${mText}${multiNotice}`;
     const toggle = document.getElementById('monsterRosterToggle');
@@ -1518,7 +1829,7 @@ function checkWall(ent) {
         for (let c = mc; c <= xc; c++) {
             // BOUNDARY FIX: Ensure checking completely stops entity from escaping array bounds.
             if (r < 0 || r >= ROWS || c < 0 || c >= COLS) return true;
-            if (map[r][c] === 1) return true;
+            if (map[r][c] === 1 || isDynamicBlockedCell(c, r)) return true;
         }
     }
     return false;
@@ -1533,7 +1844,7 @@ function getLineOfSight(x1, y1, x2, y2) {
         cx += dx; cy += dy;
         let mapC = Math.floor(cx / TS), mapR = Math.floor(cy / TS);
         if (mapR >= 0 && mapR < ROWS && mapC >= 0 && mapC < COLS) {
-            if (map[mapR][mapC] === 1) return false;
+            if (map[mapR][mapC] === 1 || isDynamicBlockedCell(mapC, mapR)) return false;
         } else return false;
     }
     return true;
@@ -1543,7 +1854,7 @@ function findPath(sc, sr, tc, tr) {
     // Fast breadth-first search. The old version copied a full path for every
     // queued cell, which became extremely expensive with multiple monsters.
     if (sc < 0 || sc >= COLS || sr < 0 || sr >= ROWS || tc < 0 || tc >= COLS || tr < 0 || tr >= ROWS) return [];
-    if (map[tr][tc] === 1) return [];
+    if (map[tr][tc] === 1 || isDynamicBlockedCell(tc, tr)) return [];
 
     const queue = [{ c: sc, r: sr }];
     let queueIndex = 0;
@@ -1556,7 +1867,7 @@ function findPath(sc, sr, tc, tr) {
         if (curr.c === tc && curr.r === tr) break;
         for (let d of dirs) {
             let nc = curr.c + d[0], nr = curr.r + d[1];
-            if (nc >= 0 && nc < COLS && nr >= 0 && nr < ROWS && map[nr][nc] === 0 && !visited[nr][nc]) {
+            if (nc >= 0 && nc < COLS && nr >= 0 && nr < ROWS && map[nr][nc] === 0 && !isDynamicBlockedCell(nc, nr) && !visited[nr][nc]) {
                 visited[nr][nc] = true;
                 parent[nr][nc] = curr;
                 queue.push({ c: nc, r: nr });
@@ -1680,11 +1991,13 @@ function update() {
     heatZones = heatZones.filter(zone => zone.life > 0);
     updateHeat();
     updateAesonEvents();
+    updateHotelEvents();
     if (monsters.some(enemy => enemy.hasHallucinations) && state === 1 && Math.random() < 0.0025) {
         hallucinationHudTimer = 120;
         if (Math.random() < 0.3) showMsg('<span style="color:#77ffdd">POWER RESTORED</span>', 700);
         updateHUD();
     }
+    if (monsters.some(enemy => enemy.hasFalseObjective) && ambienceClock % 60 === 0) updateHUD();
 
     if ((state === 1 || state === 3) && eventsEnabled) {
         if (powerOutageTimer > 0) {
@@ -1745,7 +2058,7 @@ function update() {
         if (dx !== 0 || dy !== 0) moveEntity(player, dx, dy);
     }
 
-    nearGen = null; nearFuse = null; nearHide = null; nearValve = null; nearBoiler = false;
+    nearGen = null; nearFuse = null; nearHide = null; nearValve = null; nearBoiler = false; nearEmployee = null; nearElevator = false;
     if (state === 1 && player.stunTimer <= 0) {
         for (let g of generators) {
             if (!g.active && Math.hypot(player.x - g.x, player.y - g.y) < player.r + g.r + 15) {
@@ -1756,6 +2069,13 @@ function update() {
         nearHide = hidingSpots.find(spot => Math.hypot(player.x - spot.x, player.y - spot.y) < 30) || null;
         nearValve = currentMapId === 'boilerworks' ? coolingValves.find(valve => !valve.active && Math.hypot(player.x - valve.x, player.y - valve.y) < 32) || null : null;
         nearBoiler = currentMapId === 'boilerworks' && centralBoiler && Math.hypot(player.x - centralBoiler.x, player.y - centralBoiler.y) < 42;
+        if (currentMapId === 'hotel') {
+            nearEmployee = employees.find(employee => Math.hypot(player.x - employee.x, player.y - employee.y) < 34 && !employee.completed) || null;
+            if (monster.name === 'BASSAM' && bassamState === 'disguised' && Math.hypot(player.x - monster.x, player.y - monster.y) < 34) {
+                nearEmployee = { x: monster.x, y: monster.y, department: 'HOTEL STAFF', task: 'Follow me.', completed: false, isBassam: true };
+            }
+            nearElevator = Boolean(hotelElevator && Math.hypot(player.x - hotelElevator.x, player.y - hotelElevator.y) < 44);
+        }
     }
 
     camera.targetZoom = (empActive > 0) ? 1.4 : 1.0;
@@ -1793,6 +2113,38 @@ function update() {
             }
             moveMonsterAlongPath(getMonsterSpeed());
             if (Math.hypot(player.x - monster.x, player.y - monster.y) < player.r + monster.r + 4) endGame(false);
+        } else if (state === 1 && monster.name === 'BASSAM' && currentMapId === 'hotel') {
+            if (bassamState === 'disguised') {
+                if (bassamDisguiseIndex < 0) moveBassamToEmployee();
+                stateTimer--;
+                if (stateTimer <= 0) {
+                    bassamState = 'roaming';
+                    bassamDisguiseIndex = -1;
+                    monster.path = [];
+                    notify('THE EMPLOYEE LEFT WITHOUT A SOUND', 'warning');
+                }
+                if (!player.hidden && !isSafeRoom(player.x, player.y) && Math.hypot(player.x - monster.x, player.y - monster.y) < player.r + monster.r + 4) {
+                    endGame(false, monster);
+                }
+            } else if (bassamState === 'roaming') {
+                if (monster.path.length === 0) {
+                    if (Math.random() < 0.018) moveBassamToEmployee();
+                    else {
+                        const tile = floors[Math.floor(Math.random() * floors.length)];
+                        monster.path = findPath(Math.floor(monster.x / TS), Math.floor(monster.y / TS), tile.c, tile.r);
+                    }
+                }
+                moveMonsterAlongPath(getMonsterSpeed());
+                if (!player.hidden && !isSafeRoom(player.x, player.y) && Math.hypot(player.x - monster.x, player.y - monster.y) < player.r + monster.r) endGame(false, monster);
+            } else {
+                const pC = Math.floor(player.x / TS), pR = Math.floor(player.y / TS);
+                if (monster.lastTargetC !== pC || monster.lastTargetR !== pR || monster.path.length === 0) {
+                    monster.path = findPath(Math.floor(monster.x / TS), Math.floor(monster.y / TS), pC, pR);
+                    monster.lastTargetC = pC; monster.lastTargetR = pR;
+                }
+                moveMonsterAlongPath(getMonsterSpeed(monster) * 1.08);
+                if (!player.hidden && !isSafeRoom(player.x, player.y) && Math.hypot(player.x - monster.x, player.y - monster.y) < player.r + monster.r) endGame(false, monster);
+            }
         } else if (state === 1 && monster.name === 'JORDAN') {
             if (jordanState === 'saboteur') {
                 mimicTimer--;
@@ -1940,9 +2292,12 @@ function update() {
 }
 
 function draw() {
+    if (state === 0 || state === 4) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        return;
+    }
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    if (state === 0 || state === 4) return;
 
     ctx.save();
     ctx.translate(canvas.width/2, canvas.height/2);
@@ -1952,13 +2307,14 @@ function draw() {
     for (let r = 0; r < ROWS; r++) {
         for (let c = 0; c < COLS; c++) {
             if (map[r][c] === 1) {
-                ctx.fillStyle = currentMapId === 'boilerworks' ? '#171a1d' : '#2d2216'; ctx.fillRect(c * TS, r * TS, TS, TS);
-                ctx.strokeStyle = currentMapId === 'boilerworks' ? '#0b0d0f' : '#181109'; ctx.strokeRect(c * TS, r * TS, TS, TS);
+                ctx.fillStyle = currentMapId === 'boilerworks' ? '#171a1d' : currentMapId === 'hotel' ? '#211a20' : '#2d2216'; ctx.fillRect(c * TS, r * TS, TS, TS);
+                ctx.strokeStyle = currentMapId === 'boilerworks' ? '#0b0d0f' : currentMapId === 'hotel' ? '#0e0a10' : '#181109'; ctx.strokeRect(c * TS, r * TS, TS, TS);
             } else {
-                ctx.fillStyle = currentMapId === 'boilerworks' ? '#4b4540' : '#8b7355'; ctx.fillRect(c * TS, r * TS, TS, TS);
+                ctx.fillStyle = currentMapId === 'boilerworks' ? '#4b4540' : currentMapId === 'hotel' ? ((r + c) % 2 ? '#5b4850' : '#65505a') : '#8b7355'; ctx.fillRect(c * TS, r * TS, TS, TS);
                 if (currentMapId === 'boilerworks' && (r + c) % 7 === 0) {
                     ctx.fillStyle = 'rgba(180,120,55,0.2)'; ctx.fillRect(c * TS + 5, r * TS + 7, TS - 10, 3);
                 }
+                if (currentMapId === 'hotel' && r % 3 === 0) { ctx.fillStyle = 'rgba(220,190,180,0.08)'; ctx.fillRect(c * TS + 4, r * TS + 18, TS - 8, 2); }
             }
         }
     }
@@ -1966,15 +2322,47 @@ function draw() {
     for (const room of rooms) {
         const roomColor = currentMapId === 'boilerworks'
             ? (room.type === 'boiler' ? 'rgba(255,80,20,0.3)' : room.type === 'maintenance' ? 'rgba(80,180,220,0.22)' : room.type === 'cooling' ? 'rgba(40,190,220,0.2)' : room.type === 'control' ? 'rgba(160,100,220,0.2)' : room.type === 'storage' ? 'rgba(180,180,180,0.16)' : 'rgba(160,100,50,0.18)')
-            : (room.type === 'safe' ? 'rgba(40,110,255,0.28)' : room.type === 'maintenance' ? 'rgba(255,190,40,0.22)' : room.type === 'storage' ? 'rgba(180,180,180,0.16)' : 'rgba(80,80,80,0.14)');
+            : currentMapId === 'hotel'
+                ? ({ lobby:'rgba(190,150,90,0.34)', guest:'rgba(125,90,125,0.24)', laundry:'rgba(80,180,210,0.24)', conference:'rgba(180,140,60,0.25)', kitchen:'rgba(200,100,60,0.24)', service:'rgba(80,150,105,0.24)', office:'rgba(120,100,180,0.24)', elevator:'rgba(210,210,220,0.3)', storage:'rgba(140,140,140,0.2)' }[room.type] || 'rgba(90,70,90,0.22)')
+                : (room.type === 'safe' ? 'rgba(40,110,255,0.28)' : room.type === 'maintenance' ? 'rgba(255,190,40,0.22)' : room.type === 'storage' ? 'rgba(180,180,180,0.16)' : 'rgba(80,80,80,0.14)');
         ctx.fillStyle = roomColor;
-        ctx.fillRect((room.c - 1) * TS, (room.r - 1) * TS, TS * 3, TS * 3);
-        ctx.strokeStyle = room.type === 'safe' ? '#5790ff' : currentMapId === 'boilerworks' && room.type === 'boiler' ? '#ff6622' : 'rgba(255,255,255,0.2)';
+        const roomWidth = room.width || 3, roomHeight = room.height || 3;
+        ctx.fillRect((room.c - Math.floor(roomWidth / 2)) * TS, (room.r - Math.floor(roomHeight / 2)) * TS, TS * roomWidth, TS * roomHeight);
+        ctx.strokeStyle = room.type === 'safe' ? '#5790ff' : currentMapId === 'boilerworks' && room.type === 'boiler' ? '#ff6622' : currentMapId === 'hotel' && room.type === 'elevator' ? '#e7e7ff' : 'rgba(255,255,255,0.2)';
         ctx.lineWidth = 2;
-        ctx.strokeRect((room.c - 1) * TS, (room.r - 1) * TS, TS * 3, TS * 3);
-        ctx.fillStyle = room.type === 'safe' ? '#9fc0ff' : currentMapId === 'boilerworks' && room.type === 'boiler' ? '#ff9a66' : '#ddd';
+        ctx.strokeRect((room.c - Math.floor(roomWidth / 2)) * TS, (room.r - Math.floor(roomHeight / 2)) * TS, TS * roomWidth, TS * roomHeight);
+        ctx.fillStyle = room.type === 'safe' ? '#9fc0ff' : currentMapId === 'boilerworks' && room.type === 'boiler' ? '#ff9a66' : currentMapId === 'hotel' ? '#f1d9c4' : '#ddd';
         ctx.font = 'bold 9px Arial'; ctx.textAlign = 'center';
         ctx.fillText(room.type.toUpperCase(), room.x, room.y - 24);
+    }
+
+    for (const employee of employees) {
+        if (employee.completed) continue;
+        const isBassam = monster.name === 'BASSAM' && bassamState === 'disguised' && employees[bassamDisguiseIndex] === employee;
+        const x = isBassam ? monster.x : employee.x, y = isBassam ? monster.y : employee.y;
+        ctx.fillStyle = isBassam ? '#a88b63' : '#d4c09a';
+        ctx.fillRect(x - 9, y - 14, 18, 28);
+        ctx.fillStyle = '#f0d5b5'; ctx.beginPath(); ctx.arc(x, y - 19, 7, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = isBassam ? '#6b4a2f' : '#fff'; ctx.fillRect(x - 4, y - 6, 8, 6);
+        ctx.fillStyle = '#fff'; ctx.font = 'bold 8px Arial'; ctx.textAlign = 'center'; ctx.fillText(isBassam ? 'STAFF' : employee.department, x, y - 30);
+        if (nearEmployee && ((isBassam && nearEmployee.isBassam) || nearEmployee === employee) && state === 1) {
+            ctx.fillStyle = '#fff'; ctx.font = 'bold 11px Arial'; ctx.fillText('[E] TALK', x, y + 28);
+        }
+    }
+
+    if (currentMapId === 'hotel' && hotelElevator) {
+        ctx.fillStyle = hotelElevatorOpenTimer > 0 ? '#e9e9ff' : '#666078';
+        ctx.fillRect(hotelElevator.x - 20, hotelElevator.y - 25, 40, 50);
+        ctx.strokeStyle = '#201a2a'; ctx.lineWidth = 3; ctx.strokeRect(hotelElevator.x - 20, hotelElevator.y - 25, 40, 50);
+        ctx.fillStyle = '#201a2a'; ctx.fillRect(hotelElevator.x - 2, hotelElevator.y - 18, 4, 36);
+        ctx.fillStyle = '#fff'; ctx.font = 'bold 9px Arial'; ctx.textAlign = 'center'; ctx.fillText('ELEVATOR', hotelElevator.x, hotelElevator.y - 32);
+        if (nearElevator && state === 1) ctx.fillText('[E] USE', hotelElevator.x, hotelElevator.y + 38);
+    }
+
+    if (hotelLockdownActive && hotelBlockedDoor) {
+        ctx.fillStyle = 'rgba(160,20,30,0.8)';
+        ctx.fillRect(hotelBlockedDoor.c * TS - 3, hotelBlockedDoor.r * TS - 3, TS + 6, TS + 6);
+        ctx.fillStyle = '#ffd0d0'; ctx.font = 'bold 9px Arial'; ctx.textAlign = 'center'; ctx.fillText('LOCKDOWN', hotelBlockedDoor.c * TS + TS / 2, hotelBlockedDoor.r * TS - 8);
     }
 
     for (const fuse of fuses) {
@@ -2060,6 +2448,15 @@ function draw() {
         ctx.stroke();
     }
 
+    if (monster.hasEcho && state === 1 && ambienceClock % 90 < 35) {
+        const echoTile = floors[(Math.floor(ambienceClock / 90) * 17) % Math.max(1, floors.length)];
+        if (echoTile) {
+            ctx.strokeStyle = 'rgba(210,180,255,0.5)'; ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.arc(echoTile.c * TS + TS / 2, echoTile.r * TS + TS / 2, 18 + (ambienceClock % 30), 0, Math.PI * 2); ctx.stroke();
+            ctx.fillStyle = 'rgba(230,220,255,0.7)'; ctx.font = 'bold 9px Arial'; ctx.textAlign = 'center'; ctx.fillText('ECHO', echoTile.c * TS + TS / 2, echoTile.r * TS + TS / 2 - 24);
+        }
+    }
+
     for (let g of generators) {
         if (g.active || g.repairFlash > 0) {
             const glow = g.repairFlash > 0 ? 0.35 + (g.repairFlash / 45) * 0.35 : 0.16;
@@ -2138,9 +2535,18 @@ function draw() {
     }
 
     let dist = Math.hypot(player.x - monster.x, player.y - monster.y);
+    if (monster.hasAfterimage && state === 1 && monster.path.length > 0) {
+        const previous = monster.path[0];
+        const ax = previous.c * TS + TS / 2, ay = previous.r * TS + TS / 2;
+        ctx.fillStyle = 'rgba(255,255,255,0.13)';
+        ctx.beginPath(); ctx.arc(ax, ay, monster.drawRadius * 0.8, 0, Math.PI * 2); ctx.fill();
+    }
     ctx.fillStyle = 'rgba(0,0,0,0.35)';
     ctx.beginPath(); ctx.ellipse(monster.x, monster.y + monster.drawRadius * 0.65, monster.drawRadius * 0.9, monster.drawRadius * 0.35, 0, 0, Math.PI * 2); ctx.fill();
-    if (monster.name === 'JORDAN' && jordanState === 'mimic' && state !== 3) {
+    if (monster.name === 'BASSAM' && bassamState === 'disguised' && state !== 3) {
+        // The matching employee sprite was drawn above; the disguise must not
+        // reveal Bassam until the player interacts with him.
+    } else if (monster.name === 'JORDAN' && jordanState === 'mimic' && state !== 3) {
         ctx.fillStyle = '#888';
         ctx.beginPath(); ctx.arc(monster.x, monster.y, 12, 0, Math.PI * 2); ctx.fill();
         ctx.strokeStyle = '#000'; ctx.lineWidth = 2; ctx.stroke();
@@ -2448,8 +2854,18 @@ function updateMobileSkillCheckButton() {
     setInterval(updatePuzzlePad, 100);
 
 
-    document.addEventListener('contextmenu', event => event.preventDefault());
+document.addEventListener('contextmenu', event => event.preventDefault());
 })();
+
+document.addEventListener('pointerover', event => {
+    if (event.target.closest('.menu-panel button:not(:disabled)')) playSound('menuHover');
+});
+document.addEventListener('click', event => {
+    const button = event.target.closest('.menu-panel button');
+    if (!button) return;
+    if (button.disabled) { playSound('fail'); return; }
+    playSound(/\bBACK\b/i.test(button.textContent) ? 'menuBack' : 'menuSelect');
+});
 
 // Mobile browsers require audio to be created or resumed from a user gesture.
 window.addEventListener('pointerdown', () => initAudio(), { passive: true });

@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.1.0
+
+- Added the procedural Endless Hotel map with physical guest rooms, long wings, employee tasks, an elevator objective, and a distinct carpeted visual identity.
+- Added Bassam, the Concierge, who disguises himself as a hotel employee and reveals himself when approached as a fake staff member.
+- Added Hotel Lockdown and Elevator Arrival events with animated top-of-screen notifications.
+- Added the full mutation set: Locked In, Echo, False Objective, Watcher, Panic, Heavy Footfall, and Afterimage.
+- Added a collection screen, main-menu atmospheric background, compact menu status row, menu UI sounds, and unlock notifications.
+- Fixed Boilerworks object placement so generators are not moved into room interiors or door thresholds after the safety checks.
+- Bumped the offline cache to `calebs-shift-v24` and preserved existing save progress with schema 7 normalization.
+
 ## 2.0.1
 
 - Enlarged Boilerworks to a 65×49 procedural play area with more physical rooms and longer connections.

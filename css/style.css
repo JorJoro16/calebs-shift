@@ -11,8 +11,34 @@
             align-items: center;
             height: 100vh;
         }
+        body::before {
+            content: "";
+            position: fixed;
+            inset: 0;
+            z-index: -1;
+            background:
+                radial-gradient(circle at 18% 24%, rgba(118, 78, 42, 0.24), transparent 28%),
+                radial-gradient(circle at 82% 72%, rgba(90, 24, 36, 0.22), transparent 30%),
+                linear-gradient(125deg, #0b0a0b 0%, #181218 45%, #09090b 100%);
+            animation: menuAtmosphere 16s ease-in-out infinite alternate;
+        }
+        @keyframes menuAtmosphere {
+            from { filter: saturate(.8) brightness(.82); transform: scale(1); }
+            to { filter: saturate(1.12) brightness(1.04); transform: scale(1.04); }
+        }
+        #menuBackdrop {
+            position: fixed;
+            inset: 0;
+            z-index: 5;
+            pointer-events: none;
+            background:
+                radial-gradient(circle at 18% 24%, rgba(118, 78, 42, 0.28), transparent 28%),
+                radial-gradient(circle at 82% 72%, rgba(90, 24, 36, 0.25), transparent 30%),
+                linear-gradient(125deg, #0b0a0b 0%, #181218 45%, #09090b 100%);
+            animation: menuAtmosphere 16s ease-in-out infinite alternate;
+        }
         canvas {
-            background-color: #000;
+            background-color: transparent;
             box-shadow: 0 0 30px rgba(0,0,0,1);
             transition: transform 0.05s;
             z-index: 10;
@@ -96,6 +122,12 @@
         }
         .shop-desc { text-align: left; font-size: 13px; color: #aaa; margin-top: 5px; }
         .token-display { color: #0f0; font-weight: bold; font-size: 22px; margin-bottom: 20px; text-shadow: 1px 1px 0 #000; }
+        .menu-status-row { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; margin: 2px 0 3px; color: #d4c09a; font-size: 11px; letter-spacing: .4px; }
+        .menu-status-row span { padding: 5px 7px; border: 1px solid rgba(212,192,154,.35); border-radius: 5px; background: rgba(0,0,0,.24); }
+        .collection-row { display:flex; justify-content:space-between; gap:12px; padding:8px 9px; margin:5px 0; border:1px solid rgba(255,255,255,.12); border-radius:6px; background:rgba(0,0,0,.25); }
+        .collection-row span { color:#aaa; font-size:12px; text-align:right; }
+        .collection-tags { display:flex; flex-wrap:wrap; gap:5px; margin-top:7px; }
+        .collection-tags span { padding:4px 6px; border:1px solid rgba(255,255,255,.18); border-radius:4px; color:#bbb; font-size:11px; }
         
         input[type=range] { -webkit-appearance: none; width: 120px; background: transparent; }
         input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 16px; width: 16px; border-radius: 50%; background: #fff; cursor: pointer; margin-top: -6px; }
@@ -157,6 +189,15 @@ canvas {
     background: transparent;
     font: bold 12px 'Courier New', monospace;
 }
+#notificationStack { position: fixed; top: max(14px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); z-index: 350; display: flex; flex-direction: column; gap: 8px; width: min(88vw, 430px); pointer-events: none; }
+.notification { opacity: 0; transform: translateY(-28px); animation: notificationEnter .28s ease-out forwards; padding: 10px 14px; text-align:center; color:#fff; background:rgba(20,18,18,.94); border:1px solid rgba(255,255,255,.35); border-radius:8px; box-shadow:0 5px 18px #000; font:bold 13px 'Courier New', monospace; }
+.notification-info { border-color:#b9a37e; color:#eadbbd; }
+.notification-warning { border-color:#ffcc66; color:#ffcc66; }
+.notification-danger { border-color:#ff5555; color:#ff8a8a; }
+.notification-unlock { border-color:#8fffa1; color:#8fffa1; }
+.notification-leave { animation: notificationLeave .28s ease-in forwards; }
+@keyframes notificationEnter { to { opacity:1; transform:translateY(0); } }
+@keyframes notificationLeave { to { opacity:0; transform:translateY(-18px); } }
 .joystick {
     position: absolute;
     left: max(22px, env(safe-area-inset-left));

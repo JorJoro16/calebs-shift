@@ -1,10 +1,11 @@
-const CACHE_NAME = 'calebs-shift-v23';
+const CACHE_NAME = 'calebs-shift-v24';
 const FILES_TO_CACHE = [
   './',
   './index.html',
   './css/style.css',
   './js/game.js',
   './manifest.json',
+  './service-worker.js',
   './assets/icon.svg',
   './assets/apple-touch-icon.png',
   './assets/icon-512.png'

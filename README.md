@@ -52,6 +52,8 @@ The Abilities and Items panels safely pause the run while they are open. The Ski
 - When more than one monster is active, the HUD identifies the group and offers a **MONSTERS** roster with each monster's mutations.
 - Hallucination mutations can create fake silhouettes, generator signals, alerts, and HUD readings without directly harming the player.
 - The Boilerworks map uses long procedural industrial halls, three cooling valves, heat zones, and a central boiler objective. Aeson is most likely to spawn there.
+- The Endless Hotel uses physical guest rooms and long carpeted wings. Repair its generators, help genuine employees with tasks, and use the elevator. Bassam can disguise himself as an employee.
+- Hotel Lockdown and Elevator Arrival are short events with top-of-screen notifications. Mutations can add false objectives, echoes, camera pressure, unstable skill checks, longer lockdowns, and afterimages.
 - Daily objectives award local bonus tokens, and loadouts choose which owned consumable types are available during a run.
 
 The info screen inside the game lists every mobile button and the special map events, generators, rooms, and mutations.

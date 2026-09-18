@@ -16,9 +16,11 @@
 </head>
 <body>
 
+    <div id="menuBackdrop" aria-hidden="true"></div>
     <div id="crtFilter"></div>
     <div id="heatOverlay" aria-hidden="true"></div>
     <div id="fpsCounter">60 FPS</div>
+    <div id="notificationStack" aria-live="polite"></div>
 
     <div id="gameHUD">
         Generators: <span id="genCount">0/0</span>
@@ -36,12 +38,14 @@
     <div id="mainMenu" class="menu-panel" style="display: flex;">
         <h1>THE BACKROOMS</h1>
         <div class="subtitle">CALEB'S SHIFT</div>
+        <div id="menuStatusRow" class="menu-status-row"></div>
         <div class="token-display" id="tokenDisplayMain">Tokens: 0</div>
         <button onclick="showMenu('modeMenu')">PLAY</button>
         <button onclick="openShop()">SHOP</button>
         <button onclick="showMenu('infoMenu')">INFO</button>
         <button onclick="showMenu('statsMenu')">STATISTICS</button>
         <button onclick="showMenu('cosmeticsMenu')">COSMETICS</button>
+        <button onclick="showMenu('collectionMenu')">COLLECTION</button>
         <button onclick="showMenu('objectivesMenu')">OBJECTIVES</button>
         <button onclick="showMenu('loadoutsMenu')">LOADOUTS</button>
         <button onclick="showInstallHelp()">PHONE / INSTALL</button>
@@ -57,6 +61,12 @@
     <div id="cosmeticsMenu" class="menu-panel" style="max-height:80vh; overflow-y:auto;">
         <h2>COSMETICS</h2>
         <div id="cosmeticsContent" style="text-align:left; line-height:1.7;"></div>
+        <button onclick="showMenu('mainMenu')">BACK</button>
+    </div>
+
+    <div id="collectionMenu" class="menu-panel" style="max-height:80vh; overflow-y:auto;">
+        <h2>COLLECTION</h2>
+        <div id="collectionContent" style="text-align:left; line-height:1.55;"></div>
         <button onclick="showMenu('mainMenu')">BACK</button>
     </div>
 
@@ -134,7 +144,8 @@
             <label><input id="survivalMalakai" type="checkbox"> Malakai</label>
             <label><input id="survivalJordan" type="checkbox"> Jordan</label>
             <label><input id="survivalAeson" type="checkbox"> Aeson</label><br>
-            <label>Map: <select id="survivalMap"><option value="level0">Level 0 — The Maze</option><option value="boilerworks">Level 3 — The Boilerworks</option></select></label><br>
+            <label><input id="survivalBassam" type="checkbox"> Bassam</label><br>
+            <label>Map: <select id="survivalMap"><option value="level0">Level 0 — The Maze</option><option value="boilerworks">Level 3 — The Boilerworks</option><option value="hotel">THE ENDLESS HOTEL</option></select></label><br>
             <label>How many: <select id="survivalCount"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option></select></label><br>
             <label>Difficulty: <select id="survivalDiff"><option value="0">Easy</option><option value="1" selected>Normal</option><option value="2">Hard</option></select></label><br>
             <label>Generators: <select id="survivalGens"><option value="3">3</option><option value="4" selected>4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option></select></label><br>
@@ -157,13 +168,14 @@
             <details class="info-section"><summary style="color:#b8aaff;">GAME MODES</summary><div>
             <b>Normal:</b> The original one-round game. Choose difficulty, repair generators, then catch the monster.<br>
             <b>Endless:</b> Each win immediately begins the next round. Generators, speed, mutations, outages, false generators, and monster count increase; round 4 introduces a second monster.<br>
-            <b>Survival:</b> Choose Caleb, Malakai, and/or Jordan, how many appear, difficulty, generator count, mutations per monster, and whether map events are active.<br></div></details>
+            <b>Survival:</b> Choose Caleb, Malakai, Jordan, Aeson, and/or Bassam, how many appear, difficulty, generator count, mutations per monster, and whether map events are active.<br></div></details>
 
             <details class="info-section"><summary style="color:#ff4444;">MONSTERS</summary><div>
             <b>CALEB — The Disruptor</b><br>Patrols normally and periodically releases an EMP that makes the map difficult to read.<br><span style="color:#aaa">Counter:</span> Keep moving after the warning and use landmarks to reorient yourself.<br><br>
             <b>MALAKAI — The Blood Hunter</b><br>Fast and aggressive. Repairs, failed skill checks, false generators, and other mistakes can give him your last known trail for a short time.<br><span style="color:#aaa">Counter:</span> Crouch, break line of sight, use a Noise Maker, or let a trap slow him down.<br><br>
             <b>JORDAN — The Mimic</b><br>Can disguise himself as a generator. Interacting with him reveals the trick and eventually triggers an enraged chase.<br><span style="color:#aaa">Counter:</span> Watch for the suspicious visual offset and be ready to run after checking a generator.<br><br>
-            <b>AESON — The Firestarter</b><br>Ignites sections of the Boilerworks and senses players who build up too much heat.<br><span style="color:#aaa">Counter:</span> Leave burning areas, cool down, and use the facility’s alternate routes.<br></div></details>
+            <b>AESON — The Firestarter</b><br>Ignites sections of the Boilerworks and senses players who build up too much heat.<br><span style="color:#aaa">Counter:</span> Leave burning areas, cool down, and use the facility’s alternate routes.<br><br>
+            <b>BASSAM — The Concierge</b><br>Disguises himself as a hotel employee and offers believable but dangerous directions. Genuine employees can help with small tasks and clues.<br><span style="color:#aaa">Counter:</span> Check badges, shadows, and directions before trusting an employee. A fake employee cannot provide a consistent department or safe route.<br></div></details>
             
             <details class="info-section"><summary style="color:#ff4444;">MUTATIONS</summary><div>
             <b>Speed Demon:</b> Flat speed boost.<br>
@@ -179,6 +191,13 @@
             <b>Scrambler:</b> Hides your generator progress UI.<br>
             <b>Hexed:</b> Player boosts (Adrenaline) only last half as long.<br>
             <b>Hallucinations:</b> Creates harmless visual decoys nearby. Do not chase every shape you see.<br>
+            <b>Locked In:</b> Hotel lockdowns can seal a nearby doorway for longer.<br>
+            <b>Echo:</b> False sound rings can appear away from the real danger.<br>
+            <b>False Objective:</b> Periodically corrupts the objective text on your HUD.<br>
+            <b>Watcher:</b> Camera and mirror routes reveal your position more often.<br>
+            <b>Panic:</b> Skill-check zones become less stable while the monster is close.<br>
+            <b>Heavy Footfall:</b> The monster is slower but its search pressure lasts longer.<br>
+            <b>Afterimage:</b> Leaves a harmless delayed silhouette when it changes direction.<br>
             <span style="color:#aaa">They can also fake generator markers, alerts, and HUD progress. They never deal damage.</span><br></div></details>
 
             <details class="info-section"><summary style="color:#d8b4ff;">PROGRESSION</summary><div>
@@ -206,6 +225,10 @@
             <b>Objective:</b> Repair every generator, activate all three cooling valves, then find and shut down the central boiler.<br>
             <b>Heat:</b> Burning sections build heat and slightly slow you. Leave the area to cool down. The Boilerworks uses long procedural halls and rooms, so routes change every run.<br>
             <b>Monsters:</b> Aeson is most likely here, but Jordan, Caleb, Malakai, and rare two-monster runs are possible.<br></div></details>
+            <details class="info-section"><summary style="color:#d4c09a;">THE ENDLESS HOTEL</summary><div>
+            <b>Objective:</b> Repair the hotel generators, help the real employees, then use the elevator when it becomes available.<br>
+            <b>Employees:</b> Genuine employees can give a clue or a small task. Bassam can replace one of them and turn the interaction into a trap.<br>
+            <b>Events:</b> Hotel Lockdown can close one route temporarily. Elevator Arrival can offer a short-lived opportunity before the hotel resets.<br></div></details>
             <details class="info-section"><summary style="color:#0ff;">MOBILE CONTROLS</summary><div>
             <b>Joystick:</b> Move freely in any direction.<br>
             <b>E:</b> Interact with generators, fuses, rooms, and hiding spots.<br>
