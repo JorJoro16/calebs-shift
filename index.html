@@ -33,7 +33,7 @@
         <h1>THE BACKROOMS</h1>
         <div class="subtitle">CALEB'S SHIFT</div>
         <div class="token-display" id="tokenDisplayMain">Tokens: 0</div>
-        <button onclick="showMenu('diffMenu')">PLAY</button>
+        <button onclick="showMenu('modeMenu')">PLAY</button>
         <button onclick="openShop()">SHOP</button>
         <button onclick="showMenu('infoMenu')">INFO</button>
         <button onclick="showInstallHelp()">PHONE / INSTALL</button>
@@ -65,13 +65,40 @@
         <button onclick="showMenu('mainMenu'); state = 0;">MAIN MENU</button>
     </div>
 
+    <!-- Mode Menu -->
+    <div id="modeMenu" class="menu-panel">
+        <h2>CHOOSE MODE</h2>
+        <button onclick="chooseMode('normal')">NORMAL MODE<br><span style="font-size:12px;color:#aaa">Repair generators, then catch the monster.</span></button>
+        <button onclick="chooseMode('endless')">ENDLESS MODE<br><span style="font-size:12px;color:#aaa">Each completed round gets more dangerous.</span></button>
+        <button onclick="showMenu('survivalMenu')">SURVIVAL MODE<br><span style="font-size:12px;color:#aaa">Build your own monster challenge.</span></button>
+        <button onclick="showMenu('mainMenu')" style="margin-top:15px; border-color:#ff4444; color:#ff4444;">BACK</button>
+    </div>
+
     <!-- Difficulty Menu -->
     <div id="diffMenu" class="menu-panel">
         <h2>SELECT DIFFICULTY</h2>
-        <button onclick="startGame(0)">EASY (10 Tokens)<br><span style="font-size:12px;color:#aaa">Slow Speed | Typing Puzzles | 0-1 Mutations</span></button>
-        <button onclick="startGame(1)">NORMAL (25 Tokens)<br><span style="font-size:12px;color:#aaa">Standard Speed | Mixed Puzzles | 1-2 Mutations</span></button>
-        <button onclick="startGame(2)">HARD (40 Tokens)<br><span style="font-size:12px;color:#aaa">Fast Speed | Skill Checks | 2-3 Mutations</span></button>
-        <button onclick="showMenu('mainMenu')" style="margin-top: 15px; border-color: #ff4444; color: #ff4444;">BACK</button>
+        <button onclick="startSelectedGame(0)">EASY (10 Tokens)<br><span style="font-size:12px;color:#aaa">Slow Speed | Typing Puzzles | 0-1 Mutations</span></button>
+        <button onclick="startSelectedGame(1)">NORMAL (25 Tokens)<br><span style="font-size:12px;color:#aaa">Standard Speed | Mixed Puzzles | 1-2 Mutations</span></button>
+        <button onclick="startSelectedGame(2)">HARD (40 Tokens)<br><span style="font-size:12px;color:#aaa">Fast Speed | Skill Checks | 2-3 Mutations</span></button>
+        <button onclick="showMenu('modeMenu')" style="margin-top: 15px; border-color: #ff4444; color: #ff4444;">BACK</button>
+    </div>
+
+    <!-- Survival Setup -->
+    <div id="survivalMenu" class="menu-panel" style="max-height:80vh; overflow-y:auto;">
+        <h2>SURVIVAL SETUP</h2>
+        <div style="text-align:left; line-height:1.8; font-size:14px;">
+            <b>Monsters</b><br>
+            <label><input id="survivalCaleb" type="checkbox" checked> Caleb</label>
+            <label><input id="survivalMalakai" type="checkbox"> Malakai</label>
+            <label><input id="survivalJordan" type="checkbox"> Jordan</label><br>
+            <label>How many: <select id="survivalCount"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option></select></label><br>
+            <label>Difficulty: <select id="survivalDiff"><option value="0">Easy</option><option value="1" selected>Normal</option><option value="2">Hard</option></select></label><br>
+            <label>Generators: <select id="survivalGens"><option value="3">3</option><option value="4" selected>4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option></select></label><br>
+            <label>Mutations per monster: <select id="survivalMuts"><option value="0">0</option><option value="1" selected>1</option><option value="2">2</option><option value="3">3</option></select></label><br>
+            <label><input id="survivalEvents" type="checkbox" checked> Events enabled</label>
+        </div>
+        <button onclick="startSurvival()">START SURVIVAL</button>
+        <button onclick="showMenu('modeMenu')" style="margin-top:15px; border-color:#ff4444; color:#ff4444;">BACK</button>
     </div>
 
     <!-- Info/Database Menu -->
@@ -82,6 +109,11 @@
             <b>Desktop:</b> WASD moves · E interacts · SPACE uses Adrenaline / hits skill checks · F uses Flashbang · hold SHIFT to crouch · hold B to hold breath · H hides near a cabinet · N throws a Noise Maker.<br>
             <b>Phone:</b> Joystick moves · E interacts · ⚡ Adrenaline · F Flashbang · hold ◎ to crouch · hold ◉ to hold breath · ▣ hides near a cabinet · ♬ throws a Noise Maker. Install from the Home Screen for the cleanest fullscreen experience.<br>
             <b>Goal:</b> Repair every generator, then catch the fleeing monster.<br>
+
+            <h3 style="color:#b8aaff; margin-bottom:5px; border-bottom: 1px solid #b8aaff;">GAME MODES</h3>
+            <b>Normal:</b> The original one-round game. Choose difficulty, repair generators, then catch the monster.<br>
+            <b>Endless:</b> Each win immediately begins the next round. Generators, speed, mutations, outages, false generators, and monster count increase; round 4 introduces a second monster.<br>
+            <b>Survival:</b> Choose Caleb, Malakai, and/or Jordan, how many appear, difficulty, generator count, mutations per monster, and whether map events are active.<br>
 
             <h3 style="color:#ff4444; margin-bottom:5px; border-bottom: 1px solid #ff4444;">MONSTERS</h3>
             <b>Caleb:</b> Standard patrol. Periodically unleashes an EMP that blinds you.<br>

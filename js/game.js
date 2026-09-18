@@ -71,7 +71,7 @@ function playSound(type) {
 }
 
 // Versioned local progress with a backup copy and import/export support.
-const GAME_VERSION = '1.0.0';
+const GAME_VERSION = '1.1.0';
 const SAVE_SCHEMA_VERSION = 3;
 const SAVE_KEY = 'br_save_v2';
 const SAVE_BACKUP_KEY = 'br_save_backup_v2';
@@ -293,6 +293,35 @@ function showMenu(menuId) {
 
 function showInstallHelp() { showMenu('installMenu'); }
 
+function chooseMode(mode) {
+    gameMode = mode;
+    survivalConfig = null;
+    endlessRound = 1;
+    showMenu('diffMenu');
+}
+
+function startSelectedGame(diffLevel) {
+    startGame(diffLevel);
+}
+
+function startSurvival() {
+    const names = [];
+    if (document.getElementById('survivalCaleb').checked) names.push('CALEB');
+    if (document.getElementById('survivalMalakai').checked) names.push('MALAKAI');
+    if (document.getElementById('survivalJordan').checked) names.push('JORDAN');
+    if (names.length === 0) { showMsg('SELECT AT LEAST ONE MONSTER', 1600); return; }
+    gameMode = 'survival';
+    endlessRound = 1;
+    survivalConfig = {
+        names,
+        count: Number(document.getElementById('survivalCount').value),
+        generators: Number(document.getElementById('survivalGens').value),
+        mutations: Number(document.getElementById('survivalMuts').value),
+        events: document.getElementById('survivalEvents').checked
+    };
+    startGame(Number(document.getElementById('survivalDiff').value));
+}
+
 async function testSound() {
     initAudio();
     if (audioCtx?.state === 'suspended') await audioCtx.resume();
@@ -333,11 +362,13 @@ const TS = 40;
 const COLS = 41, ROWS = 33;
 const MAZE_LEFT = 5, MAZE_TOP = 5, MAZE_COLS = 31, MAZE_ROWS = 23;
 let state = 0; let currentDiff = 0; let rewardTokens = 0;
+let gameMode = 'normal', endlessRound = 1, survivalConfig = null, eventsEnabled = true, safeRoomsReliable = true;
 
 let map = [], floors = [], rooms = [], fuses = [], hidingSpots = [];
 let nearFuse = null, nearHide = null;
 let player = { x: 0, y: 0, r: 12, baseSpeed: 3.8, speed: 3.8, boostTimer: 0, stunTimer: 0, crouching: false, breathing: false, breathTimer: 0, breathCooldown: 0, hidden: false, hideTimer: 0, hideCompromised: false };
 let monster = { name: '', x: 0, y: 0, r: 14, drawRadius: 14, speed: 2.2, baseSpeed: 2.2, color: '', textColor: '', activeMutations: [], isReinforced: false, hasGloom: false, isResilient: false, hasScrambler: false, hasHexed: false, stunTimer: 0, lastTargetC: -1, lastTargetR: -1 };
+let monsters = [];
 let camera = { x: 0, y: 0, targetZoom: 1.0, zoom: 1.0 };
 let nearGen = null; 
 
@@ -383,7 +414,7 @@ function toggleHide() {
         if (wasSeenEntering) {
             showMsg('<span style="color:#ff4444">SPOTTED HIDING</span>', 900);
         } else {
-            monster.path = [];
+            for (const enemy of monsters) enemy.path = [];
             showMsg('<span style="color:#ff9900">HIDDEN</span>', 700);
         }
     } else {
@@ -401,7 +432,7 @@ function useNoiseMaker() {
     const tile = options[Math.floor(Math.random() * Math.max(1, options.length))] || floors[0];
     noiseTarget = { x: tile.c * TS + TS / 2, y: tile.r * TS + TS / 2 };
     noiseTimer = 600;
-    monster.path = findPath(Math.floor(monster.x / TS), Math.floor(monster.y / TS), tile.c, tile.r);
+    for (const enemy of monsters) enemy.path = findPath(Math.floor(enemy.x / TS), Math.floor(enemy.y / TS), tile.c, tile.r);
     saveData(); updateHUD(); playSound('tick');
     showMsg('<span style="color:#ff66cc">NOISE MAKER THROWN</span>', 900);
 }
@@ -433,7 +464,7 @@ function finishGeneratorInteraction() {
     showMsg('<span style="color:#0f0">GENERATOR ONLINE</span>', 900);
     state = 1;
     checkPhase();
-    if (state === 1 && monster.isFrenzy) monster.speed += 0.15;
+    if (state === 1) for (const enemy of monsters) if (enemy.isFrenzy) enemy.speed += 0.15;
 }
 
 window.addEventListener('keydown', (e) => {
@@ -443,14 +474,14 @@ window.addEventListener('keydown', (e) => {
     // Adrenaline
     if ((state === 1 || state === 3) && k === ' ' && invAdrenaline > 0 && player.boostTimer <= 0 && player.stunTimer <= 0) {
         invAdrenaline--;
-        player.boostTimer = monster.hasHexed ? 120 : 240; 
+        player.boostTimer = monsters.some(enemy => enemy.hasHexed) ? 120 : 240; 
         saveData(); updateHUD();
     }
 
     // Flashbang
-    if ((state === 1 || state === 3) && k === 'f' && invFlashbang > 0 && monster.stunTimer <= 0) {
+    if ((state === 1 || state === 3) && k === 'f' && invFlashbang > 0 && monsters.some(enemy => enemy.stunTimer <= 0)) {
         invFlashbang--;
-        monster.stunTimer = monster.isResilient ? 120 : 240; 
+        for (const enemy of monsters) enemy.stunTimer = enemy.isResilient ? 120 : 240;
         flashAlpha = 1.0;
         playSound('emp');
         saveData(); updateHUD();
@@ -504,7 +535,7 @@ window.addEventListener('keydown', (e) => {
         if (isSkillCheck) {
             state = 5;
             scNeedle = 0; scHits = 0; 
-            scRequired = Math.max(1, 3 - upgHack + (monster.isReinforced ? 1 : 0));
+            scRequired = Math.max(1, 3 - upgHack + (monsters.some(enemy => enemy.isReinforced) ? 1 : 0));
             scSpeed = (currentDiff === 0 ? 0.0195 : currentDiff === 1 ? 0.0325 : 0.0455) * (1 - (upgQuick * 0.10));
             let zoneWidth = currentDiff === 0 ? Math.PI/2 : currentDiff === 1 ? Math.PI/3 : Math.PI/5;
             scZoneStart = Math.random() * (Math.PI*2 - zoneWidth);
@@ -513,7 +544,7 @@ window.addEventListener('keydown', (e) => {
         } else {
             state = 2;
             let opts = ['w','a','s','d'];
-            let seqLength = Math.max(1, 3 - upgHack + (monster.isReinforced ? 1 : 0));
+            let seqLength = Math.max(1, 3 - upgHack + (monsters.some(enemy => enemy.isReinforced) ? 1 : 0));
             puzzleSequence = [];
             for(let i=0; i<seqLength; i++) puzzleSequence.push(opts[Math.floor(Math.random()*4)]);
         }
@@ -654,12 +685,12 @@ function getRoomAt(x, y) {
 }
 
 function isSafeRoom(x, y) {
-    return getRoomAt(x, y)?.type === 'safe';
+    return safeRoomsReliable && getRoomAt(x, y)?.type === 'safe';
 }
 
-function monsterCanSeeUnhiddenPlayer() {
+function monsterCanSeeUnhiddenPlayer(enemy = monster) {
     if (isSafeRoom(player.x, player.y)) return false;
-    return emergencyTimer > 0 || getLineOfSight(monster.x, monster.y, player.x, player.y);
+    return emergencyTimer > 0 || getLineOfSight(enemy.x, enemy.y, player.x, player.y);
 }
 
 function isOpenObjectSpot(x, y, distance = TS * 1.5) {
@@ -667,6 +698,43 @@ function isOpenObjectSpot(x, y, distance = TS * 1.5) {
     if (hidingSpots.some(spot => Math.hypot(spot.x - x, spot.y - y) < distance)) return false;
     if (fuses.some(fuse => Math.hypot(fuse.x - x, fuse.y - y) < distance)) return false;
     return true;
+}
+
+function modeMonsterCount() {
+    if (gameMode === 'survival') return survivalConfig?.count || 1;
+    if (gameMode === 'endless') return Math.min(4, 1 + Math.floor((endlessRound - 1) / 3));
+    return 1;
+}
+
+function createExtraMonster(name, diffData, index) {
+    const candidates = floors.filter(tile => {
+        const x = tile.c * TS + TS / 2, y = tile.r * TS + TS / 2;
+        return !isSafeRoom(x, y) && monsters.every(other => Math.hypot(other.x - x, other.y - y) > TS * 6);
+    });
+    const tile = candidates[Math.floor(Math.random() * Math.max(1, candidates.length))] || floors[0];
+    const enemy = {
+        name, x: tile.c * TS + TS / 2, y: tile.r * TS + TS / 2,
+        r: 14, drawRadius: 14, speed: diffData.mSpd, baseSpeed: diffData.mSpd,
+        color: '#800', textColor: 'red', allSeeing: false, isPhantom: false,
+        isFrenzy: false, isReinforced: false, hasGloom: false, isResilient: false,
+        hasScrambler: false, hasHexed: false, hasHallucinations: false,
+        stunTimer: 0, lastTargetC: -1, lastTargetR: -1, path: [], activeMutations: [], extra: true
+    };
+    if (name === 'MALAKAI') { enemy.baseSpeed += 0.45; enemy.speed = enemy.baseSpeed; enemy.color = '#50a'; enemy.textColor = '#d4f'; }
+    if (name === 'JORDAN') { enemy.baseSpeed += 0.18; enemy.speed = enemy.baseSpeed; enemy.color = '#050'; enemy.textColor = '#0f0'; }
+    const count = gameMode === 'survival' ? (survivalConfig?.mutations || 0) : Math.min(3, Math.floor((endlessRound - 1) / 2));
+    const pool = ['Speed Demon', 'Giant', 'Reinforced', 'Resilient', 'All-Seeing'];
+    for (let i = 0; i < count; i++) {
+        const mutation = pool[(index + i) % pool.length];
+        if (enemy.activeMutations.includes(mutation)) continue;
+        enemy.activeMutations.push(mutation);
+        if (mutation === 'Speed Demon') { enemy.baseSpeed += 0.45; enemy.speed = enemy.baseSpeed; }
+        if (mutation === 'Giant') enemy.drawRadius = 22;
+        if (mutation === 'Reinforced') enemy.isReinforced = true;
+        if (mutation === 'Resilient') enemy.isResilient = true;
+        if (mutation === 'All-Seeing') enemy.allSeeing = true;
+    }
+    return enemy;
 }
 
 function startGame(diffLevel) {
@@ -686,13 +754,30 @@ function startGame(diffLevel) {
     camera.targetZoom = 1.0; camera.zoom = 1.0;
     nearGen = null; flashAlpha = 0;
     
+    const roundScale = gameMode === 'endless' ? endlessRound - 1 : 0;
+    eventsEnabled = gameMode !== 'survival' || survivalConfig?.events !== false;
+    safeRoomsReliable = gameMode !== 'endless' || Math.random() < Math.max(0.35, 1 - roundScale * 0.14);
     let diffData = [
         { t: 10, gMin: 3, gMax: 4, mMin: 0, mMax: 1, mSpd: 2.5 },
         { t: 25, gMin: 4, gMax: 5, mMin: 1, mMax: 2, mSpd: 3.0 },
         { t: 40, gMin: 5, gMax: 6, mMin: 2, mMax: 3, mSpd: 3.4 }
     ][diffLevel];
+    diffData = { ...diffData };
+    if (gameMode === 'endless') {
+        diffData.gMin += Math.floor((roundScale + 1) / 2);
+        diffData.gMax += Math.floor((roundScale + 2) / 2);
+        diffData.mMin += Math.floor(roundScale / 2);
+        diffData.mMax += Math.floor((roundScale + 1) / 2);
+        diffData.mSpd += roundScale * 0.22;
+    }
+    if (gameMode === 'survival' && survivalConfig) {
+        diffData.gMin = survivalConfig.generators;
+        diffData.gMax = survivalConfig.generators;
+        diffData.mMin = survivalConfig.mutations;
+        diffData.mMax = survivalConfig.mutations;
+    }
     
-    rewardTokens = diffData.t;
+    rewardTokens = diffData.t + (gameMode === 'endless' ? roundScale * 8 : gameMode === 'survival' ? (survivalConfig?.count || 1) * 5 : 0);
 
     let rand = Math.random();
     let monsterName = 'CALEB';
@@ -706,6 +791,7 @@ function startGame(diffLevel) {
         if (rand > 0.7) monsterName = 'JORDAN';
         else if (rand > 0.25) monsterName = 'MALAKAI';
     }
+    if (gameMode === 'survival' && survivalConfig) monsterName = survivalConfig.names[0];
 
     let startTile = floors.filter(tile => !isSafeRoom(tile.c * TS + TS / 2, tile.r * TS + TS / 2)).at(-1) || floors.at(-1);
     
@@ -718,6 +804,7 @@ function startGame(diffLevel) {
         allSeeing: false, isPhantom: false, isFrenzy: false, isReinforced: false, hasGloom: false, isResilient: false, hasScrambler: false, hasHexed: false, hasHallucinations: false, stunTimer: 0, lastTargetC: -1, lastTargetR: -1,
         path: [], activeMutations: []
     };
+    monsters = [monster];
 
     empTimer = 0; empWarning = 0; empActive = 0;
     powerOutageTimer = 0; outageFlickerTimer = 0; powerOutageCooldown = Math.floor(Math.random() * 600) + 900;
@@ -780,6 +867,15 @@ function startGame(diffLevel) {
         monster.activeMutations.push(mut.name);
     }
     lastSingleMutation = monster.activeMutations.length === 1 ? monster.activeMutations[0] : null;
+
+    const requestedCount = modeMonsterCount();
+    const survivalNames = survivalConfig?.names || [];
+    for (let i = 1; i < requestedCount; i++) {
+        const name = gameMode === 'survival'
+            ? survivalNames[i % survivalNames.length]
+            : ['CALEB', 'MALAKAI', 'JORDAN'][(endlessRound + i - 1) % 3];
+        monsters.push(createExtraMonster(name, diffData, i));
+    }
     
     totalGens = Math.floor(Math.random() * (diffData.gMax - diffData.gMin + 1)) + diffData.gMin;
     activeGens = 0; generators = [];
@@ -835,7 +931,18 @@ function startGame(diffLevel) {
     state = 1; updateHUD();
 }
 
-function endGame(isWin) {
+function endGame(isWin, sourceMonster = monster) {
+    if (isWin && gameMode === 'endless') {
+        const earned = Math.floor(rewardTokens * (upgCoin > 0 ? 1.5 : 1));
+        tokens += earned;
+        saveData();
+        playSound('success');
+        endlessRound++;
+        state = 0;
+        showMsg(`<span style="color:#0f0">ROUND CLEARED</span><br>ROUND ${endlessRound} STARTING`, 1100);
+        setTimeout(() => startGame(currentDiff), 1200);
+        return;
+    }
     state = 4;
     document.querySelectorAll('.menu-panel').forEach(p => p.style.display = 'none');
     hud.style.display = 'none';
@@ -848,10 +955,10 @@ function endGame(isWin) {
         tokens += earned;
         saveData();
         playSound('success');
-        document.getElementById('endDesc').innerHTML = `You caught ${monster.name}.<br>+${earned} Tokens`;
+        document.getElementById('endDesc').innerHTML = `You caught ${sourceMonster.name}.<br>+${earned} Tokens`;
     } else {
         playSound('fail');
-        document.getElementById('endDesc').innerHTML = `${monster.name} tore you apart.`;
+        document.getElementById('endDesc').innerHTML = `${sourceMonster.name} tore you apart.`;
     }
 }
 
@@ -859,9 +966,10 @@ function checkPhase() {
     updateHUD();
     if (activeGens >= totalGens) {
         state = 3; 
-        monster.speed = 4.0; 
+        for (const enemy of monsters) enemy.speed = Math.max(enemy.speed, 4.0 + (gameMode === 'endless' ? (endlessRound - 1) * 0.18 : 0));
         player.speed = player.baseSpeed + 1.0; 
-        showMsg(`<span style="color:#0f0">POWER RESTORED</span><br>GO CATCH ${monster.name}`, 3500);
+        const targetText = monsters.length === 1 ? monster.name : 'THE MONSTERS';
+        showMsg(`<span style="color:#0f0">POWER RESTORED</span><br>GO CATCH ${targetText}`, 3500);
         
         if (monster.isPhantom) {
             monster.isPhantom = false;
@@ -889,7 +997,7 @@ function showMsg(text, time = 0) {
 function hideMsg() { msgBox.style.display = 'none'; msgBox.classList.remove('top-alert'); }
 
 function updateHUD() {
-    document.getElementById('genCount').innerText = monster.hasScrambler ? "?/?" : `${activeGens}/${totalGens}`;
+    document.getElementById('genCount').innerText = monsters.some(enemy => enemy.hasScrambler) ? "?/?" : `${activeGens}/${totalGens}`;
     
     let invText = [];
     if (invAdrenaline > 0) invText.push(`Adrenaline: ${invAdrenaline} (SPACE)`);
@@ -903,7 +1011,9 @@ function updateHUD() {
     
     let mText = monster.activeMutations.length > 0 ? `[${monster.activeMutations.join(', ')}]` : '[None]';
     let title = monster.name === 'JORDAN' && jordanState === 'mimic' ? '???' : monster.name;
-    document.getElementById('mutations').innerHTML = `<span style="color:${monster.textColor}">${title}</span> <br> Mutations: ${mText}`;
+    const extraText = monsters.slice(1).map(enemy => `${enemy.name}${enemy.activeMutations.length ? ` [${enemy.activeMutations.join(', ')}]` : ''}`).join(' · ');
+    const modeText = gameMode === 'endless' ? `ROUND ${endlessRound}` : gameMode === 'survival' ? 'SURVIVAL' : 'NORMAL';
+    document.getElementById('mutations').innerHTML = `<span style="color:${monster.textColor}">${title}</span> <br> ${modeText} · Mutations: ${mText}${extraText ? `<br><span style="color:#ff9d9d">${extraText}</span>` : ''}`;
 }
 
 function moveEntity(ent, dx, dy) {
@@ -962,20 +1072,51 @@ function findPath(sc, sr, tc, tr) {
     return [];
 }
 
-function moveMonsterAlongPath(spd) {
-    if (monster.path.length > 0) {
-        let target = monster.path[0], tx = target.c * TS + TS/2, ty = target.r * TS + TS/2;
-        if (Math.hypot(tx - monster.x, ty - monster.y) < spd) {
-            monster.x = tx; monster.y = ty; monster.path.shift();
+function moveMonsterAlongPath(spd, enemy = monster) {
+    if (enemy.path.length > 0) {
+        let target = enemy.path[0], tx = target.c * TS + TS/2, ty = target.r * TS + TS/2;
+        if (Math.hypot(tx - enemy.x, ty - enemy.y) < spd) {
+            enemy.x = tx; enemy.y = ty; enemy.path.shift();
         } else {
-            let ang = Math.atan2(ty - monster.y, tx - monster.x);
-            moveEntity(monster, Math.cos(ang) * spd, Math.sin(ang) * spd);
+            let ang = Math.atan2(ty - enemy.y, tx - enemy.x);
+            moveEntity(enemy, Math.cos(ang) * spd, Math.sin(ang) * spd);
         }
     }
 }
 
-function getMonsterSpeed() {
-    return monster.speed * (player.crouching ? 0.55 : 1);
+function getMonsterSpeed(enemy = monster) {
+    return enemy.speed * (player.crouching ? 0.55 : 1);
+}
+
+function updateExtraMonsters() {
+    for (const enemy of monsters.slice(1)) {
+        if (enemy.stunTimer > 0) { enemy.stunTimer--; continue; }
+        const protectedPlayer = player.hidden || isSafeRoom(player.x, player.y);
+        const sawHide = player.hidden && player.hideCompromised;
+        const tracksPlayer = !protectedPlayer && (emergencyTimer > 0 || enemy.allSeeing || monsterCanSeeUnhiddenPlayer(enemy));
+        let targetC, targetR;
+        if (sawHide) {
+            targetC = Math.floor(player.x / TS); targetR = Math.floor(player.y / TS);
+        } else if (state === 3) {
+            const far = floors.reduce((best, tile) => Math.hypot(tile.c * TS - player.x, tile.r * TS - player.y) > Math.hypot(best.c * TS - player.x, best.r * TS - player.y) ? tile : best, floors[0]);
+            targetC = far.c; targetR = far.r;
+        } else if (tracksPlayer) {
+            targetC = Math.floor(player.x / TS); targetR = Math.floor(player.y / TS);
+        } else if (noiseTarget && noiseTimer > 0) {
+            targetC = Math.floor(noiseTarget.x / TS); targetR = Math.floor(noiseTarget.y / TS);
+        } else if (enemy.path.length === 0) {
+            const tile = floors[Math.floor(Math.random() * floors.length)];
+            targetC = tile.c; targetR = tile.r;
+        }
+        if (targetC !== undefined && (enemy.lastTargetC !== targetC || enemy.lastTargetR !== targetR || enemy.path.length === 0)) {
+            enemy.path = findPath(Math.floor(enemy.x / TS), Math.floor(enemy.y / TS), targetC, targetR);
+            enemy.lastTargetC = targetC; enemy.lastTargetR = targetR;
+        }
+        moveMonsterAlongPath(getMonsterSpeed(enemy), enemy);
+        const touching = Math.hypot(player.x - enemy.x, player.y - enemy.y) < player.r + enemy.r - 2;
+        if (state === 1 && (sawHide || (!protectedPlayer && touching))) endGame(false, enemy);
+        if (state === 3 && touching) endGame(true, enemy);
+    }
 }
 
 function update() {
@@ -1004,24 +1145,24 @@ function update() {
         }
     }
 
-    if (state === 1 || state === 3) {
+    if ((state === 1 || state === 3) && eventsEnabled) {
         if (powerOutageTimer > 0) {
             powerOutageTimer--;
-            if (powerOutageTimer === 0) { powerOutageCooldown = 1500; showMsg('LIGHTS RESTORED', 800); }
+            if (powerOutageTimer === 0) { powerOutageCooldown = gameMode === 'endless' ? Math.max(600, 1500 - endlessRound * 110) : 1500; showMsg('LIGHTS RESTORED', 800); }
         } else if (powerOutageCooldown > 0) powerOutageCooldown--;
-        else { powerOutageTimer = 1080; outageFlickerTimer = 45; showMsg('<span style="color:#888">POWER OUTAGE</span>', 1000); playSound('emp'); }
+        else { powerOutageTimer = 1080 + (gameMode === 'endless' ? (endlessRound - 1) * 90 : 0); outageFlickerTimer = 45; showMsg('<span style="color:#888">POWER OUTAGE</span>', 1000); playSound('emp'); }
         if (outageFlickerTimer > 0) outageFlickerTimer--;
         if (flickerTimer > 0) flickerTimer--;
         else if (flickerCooldown > 0) flickerCooldown--;
-        else { flickerTimer = 90; flickerCooldown = 1500; playSound('tick'); }
+        else { flickerTimer = 90 + (gameMode === 'endless' ? (endlessRound - 1) * 12 : 0); flickerCooldown = gameMode === 'endless' ? Math.max(500, 1500 - endlessRound * 100) : 1500; playSound('tick'); }
         if (emergencyTimer > 0) emergencyTimer--;
         else if (emergencyCooldown > 0) emergencyCooldown--;
-        else { emergencyTimer = 420; emergencyCooldown = 2100; showMsg('<span style="color:#f44">EMERGENCY LIGHTS</span>', 1200); playSound('alarm'); }
+        else { emergencyTimer = 420 + (gameMode === 'endless' ? (endlessRound - 1) * 30 : 0); emergencyCooldown = gameMode === 'endless' ? Math.max(900, 2100 - endlessRound * 120) : 2100; showMsg('<span style="color:#f44">EMERGENCY LIGHTS</span>', 1200); playSound('alarm'); }
         if (noiseTimer > 0) noiseTimer--;
         else noiseTarget = null;
     }
 
-    if (monster.name === 'CALEB' && state === 1) {
+    if (eventsEnabled && monster.name === 'CALEB' && state === 1) {
         if (empActive > 0) {
             empActive--;
         } else if (empWarning > 0) {
@@ -1230,6 +1371,7 @@ function update() {
             }
         }
     }
+    if (state === 1 || state === 3) updateExtraMonsters();
 }
 
 function draw() {
@@ -1387,6 +1529,21 @@ function draw() {
         }
     }
 
+    for (const enemy of monsters.slice(1)) {
+        ctx.fillStyle = 'rgba(0,0,0,0.35)';
+        ctx.beginPath(); ctx.ellipse(enemy.x, enemy.y + enemy.drawRadius * 0.65, enemy.drawRadius * 0.9, enemy.drawRadius * 0.35, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = enemy.stunTimer > 0 ? '#fff' : (state === 3 ? '#555' : enemy.color);
+        ctx.beginPath(); ctx.arc(enemy.x, enemy.y, enemy.drawRadius, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = state === 3 ? '#000' : enemy.textColor;
+        ctx.font = 'bold 11px Arial'; ctx.textAlign = 'center';
+        ctx.fillText(enemy.name, enemy.x, enemy.y - enemy.drawRadius - 5);
+        if (state !== 3 && enemy.stunTimer <= 0) {
+            ctx.fillStyle = '#fff';
+            ctx.beginPath(); ctx.arc(enemy.x - enemy.drawRadius * 0.3, enemy.y - 2, 2, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(enemy.x + enemy.drawRadius * 0.3, enemy.y - 2, 2, 0, Math.PI * 2); ctx.fill();
+        }
+    }
+
     if (!player.hidden) {
         ctx.fillStyle = 'rgba(0,0,0,0.35)';
         ctx.beginPath(); ctx.ellipse(player.x, player.y + player.r * 0.7, player.r * 0.9, player.r * 0.35, 0, 0, Math.PI * 2); ctx.fill();
@@ -1415,10 +1572,12 @@ function draw() {
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         const worldToScreen = (x, y) => [canvas.width / 2 + (x - camera.x - canvas.width / 2) * camera.zoom, canvas.height / 2 + (y - camera.y - canvas.height / 2) * camera.zoom];
         const [playerScreenX, playerScreenY] = worldToScreen(player.x, player.y);
-        const [monsterScreenX, monsterScreenY] = worldToScreen(monster.x, monster.y);
         ctx.strokeStyle = '#ff3030'; ctx.lineWidth = 4;
         ctx.beginPath(); ctx.arc(playerScreenX, playerScreenY, 22, 0, Math.PI * 2); ctx.stroke();
-        ctx.beginPath(); ctx.arc(monsterScreenX, monsterScreenY, monster.drawRadius + 12, 0, Math.PI * 2); ctx.stroke();
+        for (const enemy of monsters) {
+            const [monsterScreenX, monsterScreenY] = worldToScreen(enemy.x, enemy.y);
+            ctx.beginPath(); ctx.arc(monsterScreenX, monsterScreenY, enemy.drawRadius + 12, 0, Math.PI * 2); ctx.stroke();
+        }
     }
 
     if (flashAlpha > 0) {

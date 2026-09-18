@@ -10,6 +10,12 @@ Live game: https://jorjoro16.github.io/calebs-shift/
 
 Explore the maze, repair every generator, survive the monster's mutations, and catch it once the power is restored.
 
+## Modes
+
+- **Normal:** Choose Easy, Normal, or Hard for the original single-round game.
+- **Endless:** Every cleared round immediately starts a harder one. New rounds add generators, speed, mutations, stronger events, and eventually more monsters.
+- **Survival:** Choose the existing monster roster, number of monsters, difficulty, generators, mutation count, and whether events are active.
+
 ## Controls
 
 ### Desktop
