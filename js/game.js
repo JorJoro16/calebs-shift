@@ -378,6 +378,7 @@ function toggleHide() {
         player.hideTimer = 1200;
         nearHide.occupied = true;
         clearMovementKeys();
+        monster.path = [];
         showMsg('<span style="color:#ff9900">HIDDEN</span>', 700);
     } else {
         player.hidden = false;
@@ -802,10 +803,12 @@ function startGame(diffLevel) {
         } else if (!multiGeneratorAssigned && roll < 0.30) {
             generator.type = 'multi';
             multiGeneratorAssigned = true;
-        } else if (roll < 0.50) {
+        } else if (roll < 0.50 && generators.filter(other => !other.isFalse).length > 1) {
             generator.isFalse = true;
         }
     }
+    // Decoys never count toward the power objective.
+    totalGens = generators.filter(generator => !generator.isFalse).length;
     const storageRoom = rooms.find(room => room.type === 'storage');
     if (storageRoom && Math.random() < 0.55 && generators.length > 0) {
         const roomGenerator = generators[Math.floor(Math.random() * generators.length)];
@@ -892,10 +895,8 @@ function updateHUD() {
 }
 
 function moveEntity(ent, dx, dy) {
-    const oldX = ent.x, oldY = ent.y;
     ent.x += dx; if (checkWall(ent)) ent.x -= dx;
     ent.y += dy; if (checkWall(ent)) ent.y -= dy;
-    if (ent === monster && isSafeRoom(ent.x, ent.y)) { ent.x = oldX; ent.y = oldY; }
 }
 
 function checkWall(ent) {
@@ -1074,12 +1075,11 @@ function update() {
     }
 
     // --- MONSTER AI ---
-    if (player.hidden) {
-        monster.path = [];
-    } else if (monster.stunTimer > 0) {
+    // A hiding spot or safe room breaks detection, but never pauses the monster.
+    if (monster.stunTimer > 0) {
         monster.stunTimer--;
     } else if (state === 1 || state === 3) {
-        let canSeePlayer = !player.breathing && getLineOfSight(monster.x, monster.y, player.x, player.y);
+        let canSeePlayer = !player.hidden && !player.breathing && !isSafeRoom(player.x, player.y) && getLineOfSight(monster.x, monster.y, player.x, player.y);
         
         if (state === 1 && monster.name === 'JORDAN') {
             if (jordanState === 'saboteur') {
@@ -1122,13 +1122,13 @@ function update() {
                     jordanState = 'mimic'; stateTimer = 900; monster.path = []; updateHUD();
                 }
                 
-                if (Math.hypot(player.x - monster.x, player.y - monster.y) < player.r + monster.r) {
+                if (!player.hidden && !isSafeRoom(player.x, player.y) && Math.hypot(player.x - monster.x, player.y - monster.y) < player.r + monster.r) {
                     endGame(false);
                 }
             } else if (jordanState === 'mimic') {
                 stateTimer--;
                 if (stateTimer <= 0) { jordanState = 'saboteur'; mimicTimer = 600; updateHUD(); }
-                if (Math.hypot(player.x - monster.x, player.y - monster.y) < player.r + monster.r + 5) {
+                if (!player.hidden && !isSafeRoom(player.x, player.y) && Math.hypot(player.x - monster.x, player.y - monster.y) < player.r + monster.r + 5) {
                     jordanState = 'stun'; stateTimer = 180; 
                     playSound('fail');
                     showMsg(`<span style='color:red; font-size:30px'>THAT'S NOT A GENERATOR...</span>`, 2500); updateHUD();
@@ -1147,7 +1147,7 @@ function update() {
                 moveMonsterAlongPath(boostSpeed);
                 
                 if (stateTimer <= 0) { jordanState = 'saboteur'; mimicTimer = 600; canvas.classList.remove('shake'); }
-                if (Math.hypot(player.x - monster.x, player.y - monster.y) < player.r + monster.r) {
+                if (!player.hidden && !isSafeRoom(player.x, player.y) && Math.hypot(player.x - monster.x, player.y - monster.y) < player.r + monster.r) {
                     canvas.classList.remove('shake'); endGame(false);
                 }
             }
@@ -1156,10 +1156,8 @@ function update() {
             if (monster.isPhantom) {
                 let ang = Math.atan2(player.y - monster.y, player.x - monster.x);
                 const phantomSpeed = getMonsterSpeed();
-                const oldMonsterX = monster.x, oldMonsterY = monster.y;
                 monster.x += Math.cos(ang) * phantomSpeed;
                 monster.y += Math.sin(ang) * phantomSpeed;
-                if (isSafeRoom(monster.x, monster.y)) { monster.x = oldMonsterX; monster.y = oldMonsterY; }
             } else {
                 if (canSeePlayer) {
                     let pC = Math.floor(player.x/TS), pR = Math.floor(player.y/TS);
@@ -1181,15 +1179,16 @@ function update() {
                         }
                     } else {
                     if (monster.path.length === 0 || (monster.allSeeing && Math.random() < 0.05)) {
-                        let targetC = monster.allSeeing && !player.breathing ? Math.floor(player.x/TS) : floors[Math.floor(Math.random() * floors.length)].c;
-                        let targetR = monster.allSeeing && !player.breathing ? Math.floor(player.y/TS) : floors[Math.floor(Math.random() * floors.length)].r;
+                        const tracksPlayer = monster.allSeeing && !player.breathing && !player.hidden && !isSafeRoom(player.x, player.y);
+                        let targetC = tracksPlayer ? Math.floor(player.x/TS) : floors[Math.floor(Math.random() * floors.length)].c;
+                        let targetR = tracksPlayer ? Math.floor(player.y/TS) : floors[Math.floor(Math.random() * floors.length)].r;
                         monster.path = findPath(Math.floor(monster.x/TS), Math.floor(monster.y/TS), targetC, targetR);
                     }
                     moveMonsterAlongPath(getMonsterSpeed());
                     }
                 }
             }
-            if (Math.hypot(player.x - monster.x, player.y - monster.y) < player.r + monster.r - 2) {
+            if (!player.hidden && !isSafeRoom(player.x, player.y) && Math.hypot(player.x - monster.x, player.y - monster.y) < player.r + monster.r - 2) {
                 endGame(false);
             }
         } 
