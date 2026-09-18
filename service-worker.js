@@ -1,4 +1,4 @@
-const CACHE_NAME = 'calebs-shift-v7';
+const CACHE_NAME = 'calebs-shift-v8';
 const FILES_TO_CACHE = [
   './',
   './index.html',
@@ -6,7 +6,8 @@ const FILES_TO_CACHE = [
   './js/game.js',
   './manifest.json',
   './assets/icon.svg',
-  './assets/apple-touch-icon.png'
+  './assets/apple-touch-icon.png',
+  './assets/icon-512.png'
 ];
 
 self.addEventListener('install', event => {

@@ -62,20 +62,84 @@ function playSound(type) {
     }
 }
 
-// Save Data Data
-let tokens = parseInt(localStorage.getItem('br_tokens')) || 0;
-let upgShoe = parseInt(localStorage.getItem('br_shoe')) || 0;
-let upgHack = parseInt(localStorage.getItem('br_hack')) || 0;
-let upgQuick = parseInt(localStorage.getItem('br_quick')) || 0;
-let upgCoin = parseInt(localStorage.getItem('br_coin')) || 0;
-let invAdrenaline = parseInt(localStorage.getItem('br_adrenaline')) || 0;
-let invFlashbang = parseInt(localStorage.getItem('br_flashbang')) || 0;
+// Versioned local progress with a backup copy and import/export support.
+const GAME_VERSION = '1.0.0';
+const SAVE_SCHEMA_VERSION = 2;
+const SAVE_KEY = 'br_save_v2';
+const SAVE_BACKUP_KEY = 'br_save_backup_v2';
+
+function safeStorageGet(key) {
+    try { return localStorage.getItem(key); } catch (error) { return null; }
+}
+
+function boundedInt(value, min, max, fallback = min) {
+    const number = Number(value);
+    return Number.isFinite(number) ? Math.max(min, Math.min(max, Math.floor(number))) : fallback;
+}
+
+function normalizeProgress(raw) {
+    if (!raw || typeof raw !== 'object') return null;
+    const source = raw.progress && typeof raw.progress === 'object' ? raw.progress : raw;
+    if (raw.schemaVersion !== undefined && raw.schemaVersion > SAVE_SCHEMA_VERSION) return null;
+    if (source.tokens === undefined && source.upgShoe === undefined) return null;
+    return {
+        tokens: boundedInt(source.tokens, 0, 999999, 0),
+        upgShoe: boundedInt(source.upgShoe, 0, 3, 0),
+        upgHack: boundedInt(source.upgHack, 0, 2, 0),
+        upgQuick: boundedInt(source.upgQuick, 0, 3, 0),
+        upgCoin: boundedInt(source.upgCoin, 0, 1, 0),
+        invAdrenaline: boundedInt(source.invAdrenaline, 0, 9999, 0),
+        invFlashbang: boundedInt(source.invFlashbang, 0, 9999, 0)
+    };
+}
+
+function loadProgress() {
+    for (const key of [SAVE_KEY, SAVE_BACKUP_KEY]) {
+        const stored = safeStorageGet(key);
+        if (stored) {
+            try {
+                const parsed = normalizeProgress(JSON.parse(stored));
+                if (parsed) return parsed;
+            } catch (error) { /* Try the backup or legacy save next. */ }
+        }
+    }
+    return normalizeProgress({
+        tokens: safeStorageGet('br_tokens'),
+        upgShoe: safeStorageGet('br_shoe'),
+        upgHack: safeStorageGet('br_hack'),
+        upgQuick: safeStorageGet('br_quick'),
+        upgCoin: safeStorageGet('br_coin'),
+        invAdrenaline: safeStorageGet('br_adrenaline'),
+        invFlashbang: safeStorageGet('br_flashbang')
+    }) || { tokens: 0, upgShoe: 0, upgHack: 0, upgQuick: 0, upgCoin: 0, invAdrenaline: 0, invFlashbang: 0 };
+}
+
+const loadedProgress = loadProgress();
+let tokens = loadedProgress.tokens;
+let upgShoe = loadedProgress.upgShoe;
+let upgHack = loadedProgress.upgHack;
+let upgQuick = loadedProgress.upgQuick;
+let upgCoin = loadedProgress.upgCoin;
+let invAdrenaline = loadedProgress.invAdrenaline;
+let invFlashbang = loadedProgress.invFlashbang;
 
 // Settings Data
 let setFPS = localStorage.getItem('br_fps') === 'true';
 let setCRT = localStorage.getItem('br_crt') === 'true';
 let setVolM = localStorage.getItem('br_volM') || 100;
 let setVolS = localStorage.getItem('br_volS') || 100;
+
+function currentProgress() {
+    return { tokens, upgShoe, upgHack, upgQuick, upgCoin, invAdrenaline, invFlashbang };
+}
+
+function setSaveStatus(text, color = '#8f8') {
+    const status = document.getElementById('saveStatus');
+    if (status) {
+        status.textContent = text;
+        status.style.color = color;
+    }
+}
 
 function saveSettings() {
     localStorage.setItem('br_fps', setFPS);
@@ -105,14 +169,81 @@ function toggleSetting(type) {
 }
 
 function saveData() {
-    localStorage.setItem('br_tokens', tokens);
-    localStorage.setItem('br_shoe', upgShoe);
-    localStorage.setItem('br_hack', upgHack);
-    localStorage.setItem('br_quick', upgQuick);
-    localStorage.setItem('br_coin', upgCoin);
-    localStorage.setItem('br_adrenaline', invAdrenaline);
-    localStorage.setItem('br_flashbang', invFlashbang);
+    const payload = {
+        gameVersion: GAME_VERSION,
+        schemaVersion: SAVE_SCHEMA_VERSION,
+        savedAt: new Date().toISOString(),
+        progress: currentProgress()
+    };
+    try {
+        const previous = localStorage.getItem(SAVE_KEY);
+        if (previous) localStorage.setItem(SAVE_BACKUP_KEY, previous);
+        localStorage.setItem(SAVE_KEY, JSON.stringify(payload));
+        // Keep the old keys temporarily so existing installations remain compatible.
+        localStorage.setItem('br_tokens', tokens);
+        localStorage.setItem('br_shoe', upgShoe);
+        localStorage.setItem('br_hack', upgHack);
+        localStorage.setItem('br_quick', upgQuick);
+        localStorage.setItem('br_coin', upgCoin);
+        localStorage.setItem('br_adrenaline', invAdrenaline);
+        localStorage.setItem('br_flashbang', invFlashbang);
+        setSaveStatus(`Progress saved · ${new Date().toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}`);
+    } catch (error) {
+        setSaveStatus('Save unavailable on this device', '#ff8888');
+    }
     updateMenuData();
+}
+
+function exportSave() {
+    const payload = {
+        game: "The Backrooms: Caleb's Shift",
+        gameVersion: GAME_VERSION,
+        schemaVersion: SAVE_SCHEMA_VERSION,
+        exportedAt: new Date().toISOString(),
+        progress: currentProgress()
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], {type: 'application/json'});
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'calebs-shift-save.json';
+    link.click();
+    URL.revokeObjectURL(url);
+    setSaveStatus('Save file exported');
+}
+
+function importSave(event) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+        try {
+            const imported = normalizeProgress(JSON.parse(reader.result));
+            if (!imported) throw new Error('Invalid save');
+            if (!confirm('Replace your current progress with this save file?')) return;
+            tokens = imported.tokens;
+            upgShoe = imported.upgShoe;
+            upgHack = imported.upgHack;
+            upgQuick = imported.upgQuick;
+            upgCoin = imported.upgCoin;
+            invAdrenaline = imported.invAdrenaline;
+            invFlashbang = imported.invFlashbang;
+            saveData();
+            setSaveStatus('Save imported successfully');
+        } catch (error) {
+            setSaveStatus('That save file is invalid', '#ff8888');
+        } finally {
+            event.target.value = '';
+        }
+    };
+    reader.readAsText(file);
+}
+
+function resetProgress() {
+    if (!confirm('Reset all tokens, upgrades, and items? Your previous save will remain in the backup slot.')) return;
+    tokens = 0; upgShoe = 0; upgHack = 0; upgQuick = 0; upgCoin = 0; invAdrenaline = 0; invFlashbang = 0;
+    saveData();
+    setSaveStatus('Progress reset; previous save kept as backup');
 }
 
 function updateMenuData() {
@@ -198,6 +329,7 @@ let lastSingleMutation = null;
 // AI & Item Variables
 let jordanState = 'saboteur', mimicTimer = 0, stateTimer = 0, jordanSabotageCooldown = 0;
 let empTimer = 0, empWarning = 0, empActive = 0, flashAlpha = 0;
+let ambienceClock = 0;
 
 // Skill Check Variables
 let scNeedle = 0, scSpeed = 0, scZoneStart = 0, scZoneEnd = 0, scHits = 0, scRequired = 0, scDelay = 0;
@@ -260,7 +392,8 @@ window.addEventListener('keydown', (e) => {
             scHits++;
             playSound('success');
             if (scHits >= scRequired) {
-                currentGen.active = true; activeGens++;
+                currentGen.active = true; currentGen.repairFlash = 45; activeGens++;
+                showMsg('<span style="color:#0f0">GENERATOR ONLINE</span>', 900);
                 state = 1; checkPhase();
                 if(state===1 && monster.isFrenzy) monster.speed += 0.15;
             } else {
@@ -270,7 +403,8 @@ window.addEventListener('keydown', (e) => {
             }
         } else {
             state = 1; player.stunTimer = 120;
-            playSound('fail'); keys.w = false; keys.a = false; keys.s = false; keys.d = false;
+            playSound('fail'); showMsg('<span style="color:#ff4444">WIRING FAILED</span>', 900);
+            keys.w = false; keys.a = false; keys.s = false; keys.d = false;
         }
         return;
     }
@@ -281,14 +415,16 @@ window.addEventListener('keydown', (e) => {
             puzzleSequence.shift();
             playSound('tick');
             if (puzzleSequence.length === 0) {
-                currentGen.active = true; activeGens++;
+                currentGen.active = true; currentGen.repairFlash = 45; activeGens++;
                 playSound('success');
+                showMsg('<span style="color:#0f0">GENERATOR ONLINE</span>', 900);
                 state = 1; checkPhase();
                 keys.w = false; keys.a = false; keys.s = false; keys.d = false;
                 if (state === 1 && monster.isFrenzy) monster.speed += 0.15; 
             }
         } else if (['w','a','s','d'].includes(k)) {
             state = 1; player.stunTimer = 120; playSound('fail');
+            showMsg('<span style="color:#ff4444">WRONG CONNECTION</span>', 900);
         }
         return;
     }
@@ -347,6 +483,7 @@ function startGame(diffLevel) {
     player.baseSpeed = 3.8 * (1 + (upgShoe * 0.05));
     player.speed = player.baseSpeed;
     player.boostTimer = 0; player.stunTimer = 0;
+    ambienceClock = 0;
     camera.targetZoom = 1.0; camera.zoom = 1.0;
     nearGen = null; flashAlpha = 0;
     
@@ -598,7 +735,12 @@ function update() {
     if (state !== 1 && state !== 3 && state !== 5) return;
 
     if (flashAlpha > 0) flashAlpha -= 0.02;
+    ambienceClock++;
     if (jordanSabotageCooldown > 0) jordanSabotageCooldown--;
+
+    for (const generator of generators) {
+        if (generator.repairFlash > 0) generator.repairFlash--;
+    }
 
     if (monster.name === 'CALEB' && state === 1) {
         if (empActive > 0) {
@@ -612,7 +754,10 @@ function update() {
             }
         } else {
             empTimer--;
-            if (empTimer <= 0) empWarning = 60; 
+            if (empTimer <= 0) {
+                empWarning = 60;
+                showMsg('<span style="color:#ff0">EMP INCOMING</span>', 1000);
+            }
         }
     } else {
         empActive = 0; empWarning = 0;
@@ -686,6 +831,7 @@ function update() {
                     if (Math.hypot(monster.x - targetGen.x, monster.y - targetGen.y) < 10) {
                         targetGen.active = false; activeGens--; 
                         jordanSabotageCooldown = 1800; 
+                        showMsg('<span style="color:#0f0">GENERATOR SABOTAGED</span>', 1300);
                         updateHUD(); monster.path = [];
                     }
                 } else {
@@ -813,9 +959,22 @@ function draw() {
     }
 
     for (let g of generators) {
+        if (g.active || g.repairFlash > 0) {
+            const glow = g.repairFlash > 0 ? 0.35 + (g.repairFlash / 45) * 0.35 : 0.16;
+            const glowRadius = g.repairFlash > 0 ? 34 : 24;
+            const gradient = ctx.createRadialGradient(g.x, g.y, 4, g.x, g.y, glowRadius);
+            gradient.addColorStop(0, `rgba(0,255,80,${glow})`);
+            gradient.addColorStop(1, 'rgba(0,255,80,0)');
+            ctx.fillStyle = gradient;
+            ctx.beginPath(); ctx.arc(g.x, g.y, glowRadius, 0, Math.PI * 2); ctx.fill();
+        }
         ctx.fillStyle = g.active ? '#0f0' : '#888';
         ctx.beginPath(); ctx.arc(g.x, g.y, g.r, 0, Math.PI * 2); ctx.fill();
         ctx.strokeStyle = '#000'; ctx.lineWidth = 2; ctx.stroke();
+        ctx.fillStyle = g.active ? '#031' : '#222';
+        ctx.fillRect(g.x - 3, g.y - 8, 6, 16);
+        ctx.fillStyle = g.active ? '#afffb0' : '#aaa';
+        ctx.beginPath(); ctx.arc(g.x, g.y - 2, 2, 0, Math.PI * 2); ctx.fill();
         
         if (state === 1 && nearGen === g && player.stunTimer <= 0) {
             ctx.fillStyle = '#fff'; ctx.font = 'bold 12px Arial'; ctx.textAlign = 'center';
@@ -824,6 +983,8 @@ function draw() {
     }
 
     let dist = Math.hypot(player.x - monster.x, player.y - monster.y);
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.beginPath(); ctx.ellipse(monster.x, monster.y + monster.drawRadius * 0.65, monster.drawRadius * 0.9, monster.drawRadius * 0.35, 0, 0, Math.PI * 2); ctx.fill();
     if (monster.name === 'JORDAN' && jordanState === 'mimic' && state !== 3) {
         ctx.fillStyle = '#888';
         ctx.beginPath(); ctx.arc(monster.x, monster.y, 12, 0, Math.PI * 2); ctx.fill();
@@ -834,8 +995,15 @@ function draw() {
         ctx.fillStyle = state === 3 ? 'black' : monster.textColor;
         ctx.font = 'bold 12px Arial'; ctx.textAlign = 'center';
         ctx.fillText(monster.name, monster.x, monster.y - monster.drawRadius - 5);
+        if (state !== 3 && monster.stunTimer <= 0) {
+            ctx.fillStyle = '#fff';
+            ctx.beginPath(); ctx.arc(monster.x - monster.drawRadius * 0.3, monster.y - 2, 2, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(monster.x + monster.drawRadius * 0.3, monster.y - 2, 2, 0, Math.PI * 2); ctx.fill();
+        }
     }
 
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.beginPath(); ctx.ellipse(player.x, player.y + player.r * 0.7, player.r * 0.9, player.r * 0.35, 0, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = player.boostTimer > 0 ? '#0ff' : (player.stunTimer > 0 ? '#ff0' : '#00f');
     ctx.beginPath(); ctx.arc(player.x, player.y, player.r, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
@@ -911,6 +1079,7 @@ function loop(timestamp) {
     requestAnimationFrame(loop);
 }
 
+document.querySelectorAll('#infoVersion, #settingsVersion').forEach(element => element.textContent = GAME_VERSION);
 applySettings();
 updateMenuData();
 requestAnimationFrame(loop);
@@ -1070,3 +1239,5 @@ document.getElementById('installButton')?.addEventListener('click', async () => 
     deferredInstallPrompt = null;
     document.getElementById('installButton').style.display = 'none';
 });
+
+window.addEventListener('pagehide', () => saveData());

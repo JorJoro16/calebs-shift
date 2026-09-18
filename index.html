@@ -10,6 +10,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Caleb's Shift">
     <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+    <meta name="description" content="Repair the generators, survive the Backrooms, and catch the monster before it catches you.">
     <title>The Backrooms: Caleb's Shift</title>
         <link rel="stylesheet" href="css/style.css">
 </head>
@@ -30,6 +31,7 @@
     <!-- Main Menu -->
     <div id="mainMenu" class="menu-panel" style="display: flex;">
         <h1>THE BACKROOMS</h1>
+        <div class="subtitle">CALEB'S SHIFT</div>
         <div class="token-display" id="tokenDisplayMain">Tokens: 0</div>
         <button onclick="showMenu('diffMenu')">PLAY</button>
         <button onclick="openShop()">SHOP</button>
@@ -76,6 +78,11 @@
     <div id="infoMenu" class="menu-panel" style="max-height: 80vh; overflow-y: auto;">
         <h2>DATABASE & TIPS</h2>
         <div style="text-align: left; font-size: 14px; line-height: 1.5;">
+            <h3 style="color:#0ff; margin-bottom:5px; border-bottom: 1px solid #0ff;">HOW TO PLAY</h3>
+            <b>Desktop:</b> Move with WASD. Press E near a generator. Use SPACE for Adrenaline and F for a Flashbang.<br>
+            <b>Phone:</b> Use the joystick and on-screen action buttons. Install from the Home Screen for the cleanest fullscreen experience.<br>
+            <b>Goal:</b> Repair every generator, then catch the fleeing monster.<br>
+
             <h3 style="color:#ff4444; margin-bottom:5px; border-bottom: 1px solid #ff4444;">MONSTERS</h3>
             <b>Caleb:</b> Standard patrol. Periodically unleashes an EMP that blinds you.<br>
             <b>Malakai:</b> Highly aggressive and fast, but cannot spawn with 'All-Seeing'.<br>
@@ -99,6 +106,7 @@
             - Use <b>'E'</b> to repair generators.<br>
             - Skill check needles now loop endlessly! Take your time to hit the green zone.<br>
             - Jordan has a 30-second cooldown before he can sabotage multiple generators.<br>
+            <br><span style="color:#888;">Version <span id="infoVersion">1.0.0</span> · Created for local play with friends.</span>
         </div>
         <button onclick="showMenu('mainMenu')" style="margin-top: 15px; border-color: #ff4444; color: #ff4444;">BACK</button>
     </div>
@@ -173,6 +181,14 @@
             <button id="btnCRT" onclick="toggleSetting('crt')" style="padding: 5px 10px; font-size:14px;">OFF</button>
         </div>
         <button onclick="testSound()" style="border-color:#0ff; color:#0ff;">TEST SOUND</button>
+        <div class="save-tools">
+            <div class="save-status" id="saveStatus">Progress saves on purchases and completed runs.</div>
+            <button onclick="exportSave()">EXPORT SAVE</button>
+            <button onclick="document.getElementById('saveFileInput').click()">IMPORT SAVE</button>
+            <button onclick="resetProgress()" style="border-color:#ff4444; color:#ff4444;">RESET PROGRESS</button>
+            <input id="saveFileInput" type="file" accept="application/json,.json" style="display:none" onchange="importSave(event)">
+        </div>
+        <div class="version-label">Version <span id="settingsVersion">1.0.0</span></div>
         <button onclick="showMenu('mainMenu')" style="margin-top: 15px; border-color: #ff4444; color: #ff4444;">BACK</button>
     </div>
 

@@ -1,18 +1,46 @@
 # The Backrooms: Caleb's Shift
 
-This is the current working version of the game.
+A small browser survival-horror game built for desktop and mobile.
 
-## Open it in Visual Studio Code
+## Play
 
-1. Open Visual Studio Code.
-2. Choose **File → Open Folder**.
-3. Select this `backrooms-game` folder.
-4. Open `index.html` in a browser to play it.
+Live game: https://jorjoro16.github.io/calebs-shift/
 
-For the best browser preview, the Live Server extension can be used later. It is not required for the current single-file version.
+## Goal
 
-## Current structure
+Explore the maze, repair every generator, survive the monster's mutations, and catch it once the power is restored.
 
-- `index.html` — the complete current game, preserved as a working baseline.
+## Controls
 
-The next organization pass can safely split the styling, game systems, and mobile/PWA files while keeping this baseline available for comparison.
+### Desktop
+
+- WASD: move
+- E: interact with a nearby generator
+- Space: use Adrenaline or hit a skill check
+- F: use a Flashbang
+
+### Phone
+
+Use the virtual joystick and on-screen action buttons. For the best experience, open the live game in Safari or Chrome and add it to the Home Screen. Launching it from the icon enables the cleanest app-like display and offline play after the first online load.
+
+## Progress and saves
+
+Progress is saved locally on each device. The game keeps a versioned save and a rotating backup. Use **Settings** to export a JSON save file, import a backup, or reset progress. No account or cloud save is required.
+
+## Project structure
+
+- `index.html` — page structure and menus
+- `css/style.css` — visual styling and responsive layout
+- `js/game.js` — game systems and controls
+- `manifest.json` — installable web-app metadata
+- `service-worker.js` — offline caching and updates
+- `assets/` — app icons
+
+## Updating
+
+Upload changed files to the repository root and commit them. GitHub Pages redeploys automatically. The service worker detects the new version and offers a **RELOAD** button when an update is ready.
+
+## Credits
+
+Created by JorJoro16 with collaborative coding support.
+

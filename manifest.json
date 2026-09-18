@@ -6,10 +6,18 @@
   "orientation": "any",
   "background_color": "#0a0a0a",
   "theme_color": "#0a0a0a",
+  "description": "Repair the generators, survive the Backrooms, and catch the monster before it catches you.",
+  "categories": ["games", "entertainment"],
   "icons": [
     {
       "src": "./assets/apple-touch-icon.png",
       "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "./assets/icon-512.png",
+      "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
     }
