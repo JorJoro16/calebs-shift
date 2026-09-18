@@ -932,6 +932,7 @@ function startGame(diffLevel) {
 }
 
 function endGame(isWin, sourceMonster = monster) {
+    if (state === 4 || (gameMode === 'endless' && state === 0)) return;
     if (isWin && gameMode === 'endless') {
         const earned = Math.floor(rewardTokens * (upgCoin > 0 ? 1.5 : 1));
         tokens += earned;
@@ -1050,26 +1051,38 @@ function getLineOfSight(x1, y1, x2, y2) {
 }
 
 function findPath(sc, sr, tc, tr) {
-    // BOUNDARY FIX: If any point is outside the grid, return empty path immediately to prevent crashes
+    // Fast breadth-first search. The old version copied a full path for every
+    // queued cell, which became extremely expensive with multiple monsters.
     if (sc < 0 || sc >= COLS || sr < 0 || sr >= ROWS || tc < 0 || tc >= COLS || tr < 0 || tr >= ROWS) return [];
     if (map[tr][tc] === 1) return [];
-    
-    let queue = [{c: sc, r: sr, path: []}];
+
+    const queue = [{ c: sc, r: sr }];
+    let queueIndex = 0;
     let visited = Array.from({length: ROWS}, () => Array(COLS).fill(false));
+    let parent = Array.from({length: ROWS}, () => Array(COLS).fill(null));
     visited[sr][sc] = true;
     let dirs = [[0,1], [1,0], [0,-1], [-1,0]];
-    while(queue.length > 0) {
-        let curr = queue.shift();
-        if (curr.c === tc && curr.r === tr) return curr.path;
+    while(queueIndex < queue.length) {
+        let curr = queue[queueIndex++];
+        if (curr.c === tc && curr.r === tr) break;
         for (let d of dirs) {
             let nc = curr.c + d[0], nr = curr.r + d[1];
             if (nc >= 0 && nc < COLS && nr >= 0 && nr < ROWS && map[nr][nc] === 0 && !visited[nr][nc]) {
                 visited[nr][nc] = true;
-                queue.push({c: nc, r: nr, path: [...curr.path, {c: nc, r: nr}]});
+                parent[nr][nc] = curr;
+                queue.push({ c: nc, r: nr });
             }
         }
     }
-    return [];
+    if (!visited[tr][tc]) return [];
+    const path = [];
+    let cursor = { c: tc, r: tr };
+    while (cursor.c !== sc || cursor.r !== sr) {
+        path.unshift(cursor);
+        cursor = parent[cursor.r][cursor.c];
+        if (!cursor) return [];
+    }
+    return path;
 }
 
 function moveMonsterAlongPath(spd, enemy = monster) {
@@ -1114,8 +1127,8 @@ function updateExtraMonsters() {
         }
         moveMonsterAlongPath(getMonsterSpeed(enemy), enemy);
         const touching = Math.hypot(player.x - enemy.x, player.y - enemy.y) < player.r + enemy.r - 2;
-        if (state === 1 && (sawHide || (!protectedPlayer && touching))) endGame(false, enemy);
-        if (state === 3 && touching) endGame(true, enemy);
+        if (state === 1 && (sawHide || (!protectedPlayer && touching))) { endGame(false, enemy); return; }
+        if (state === 3 && touching) { endGame(true, enemy); return; }
     }
 }
 
