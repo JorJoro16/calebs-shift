@@ -45,8 +45,8 @@ These three menus safely pause the run while they are open. For the best experie
 - Cosmetic player colors and trails are unlocked by challenges such as winning on Hard, catching specific monsters, clearing Endless rounds, and winning without items.
 - The Statistics screen tracks games, wins, repairs, catches, Endless progress, item use, and favorite monster.
 - Inventory is limited to five consumables total. The shop includes Adrenaline, Flashbangs, Noise Makers, Emergency Batteries, and Breath Filters.
-- When more than one monster is active, the HUD keeps the main view small and offers a **MONSTERS** roster with each monster's mutations.
-- Chase music fades in while danger is close. Hallucination mutations can create fake silhouettes, generator signals, alerts, and HUD readings without directly harming the player.
+- When more than one monster is active, the HUD identifies the group and offers a **MONSTERS** roster with each monster's mutations.
+- Hallucination mutations can create fake silhouettes, generator signals, alerts, and HUD readings without directly harming the player.
 
 The info screen inside the game lists every mobile button and the special map events, generators, rooms, and mutations.
 

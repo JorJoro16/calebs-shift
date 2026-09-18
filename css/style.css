@@ -93,6 +93,11 @@
         #infoMenu::-webkit-scrollbar { width: 8px; }
         #infoMenu::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); border-radius: 4px; }
         #infoMenu::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.3); border-radius: 4px; }
+        .info-sections { text-align: left; font-size: 14px; line-height: 1.5; }
+        .info-section { margin: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.14); }
+        .info-section summary { cursor: pointer; padding: 8px 4px; font-weight: bold; border-bottom: 1px solid currentColor; list-style-position: inside; }
+        .info-section summary::marker { color: currentColor; }
+        .info-section > div { padding: 9px 5px 12px; }
     
 
 

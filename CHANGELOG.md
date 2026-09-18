@@ -1,12 +1,21 @@
 # Changelog
 
+## 1.2.1
+
+- Removed chase music for now.
+- Endless deaths now restart from round 1 when choosing Play Again.
+- End-menu Play Again and Main Menu actions save statistics for every mode.
+- The main HUD now says Multiple Monsters instead of showing only the first monster; details remain in the roster.
+- Converted the Info screen categories into colored expandable dropdowns.
+- Bumped the offline cache so these changes update installed copies.
+
 ## 1.2.0
 
 - Added cosmetic player colors and trails, challenge unlocks, and a dedicated Statistics screen.
 - Added Emergency Batteries and Breath Filters to the shop, with a five-item inventory limit so loadouts stay meaningful.
 - Added a compact multi-monster roster in the HUD; full monster names and mutations now stay out of the main play view until opened.
 - Reworked mobile actions into four clear buttons: Interact, Abilities, Items, and Menu. Their pop-up panels pause safely while choices are made.
-- Added fading chase music and expanded Hallucinations with fake silhouettes, generator markers, power alerts, and temporary incorrect HUD progress.
+- Expanded Hallucinations with fake silhouettes, generator markers, power alerts, and temporary incorrect HUD progress.
 - Reorganized the in-game Info screen and documented every phone control, progression system, item, and new threat.
 - Updated the offline cache so installed phones receive this release cleanly.
 

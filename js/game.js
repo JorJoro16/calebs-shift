@@ -8,7 +8,6 @@ const msgBox = document.getElementById('message');
 // Audio Context Setup
 let audioCtx = null;
 let audioUnlocked = false;
-let chaseOsc = null, chaseGain = null;
 function initAudio() {
     const AudioCtor = window.AudioContext || window.webkitAudioContext;
     if (!AudioCtor) return;
@@ -71,30 +70,8 @@ function playSound(type) {
     }
 }
 
-function updateChaseMusic(active) {
-    if (!audioCtx || audioCtx.state !== 'running') return;
-    const target = active ? Math.min(0.11, (Number(setVolM) / 100) * 0.10) : 0.0001;
-    if (active && !chaseOsc) {
-        chaseOsc = audioCtx.createOscillator();
-        chaseGain = audioCtx.createGain();
-        chaseOsc.type = 'sawtooth';
-        chaseOsc.frequency.setValueAtTime(55, audioCtx.currentTime);
-        chaseOsc.frequency.linearRampToValueAtTime(92, audioCtx.currentTime + 0.45);
-        chaseOsc.connect(chaseGain); chaseGain.connect(audioCtx.destination);
-        chaseGain.gain.setValueAtTime(0.0001, audioCtx.currentTime);
-        chaseOsc.start();
-    }
-    if (!chaseGain) return;
-    chaseGain.gain.cancelScheduledValues(audioCtx.currentTime);
-    chaseGain.gain.linearRampToValueAtTime(target, audioCtx.currentTime + (active ? 0.18 : 0.75));
-    if (!active && chaseOsc) {
-        const oldOsc = chaseOsc, oldGain = chaseGain;
-        setTimeout(() => { if (chaseOsc === oldOsc) { oldOsc.stop(); chaseOsc = null; chaseGain = null; } }, 850);
-    }
-}
-
 // Versioned local progress with a backup copy and import/export support.
-const GAME_VERSION = '1.2.0';
+const GAME_VERSION = '1.2.1';
 const SAVE_SCHEMA_VERSION = 4;
 const SAVE_KEY = 'br_save_v2';
 const SAVE_BACKUP_KEY = 'br_save_backup_v2';
@@ -1054,7 +1031,6 @@ function unlockCosmetic(id) {
 
 function endGame(isWin, sourceMonster = monster) {
     if (state === 4 || (gameMode === 'endless' && state === 0)) return;
-    updateChaseMusic(false);
     if (isWin && gameMode === 'endless') {
         const earned = Math.floor(rewardTokens * (upgCoin > 0 ? 1.5 : 1));
         tokens += earned;
@@ -1096,6 +1072,21 @@ function endGame(isWin, sourceMonster = monster) {
         playSound('fail');
         document.getElementById('endDesc').innerHTML = `${sourceMonster.name} tore you apart.`;
     }
+}
+
+function playAgainFromEnd() {
+    saveData();
+    if (gameMode === 'endless') endlessRound = 1;
+    state = 0;
+    startGame(currentDiff);
+}
+
+function returnToMainMenu() {
+    saveData();
+    state = 0;
+    mobileMenuPaused = false;
+    document.getElementById('mobileActionMenu').style.display = 'none';
+    showMenu('mainMenu');
 }
 
 function checkPhase() {
@@ -1148,11 +1139,12 @@ function updateHUD() {
     if (player.hidden) invText.push(`HIDDEN: ${Math.ceil(player.hideTimer / 60)}s`);
     document.getElementById('inventory').innerText = invText.join(' | ');
     
-    let mText = monster.activeMutations.length > 0 ? `[${monster.activeMutations.join(', ')}]` : '[None]';
-    let title = monster.name === 'JORDAN' && jordanState === 'mimic' ? '???' : monster.name;
+    let mText = monsters.length > 1 ? '[Open roster]' : (monster.activeMutations.length > 0 ? `[${monster.activeMutations.join(', ')}]` : '[None]');
+    let title = monsters.length > 1 ? 'MULTIPLE MONSTERS' : (monster.name === 'JORDAN' && jordanState === 'mimic' ? '???' : monster.name);
+    const titleColor = monsters.length > 1 ? '#ffb0b0' : monster.textColor;
     const modeText = gameMode === 'endless' ? `ROUND ${endlessRound}` : gameMode === 'survival' ? 'SURVIVAL' : 'NORMAL';
     const multiNotice = monsters.length > 1 ? '<br><span style="color:#ffb0b0">Multiple monsters — open roster</span>' : '';
-    document.getElementById('mutations').innerHTML = `<span style="color:${monster.textColor}">${title}</span> <br> ${modeText} · Mutations: ${mText}${multiNotice}`;
+    document.getElementById('mutations').innerHTML = `<span style="color:${titleColor}">${title}</span> <br> ${modeText} · Mutations: ${mText}${multiNotice}`;
     const toggle = document.getElementById('monsterRosterToggle');
     const roster = document.getElementById('monsterRoster');
     if (monsters.length > 1) {
@@ -1543,8 +1535,6 @@ function update() {
         }
     }
     if (state === 1 || state === 3) updateExtraMonsters();
-    const chaseAudio = state === 3 || jordanState === 'enrage' || monsters.some(enemy => !player.hidden && !isSafeRoom(player.x, player.y) && (emergencyTimer > 0 || monsterCanSeeUnhiddenPlayer(enemy) || Math.hypot(enemy.x - player.x, enemy.y - player.y) < 180));
-    updateChaseMusic(chaseAudio);
 }
 
 function draw() {

@@ -77,8 +77,8 @@
     <div id="endMenu" class="menu-panel">
         <h1 id="endTitle">YOU WIN</h1>
         <h2 id="endDesc" style="font-weight: normal; margin-bottom: 25px;"></h2>
-        <button onclick="startGame(currentDiff)">PLAY AGAIN</button>
-        <button onclick="showMenu('mainMenu'); state = 0;">MAIN MENU</button>
+        <button onclick="playAgainFromEnd()">PLAY AGAIN</button>
+        <button onclick="returnToMainMenu()">MAIN MENU</button>
     </div>
 
     <!-- Mode Menu -->
@@ -120,23 +120,23 @@
     <!-- Info/Database Menu -->
     <div id="infoMenu" class="menu-panel" style="max-height: 80vh; overflow-y: auto;">
         <h2>DATABASE & TIPS</h2>
-        <div style="text-align: left; font-size: 14px; line-height: 1.5;">
-            <h3 style="color:#0ff; margin-bottom:5px; border-bottom: 1px solid #0ff;">HOW TO PLAY</h3>
+        <div class="info-sections">
+            <details class="info-section" open><summary style="color:#0ff;">HOW TO PLAY</summary><div>
             <b>Desktop:</b> WASD moves · E interacts · SPACE uses Adrenaline / hits skill checks · F uses Flashbang · hold SHIFT to crouch · hold B to hold breath · H hides near a cabinet · N throws a Noise Maker.<br>
-            <b>Phone:</b> Joystick moves · E interacts · ⚡ Adrenaline · F Flashbang · hold ◎ to crouch · hold ◉ to hold breath · ▣ hides near a cabinet · ♬ throws a Noise Maker. Install from the Home Screen for the cleanest fullscreen experience.<br>
-            <b>Goal:</b> Repair every generator, then catch the fleeing monster.<br>
+            <b>Phone:</b> Joystick moves · E interacts · ◎ Abilities · ▣ Items · ☰ Menu. Install from the Home Screen for the cleanest fullscreen experience.<br>
+            <b>Goal:</b> Repair every generator, then catch the fleeing monster.<br></div></details>
 
-            <h3 style="color:#b8aaff; margin-bottom:5px; border-bottom: 1px solid #b8aaff;">GAME MODES</h3>
+            <details class="info-section"><summary style="color:#b8aaff;">GAME MODES</summary><div>
             <b>Normal:</b> The original one-round game. Choose difficulty, repair generators, then catch the monster.<br>
             <b>Endless:</b> Each win immediately begins the next round. Generators, speed, mutations, outages, false generators, and monster count increase; round 4 introduces a second monster.<br>
-            <b>Survival:</b> Choose Caleb, Malakai, and/or Jordan, how many appear, difficulty, generator count, mutations per monster, and whether map events are active.<br>
+            <b>Survival:</b> Choose Caleb, Malakai, and/or Jordan, how many appear, difficulty, generator count, mutations per monster, and whether map events are active.<br></div></details>
 
-            <h3 style="color:#ff4444; margin-bottom:5px; border-bottom: 1px solid #ff4444;">MONSTERS</h3>
+            <details class="info-section"><summary style="color:#ff4444;">MONSTERS</summary><div>
             <b>Caleb:</b> Standard patrol. Periodically unleashes an EMP that blinds you.<br>
             <b>Malakai:</b> Highly aggressive and fast, but cannot spawn with 'All-Seeing'.<br>
-            <b>Jordan:</b> Disguises himself as a generator. If triggered, he rapidly enrages.<br>
+            <b>Jordan:</b> Disguises himself as a generator. If triggered, he rapidly enrages.<br></div></details>
             
-            <h3 style="color:#ff4444; margin-bottom:5px; margin-top: 15px; border-bottom: 1px solid #ff4444;">MUTATIONS</h3>
+            <details class="info-section"><summary style="color:#ff4444;">MUTATIONS</summary><div>
             <b>Speed Demon:</b> Flat speed boost.<br>
             <b>Frenzy:</b> Gains a speed boost with every repaired generator.<br>
             <b>Giant:</b> Massive visual size.<br>
@@ -150,18 +150,18 @@
             <b>Scrambler:</b> Hides your generator progress UI.<br>
             <b>Hexed:</b> Player boosts (Adrenaline) only last half as long.<br>
             <b>Hallucinations:</b> Creates harmless visual decoys nearby. Do not chase every shape you see.<br>
-            <span style="color:#aaa">They can also fake generator markers, alerts, and HUD progress. They never deal damage.</span><br>
+            <span style="color:#aaa">They can also fake generator markers, alerts, and HUD progress. They never deal damage.</span><br></div></details>
 
-            <h3 style="color:#d8b4ff; margin-bottom:5px; margin-top:15px; border-bottom:1px solid #d8b4ff;">PROGRESSION</h3>
+            <details class="info-section"><summary style="color:#d8b4ff;">PROGRESSION</summary><div>
             <b>Cosmetics:</b> Colors and trails are cosmetic-only rewards for Hard wins, monster catches, Endless progress, and item-free wins.<br>
             <b>Statistics:</b> The Statistics screen records wins, losses, generators, catches, Endless best, fastest win, item use, and favorite monster.<br>
-            <b>Inventory:</b> You can carry up to five consumables. Batteries restore lights with R; Breath Filters extend your next breath hold.<br>
+            <b>Inventory:</b> You can carry up to five consumables. Batteries restore lights with R; Breath Filters extend your next breath hold.<br></div></details>
             
-            <h3 style="color:#0f0; margin-bottom:5px; margin-top: 15px; border-bottom: 1px solid #0f0;">TIPS</h3>
+            <details class="info-section"><summary style="color:#0f0;">TIPS</summary><div>
             - Use <b>'E'</b> to repair generators.<br>
             - Skill check needles now loop endlessly! Take your time to hit the green zone.<br>
-            - Jordan has a 30-second cooldown before he can sabotage multiple generators.<br>
-            <h3 style="color:#ffcc00; margin-bottom:5px; margin-top: 15px; border-bottom: 1px solid #ffcc00;">MAP EVENTS & GENERATORS</h3>
+            - Jordan has a 30-second cooldown before he can sabotage multiple generators.<br></div></details>
+            <details class="info-section"><summary style="color:#ffcc00;">MAP EVENTS & GENERATORS</summary><div>
             <b>Power Outage:</b> The map darkens for a short time. Maintenance rooms can restore the lights early.<br>
             <b>Emergency Lights:</b> Red alarms reveal both locations and let the monster track you through the maze too.<br>
             <b>False Generators:</b> Look closely for their small offset amber status light. Do not repair them.<br>
@@ -171,13 +171,13 @@
             <b>Hiding Spot:</b> Hide for up to 20 seconds while the monster keeps patrolling. If it sees you enter, it will check the spot and catch you.<br>
             <b>Crouch:</b> Hold the crouch button to slow yourself and the monster while you reposition.<br>
             <b>Hold Breath:</b> Hold your breath briefly to avoid the All-Seeing mutation. It has a cooldown.<br>
-            <b>Noise Maker:</b> Throw a sound somewhere else to pull the monster away. Completed generators also make noise.<br>
-            <h3 style="color:#0ff; margin-bottom:5px; margin-top: 15px; border-bottom: 1px solid #0ff;">MOBILE CONTROLS</h3>
+            <b>Noise Maker:</b> Throw a sound somewhere else to pull the monster away. Completed generators also make noise.<br></div></details>
+            <details class="info-section"><summary style="color:#0ff;">MOBILE CONTROLS</summary><div>
             <b>Joystick:</b> Move freely in any direction.<br>
             <b>E:</b> Interact with generators, fuses, rooms, and hiding spots.<br>
             <b>◎ Abilities:</b> Pauses the game and opens Crouch, Hold Breath, and Hide. Crouch is a toggle on phone.<br>
             <b>▣ Items:</b> Pauses the game and opens Adrenaline, Flashbang, Noise Maker, and Battery.<br>
-            <b>☰ Menu:</b> Pauses the game and opens Fullscreen, Info, and Settings.<br>
+            <b>☰ Menu:</b> Pauses the game and opens Fullscreen, Info, and Settings.<br></div></details>
             <br><span style="color:#888;">Version <span id="infoVersion">1.0.0</span> · Created for local play with friends.</span>
         </div>
         <button onclick="showMenu('mainMenu')" style="margin-top: 15px; border-color: #ff4444; color: #ff4444;">BACK</button>
