@@ -327,7 +327,11 @@ function buyConsumable(type, cost) {
 }
 
 // Game Core Settings
-const TS = 40; const COLS = 31; const ROWS = 23; 
+const TS = 40;
+// The maze sits inside a larger canvas grid. The spare border is used for real
+// side rooms, so they are physically connected to the maze rather than painted on it.
+const COLS = 41, ROWS = 33;
+const MAZE_LEFT = 5, MAZE_TOP = 5, MAZE_COLS = 31, MAZE_ROWS = 23;
 let state = 0; let currentDiff = 0; let rewardTokens = 0;
 
 let map = [], floors = [], rooms = [], fuses = [], hidingSpots = [];
@@ -566,24 +570,32 @@ window.addEventListener('keyup', (e) => {
     if (k === 'b') player.breathing = false;
 });
 
+function rebuildFloors() {
+    floors = [];
+    for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+            if (map[r][c] === 0) floors.push({ r, c });
+        }
+    }
+}
+
 function generateMaze() {
     map = Array.from({length: ROWS}, () => Array(COLS).fill(1));
-    floors = [];
     function carve(r, c) {
         map[r][c] = 0;
         let dirs = [[0, -2], [0, 2], [-2, 0], [2, 0]];
         dirs.sort(() => Math.random() - 0.5);
         for (let d of dirs) {
             let nr = r + d[0], nc = c + d[1];
-            if (nr > 0 && nr < ROWS - 1 && nc > 0 && nc < COLS - 1 && map[nr][nc] === 1) {
+            if (nr > MAZE_TOP && nr < MAZE_TOP + MAZE_ROWS - 1 && nc > MAZE_LEFT && nc < MAZE_LEFT + MAZE_COLS - 1 && map[nr][nc] === 1) {
                 map[r + d[0]/2][c + d[1]/2] = 0;
                 carve(nr, nc);
             }
         }
     }
-    carve(1, 1);
-    for (let r = 1; r < ROWS - 1; r++) {
-        for (let c = 1; c < COLS - 1; c++) {
+    carve(MAZE_TOP + 1, MAZE_LEFT + 1);
+    for (let r = MAZE_TOP + 1; r < MAZE_TOP + MAZE_ROWS - 1; r++) {
+        for (let c = MAZE_LEFT + 1; c < MAZE_LEFT + MAZE_COLS - 1; c++) {
             if (map[r][c] === 1) {
                 let vert = map[r-1][c] === 0 && map[r+1][c] === 0;
                 let horz = map[r][c-1] === 0 && map[r][c+1] === 0;
@@ -591,35 +603,57 @@ function generateMaze() {
             }
         }
     }
-    for (let r = 1; r < ROWS - 1; r++) {
-        for (let c = 1; c < COLS - 1; c++) {
-            if (map[r][c] === 0) floors.push({r, c});
-        }
-    }
+    rebuildFloors();
 }
 
 function generateSpecialRooms() {
     rooms = [];
     hidingSpots = [];
-    const edgeTiles = floors.filter(tile => tile.c <= 3 || tile.c >= COLS - 4 || tile.r <= 3 || tile.r >= ROWS - 4);
-    const roomTypes = ['storage', 'maintenance', 'empty', 'safe'];
-    for (const type of roomTypes) {
-        const options = edgeTiles.filter(tile => !rooms.some(room => Math.hypot(room.c - tile.c, room.r - tile.r) < 5));
-        if (options.length === 0) continue;
-        const tile = options[Math.floor(Math.random() * options.length)];
-        rooms.push({ type, c: tile.c, r: tile.r, x: tile.c * TS + TS / 2, y: tile.r * TS + TS / 2 });
-        if (type === 'storage' || type === 'empty') {
-            hidingSpots.push({ x: tile.c * TS + TS / 2, y: tile.r * TS + TS / 2, occupied: false });
+    const roomTypes = ['storage', 'maintenance', 'empty', 'safe'].sort(() => Math.random() - 0.5);
+    const sides = ['north', 'south', 'west', 'east'].sort(() => Math.random() - 0.5);
+    const mazeRight = MAZE_LEFT + MAZE_COLS - 1;
+    const mazeBottom = MAZE_TOP + MAZE_ROWS - 1;
+
+    for (let index = 0; index < roomTypes.length; index++) {
+        const type = roomTypes[index], side = sides[index];
+        let candidates, c, r, corridor = [];
+        if (side === 'north' || side === 'south') {
+            candidates = floors.filter(tile => tile.c > MAZE_LEFT + 2 && tile.c < mazeRight - 2 && (side === 'north' ? tile.r < MAZE_TOP + 6 : tile.r > mazeBottom - 6));
+            const door = candidates.length ? candidates[Math.floor(Math.random() * candidates.length)] : floors[Math.floor(Math.random() * floors.length)];
+            c = door.c; r = side === 'north' ? 1 : ROWS - 2;
+            const step = side === 'north' ? -1 : 1;
+            for (let y = door.r; side === 'north' ? y >= 3 : y <= ROWS - 4; y += step) corridor.push({ c, r: y });
+        } else {
+            candidates = floors.filter(tile => tile.r > MAZE_TOP + 2 && tile.r < mazeBottom - 2 && (side === 'west' ? tile.c < MAZE_LEFT + 6 : tile.c > mazeRight - 6));
+            const door = candidates.length ? candidates[Math.floor(Math.random() * candidates.length)] : floors[Math.floor(Math.random() * floors.length)];
+            c = side === 'west' ? 1 : COLS - 2; r = door.r;
+            const step = side === 'west' ? -1 : 1;
+            for (let x = door.c; side === 'west' ? x >= 3 : x <= COLS - 4; x += step) corridor.push({ c: x, r });
         }
+        for (let rr = r - 1; rr <= r + 1; rr++) for (let cc = c - 1; cc <= c + 1; cc++) map[rr][cc] = 0;
+        for (const tile of corridor) map[tile.r][tile.c] = 0;
+        rooms.push({ type, side, c, r, x: c * TS + TS / 2, y: r * TS + TS / 2 });
     }
+    rebuildFloors();
+    // Empty rooms always contain a cabinet. Storage may receive a generator later,
+    // so its cabinet is added only if that room remains free.
+    const emptyRoom = rooms.find(room => room.type === 'empty');
+    if (emptyRoom) hidingSpots.push({ x: emptyRoom.x, y: emptyRoom.y, occupied: false });
 }
 
 function getRoomAt(x, y) {
-    return rooms.find(room => Math.hypot(room.x - x, room.y - y) < TS * 1.25) || null;
+    return rooms.find(room => Math.abs(room.x - x) <= TS * 1.5 && Math.abs(room.y - y) <= TS * 1.5) || null;
 }
 
 function isSafeRoom(x, y) {
     return getRoomAt(x, y)?.type === 'safe';
+}
+
+function isOpenObjectSpot(x, y, distance = TS * 1.5) {
+    if (generators.some(generator => Math.hypot(generator.x - x, generator.y - y) < distance)) return false;
+    if (hidingSpots.some(spot => Math.hypot(spot.x - x, spot.y - y) < distance)) return false;
+    if (fuses.some(fuse => Math.hypot(fuse.x - x, fuse.y - y) < distance)) return false;
+    return true;
 }
 
 function startGame(diffLevel) {
@@ -631,7 +665,7 @@ function startGame(diffLevel) {
     generateMaze();
     generateSpecialRooms();
     
-    player.x = TS * 1.5; player.y = TS * 1.5;
+    player.x = (MAZE_LEFT + 1.5) * TS; player.y = (MAZE_TOP + 1.5) * TS;
     player.baseSpeed = 4.3 * (1 + (upgShoe * 0.05));
     player.speed = player.baseSpeed;
     player.boostTimer = 0; player.stunTimer = 0; player.crouching = false; player.breathing = false; player.breathTimer = 0; player.breathCooldown = 0; player.hidden = false; player.hideTimer = 0;
@@ -660,7 +694,7 @@ function startGame(diffLevel) {
         else if (rand > 0.25) monsterName = 'MALAKAI';
     }
 
-    let startTile = floors[floors.length - 1];
+    let startTile = floors.filter(tile => !isSafeRoom(tile.c * TS + TS / 2, tile.r * TS + TS / 2)).at(-1) || floors.at(-1);
     
     monster = { 
         name: monsterName,
@@ -737,11 +771,11 @@ function startGame(diffLevel) {
     totalGens = Math.floor(Math.random() * (diffData.gMax - diffData.gMin + 1)) + diffData.gMin;
     activeGens = 0; generators = [];
     
-    let genPool = [...floors].sort(() => Math.random() - 0.5);
+    let genPool = floors.filter(tile => !getRoomAt(tile.c * TS + TS / 2, tile.r * TS + TS / 2)).sort(() => Math.random() - 0.5);
     for (let tile of genPool) {
         if (generators.length >= totalGens) break;
         let tx = tile.c * TS + TS / 2, ty = tile.r * TS + TS / 2;
-        if (!generators.some(g => Math.hypot(tx - g.x, ty - g.y) < TS * 6)) {
+        if (isOpenObjectSpot(tx, ty, TS * 6)) {
             generators.push({ x: tx, y: ty, r: 12, active: false, type: 'normal', isFalse: false, repairFlash: 0, stage: 0, requiredStages: 3, requiredFuses: 2, collectedFuses: 0 });
         }
     }
@@ -749,7 +783,7 @@ function startGame(diffLevel) {
         let tile = genPool.pop();
         if (!tile) break; // Breakout to prevent infinite generation looping
         let tx = tile.c * TS + TS / 2, ty = tile.r * TS + TS / 2;
-        generators.push({ x: tx, y: ty, r: 12, active: false, type: 'normal', isFalse: false, repairFlash: 0, stage: 0, requiredStages: 3, requiredFuses: 2, collectedFuses: 0 });
+        if (isOpenObjectSpot(tx, ty, TS * 2)) generators.push({ x: tx, y: ty, r: 12, active: false, type: 'normal', isFalse: false, repairFlash: 0, stage: 0, requiredStages: 3, requiredFuses: 2, collectedFuses: 0 });
     }
 
     let fuseGeneratorAssigned = false;
@@ -759,7 +793,11 @@ function startGame(diffLevel) {
         if (!fuseGeneratorAssigned && roll < 0.12) {
             generator.type = 'fuse';
             fuseGeneratorAssigned = true;
-            const fuseTiles = [...floors].sort(() => Math.random() - 0.5).slice(0, generator.requiredFuses);
+            const fuseTiles = floors
+                .filter(tile => !getRoomAt(tile.c * TS + TS / 2, tile.r * TS + TS / 2))
+                .filter(tile => isOpenObjectSpot(tile.c * TS + TS / 2, tile.r * TS + TS / 2, TS * 2))
+                .sort(() => Math.random() - 0.5)
+                .slice(0, generator.requiredFuses);
             for (const tile of fuseTiles) fuses.push({ x: tile.c * TS + TS / 2, y: tile.r * TS + TS / 2, collected: false });
         } else if (!multiGeneratorAssigned && roll < 0.30) {
             generator.type = 'multi';
@@ -773,6 +811,9 @@ function startGame(diffLevel) {
         const roomGenerator = generators[Math.floor(Math.random() * generators.length)];
         roomGenerator.x = storageRoom.x;
         roomGenerator.y = storageRoom.y;
+    }
+    if (storageRoom && !generators.some(generator => generator.x === storageRoom.x && generator.y === storageRoom.y)) {
+        hidingSpots.push({ x: storageRoom.x, y: storageRoom.y, occupied: false });
     }
     
     canvas.classList.remove('shake');
@@ -1073,7 +1114,7 @@ function update() {
                 if (mimicTimer <= 0) {
                     let safeTile = floors[Math.floor(Math.random() * floors.length)];
                     let attempts = 0; // INFINITE LOOP PREVENTION
-                    while(generators.some(g => Math.abs(g.x - (safeTile.c*TS+TS/2)) < TS && Math.abs(g.y - (safeTile.r*TS+TS/2)) < TS) && attempts < 50) {
+                    while((generators.some(g => Math.abs(g.x - (safeTile.c*TS+TS/2)) < TS && Math.abs(g.y - (safeTile.r*TS+TS/2)) < TS) || isSafeRoom(safeTile.c*TS+TS/2, safeTile.r*TS+TS/2)) && attempts < 50) {
                         safeTile = floors[Math.floor(Math.random() * floors.length)];
                         attempts++;
                     }
@@ -1253,8 +1294,11 @@ function draw() {
         ctx.fillStyle = g.active ? '#afffb0' : '#aaa';
         ctx.beginPath(); ctx.arc(g.x, g.y - 2, 2, 0, Math.PI * 2); ctx.fill();
         if (!g.active && g.isFalse) {
-            ctx.fillStyle = '#ffb44d'; ctx.font = 'bold 9px Arial'; ctx.textAlign = 'center';
-            ctx.fillText('FALSE', g.x, g.y + 24);
+            // Deliberately subtle: a small offset amber status light, not a giveaway label.
+            ctx.fillStyle = '#c9872a';
+            ctx.fillRect(g.x + 7, g.y - 10, 5, 5);
+            ctx.fillStyle = '#ffe08a';
+            ctx.fillRect(g.x + 8, g.y - 9, 2, 2);
         } else if (!g.active && g.type === 'fuse') {
             ctx.fillStyle = '#fff0a0'; ctx.font = 'bold 9px Arial'; ctx.textAlign = 'center';
             ctx.fillText(`${g.collectedFuses}/${g.requiredFuses} FUSE`, g.x, g.y + 24);
