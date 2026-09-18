@@ -93,7 +93,7 @@ function playSound(type) {
 }
 
 // Versioned local progress with a backup copy and import/export support.
-const GAME_VERSION = '2.1.0';
+const GAME_VERSION = '2.1.1';
 const SAVE_SCHEMA_VERSION = 7;
 const SAVE_KEY = 'br_save_v2';
 const SAVE_BACKUP_KEY = 'br_save_backup_v2';
@@ -314,11 +314,50 @@ function renderLoadouts() {
     content.innerHTML = Object.entries(LOADOUT_DEFINITIONS).map(([id, loadout]) => `<button class="loadout-option" ${selectedLoadout === id ? 'style="border-color:#0f0;color:#0f0"' : ''} onclick="selectLoadout('${id}')"><b>${loadout.name}</b><br><span>${loadout.description}</span></button>`).join('');
 }
 
+function mountSurvivalSetup() {
+    const source = document.querySelector('#survivalMenu > div');
+    const target = document.getElementById('runSetupOptions');
+    if (!source || !target || source.dataset.mounted === 'true') return;
+    source.dataset.mounted = 'true';
+    source.id = 'embeddedSurvivalFields';
+    target.insertBefore(source, target.firstChild);
+}
+
+function renderRunSetup() {
+    mountSurvivalSetup();
+    const standard = document.getElementById('standardDifficultyOptions');
+    const runOptions = document.getElementById('runSetupOptions');
+    const survivalFields = document.querySelector('#embeddedSurvivalFields');
+    const survivalStart = document.getElementById('startSurvivalButton');
+    const isSurvival = gameMode === 'survival';
+    if (standard) standard.style.display = isSurvival ? 'none' : 'block';
+    if (runOptions) runOptions.style.display = 'block';
+    if (survivalFields) survivalFields.style.display = isSurvival ? 'block' : 'none';
+    if (survivalStart) survivalStart.style.display = isSurvival ? 'block' : 'none';
+    const heading = document.querySelector('#diffMenu h2');
+    if (heading) heading.textContent = isSurvival ? 'RUN SETUP' : 'SELECT DIFFICULTY';
+    const loadoutTarget = document.getElementById('runLoadoutOptions');
+    if (loadoutTarget) loadoutTarget.innerHTML = Object.entries(LOADOUT_DEFINITIONS).map(([id, loadout]) => `<button class="loadout-option" ${selectedLoadout === id ? 'style="border-color:#0f0;color:#0f0"' : ''} onclick="selectLoadout('${id}')"><b>${loadout.name}</b><br><span>${loadout.description}</span></button>`).join('');
+}
+
+function renderRecords() {
+    ensureDailyObjectives();
+    const content = document.getElementById('recordsContent');
+    if (!content) return;
+    const fastest = stats.fastestWin ? `${(stats.fastestWin / 1000).toFixed(1)}s` : '—';
+    const readyDaily = daily.objectives.filter(objective => objective.progress >= objective.target && !objective.claimed).length;
+    const colorOptions = [{ id:'blue', label:'Default Blue' }, { id:'crimson', label:'Crimson' }, { id:'violet', label:'Violet' }, { id:'green', label:'Green' }, { id:'amber', label:'Amber' }];
+    const trailOptions = [{ id:'none', label:'No trail' }, { id:'spark', label:'Spark trail' }, { id:'ghost', label:'Ghost trail' }];
+    const cosmeticControls = `<b>PLAYER COLOR</b><br>${colorOptions.map(item => `<button ${cosmetics.unlocked.includes(item.id) ? '' : 'disabled'} onclick="selectCosmetic('color','${item.id}'); renderRecords();">${cosmetics.color === item.id ? '✓ ' : ''}${item.label}</button>`).join('')}<br><b>TRAIL</b><br>${trailOptions.map(item => `<button ${cosmetics.unlocked.includes(item.id) ? '' : 'disabled'} onclick="selectCosmetic('trail','${item.id}'); renderRecords();">${cosmetics.trail === item.id ? '✓ ' : ''}${item.label}</button>`).join('')}`;
+    content.innerHTML = `<details class="record-section" open><summary>RUN STATISTICS</summary><div>Games: <b>${stats.games}</b><br>Wins / Losses: <b>${stats.wins} / ${stats.losses}</b><br>Generators repaired: <b>${stats.generators}</b><br>Monsters caught: <b>${stats.caught}</b><br>Best Endless round: <b>${stats.bestEndless}</b><br>Fastest win: <b>${fastest}</b><br>Items used: <b>${stats.itemsUsed}</b><br>Favorite monster: <b>${stats.favoriteMonster}</b></div></details><details class="record-section"><summary>COSMETICS & COLLECTION</summary><div>${cosmetics.unlocked.length} cosmetic unlocks · ${unlockedMaps.length}/${Object.keys(MAP_DEFINITIONS).length} maps unlocked<br><br>${cosmeticControls}<br><br>${Object.values(MAP_DEFINITIONS).map(mapDef => `<div class="collection-row"><strong>${mapDef.name}</strong><span>${unlockedMaps.includes(mapDef.id) ? 'UNLOCKED' : 'LOCKED'}</span></div>`).join('')}</div></details><details class="record-section"><summary>DAILY OBJECTIVES ${readyDaily ? `· ${readyDaily} READY` : ''}</summary><div>${daily.objectives.map((objective, index) => `<div class="objective-row"><div><b>${objective.label}</b><br><span>${Math.min(objective.progress, objective.target)}/${objective.target}${objective.claimed ? ' · CLAIMED' : ''}</span></div>${objective.progress >= objective.target && !objective.claimed ? `<button onclick="claimDailyObjective(${index}); renderRecords();">CLAIM ${objective.reward} T</button>` : ''}</div>`).join('')}</div></details>`;
+}
+
 function selectLoadout(id) {
     if (!LOADOUT_DEFINITIONS[id]) return;
     selectedLoadout = id;
     saveData();
     renderLoadouts();
+    renderRunSetup();
 }
 
 function setSaveStatus(text, color = '#8f8') {
@@ -514,6 +553,8 @@ function showMenu(menuId) {
     if (menuId === 'objectivesMenu') renderDailyObjectives();
     if (menuId === 'loadoutsMenu') renderLoadouts();
     if (menuId === 'collectionMenu') renderCollection();
+    if (menuId === 'recordsMenu') renderRecords();
+    if (menuId === 'diffMenu') renderRunSetup();
     if (menuId === 'mapMenu') renderMapMenu();
 }
 
@@ -542,10 +583,15 @@ function selectMap(mapId) {
     if (!MAP_DEFINITIONS[mapId] || !unlockedMaps.includes(mapId)) return;
     if (gameMode === 'campaign' && MAP_DEFINITIONS[mapId].campaignOrder > campaignCleared.length) return;
     currentMapId = mapId;
+    if (gameMode === 'survival') {
+        const survivalMap = document.getElementById('survivalMap');
+        if (survivalMap) survivalMap.value = mapId;
+    }
     showMenu('diffMenu');
 }
 
 function startSelectedGame(diffLevel) {
+    if (gameMode === 'survival') { startSurvival(); return; }
     startGame(diffLevel);
 }
 

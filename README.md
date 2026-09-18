@@ -18,6 +18,8 @@ Explore the maze, repair every generator, survive the monster's mutations, and c
 - **Endless:** Every cleared round immediately starts a harder one. New rounds add generators, speed, mutations, stronger events, and eventually more monsters.
 - **Survival:** Choose the existing monster roster, number of monsters, difficulty, generators, mutation count, and whether events are active.
 
+The main menu is intentionally compact: **Play**, **Shop**, **Info**, **Records**, and **Settings**. Records combines statistics, cosmetics, map collection, and daily objectives. Loadouts are selected during run setup, and Survival settings use that same setup flow.
+
 ## Controls
 
 ### Desktop

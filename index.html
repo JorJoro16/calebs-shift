@@ -43,12 +43,7 @@
         <button onclick="showMenu('modeMenu')">PLAY</button>
         <button onclick="openShop()">SHOP</button>
         <button onclick="showMenu('infoMenu')">INFO</button>
-        <button onclick="showMenu('statsMenu')">STATISTICS</button>
-        <button onclick="showMenu('cosmeticsMenu')">COSMETICS</button>
-        <button onclick="showMenu('collectionMenu')">COLLECTION</button>
-        <button onclick="showMenu('objectivesMenu')">OBJECTIVES</button>
-        <button onclick="showMenu('loadoutsMenu')">LOADOUTS</button>
-        <button onclick="showInstallHelp()">PHONE / INSTALL</button>
+        <button onclick="showMenu('recordsMenu')">RECORDS</button>
         <button onclick="showMenu('settingsMenu')">SETTINGS</button>
     </div>
 
@@ -67,6 +62,12 @@
     <div id="collectionMenu" class="menu-panel" style="max-height:80vh; overflow-y:auto;">
         <h2>COLLECTION</h2>
         <div id="collectionContent" style="text-align:left; line-height:1.55;"></div>
+        <button onclick="showMenu('mainMenu')">BACK</button>
+    </div>
+
+    <div id="recordsMenu" class="menu-panel" style="max-height:84vh; overflow-y:auto;">
+        <h2>RECORDS</h2>
+        <div id="recordsContent" style="text-align:left; line-height:1.55;"></div>
         <button onclick="showMenu('mainMenu')">BACK</button>
     </div>
 
@@ -98,7 +99,7 @@
             Once installed, the browser bar should disappear and the game can work offline after its first online load.
         </div>
         <button id="installButton" style="display:none; border-color:#0f0; color:#0f0;">INSTALL APP</button>
-        <button onclick="showMenu('mainMenu')" style="margin-top:15px; border-color:#ff4444; color:#ff4444;">BACK</button>
+        <button onclick="showMenu('settingsMenu')" style="margin-top:15px; border-color:#ff4444; color:#ff4444;">BACK</button>
     </div>
 
     <!-- End Menu -->
@@ -115,7 +116,7 @@
         <button onclick="chooseMode('campaign')">CAMPAIGN<br><span style="font-size:12px;color:#aaa">Unlock maps and progress through the story.</span></button>
         <button onclick="chooseMode('normal')">NORMAL MODE<br><span style="font-size:12px;color:#aaa">Repair generators, then catch the monster.</span></button>
         <button onclick="chooseMode('endless')">ENDLESS MODE<br><span style="font-size:12px;color:#aaa">Each completed round gets more dangerous.</span></button>
-        <button onclick="showMenu('survivalMenu')">SURVIVAL MODE<br><span style="font-size:12px;color:#aaa">Build your own monster challenge.</span></button>
+        <button onclick="chooseMode('survival')">SURVIVAL MODE<br><span style="font-size:12px;color:#aaa">Build your own monster challenge.</span></button>
         <button onclick="showMenu('mainMenu')" style="margin-top:15px; border-color:#ff4444; color:#ff4444;">BACK</button>
     </div>
 
@@ -129,9 +130,16 @@
     <!-- Difficulty Menu -->
     <div id="diffMenu" class="menu-panel">
         <h2>SELECT DIFFICULTY</h2>
-        <button onclick="startSelectedGame(0)">EASY (10 Tokens)<br><span style="font-size:12px;color:#aaa">Slow Speed | Typing Puzzles | 0-1 Mutations</span></button>
-        <button onclick="startSelectedGame(1)">NORMAL (25 Tokens)<br><span style="font-size:12px;color:#aaa">Standard Speed | Mixed Puzzles | 1-2 Mutations</span></button>
-        <button onclick="startSelectedGame(2)">HARD (40 Tokens)<br><span style="font-size:12px;color:#aaa">Fast Speed | Skill Checks | 2-3 Mutations</span></button>
+        <div id="standardDifficultyOptions">
+            <button onclick="startSelectedGame(0)">EASY (10 Tokens)<br><span style="font-size:12px;color:#aaa">Slow Speed | Typing Puzzles | 0-1 Mutations</span></button>
+            <button onclick="startSelectedGame(1)">NORMAL (25 Tokens)<br><span style="font-size:12px;color:#aaa">Standard Speed | Mixed Puzzles | 1-2 Mutations</span></button>
+            <button onclick="startSelectedGame(2)">HARD (40 Tokens)<br><span style="font-size:12px;color:#aaa">Fast Speed | Skill Checks | 2-3 Mutations</span></button>
+        </div>
+        <div id="runSetupOptions">
+            <h3>LOADOUT</h3>
+            <div id="runLoadoutOptions"></div>
+        </div>
+        <button id="startSurvivalButton" onclick="startSurvival()" style="display:none;">START SURVIVAL</button>
         <button onclick="showMenu('modeMenu')" style="margin-top: 15px; border-color: #ff4444; color: #ff4444;">BACK</button>
     </div>
 
@@ -329,6 +337,7 @@
             <button id="btnCRT" onclick="toggleSetting('crt')" style="padding: 5px 10px; font-size:14px;">OFF</button>
         </div>
         <button onclick="testSound()" style="border-color:#0ff; color:#0ff;">TEST SOUND</button>
+        <button onclick="showInstallHelp()" style="border-color:#d4c09a; color:#d4c09a;">PHONE / INSTALL</button>
         <div class="save-tools">
             <div class="save-status" id="saveStatus">Progress saves on purchases and completed runs.</div>
             <button onclick="exportSave()">EXPORT SAVE</button>

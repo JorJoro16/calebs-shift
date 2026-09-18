@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.1.1
+
+- Simplified the main menu to Play, Shop, Info, Records, and Settings.
+- Merged statistics, cosmetics, map collection, and daily objectives into Records.
+- Moved loadout selection into run setup.
+- Moved Survival settings into the shared run setup flow.
+- Moved phone installation help into Settings.
+- Bumped the offline cache to `calebs-shift-v25`.
+
 ## 2.1.0
 
 - Added the procedural Endless Hotel map with physical guest rooms, long wings, employee tasks, an elevator objective, and a distinct carpeted visual identity.
