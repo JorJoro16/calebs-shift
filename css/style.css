@@ -287,6 +287,13 @@ canvas {
     box-sizing: border-box;
     line-height: 1.25;
 }
+#message.top-alert {
+    top: 12% !important;
+    font-size: 26px !important;
+    border-color: #ff4444;
+    color: #ff4444;
+}
 @media (max-width: 700px) {
     #message { padding: 20px 24px !important; font-size: 22px !important; }
+    #message.top-alert { top: 14% !important; font-size: 20px !important; }
 }

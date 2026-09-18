@@ -370,7 +370,7 @@ window.addEventListener('keydown', (e) => {
             state = 5;
             scNeedle = 0; scHits = 0; 
             scRequired = Math.max(1, 3 - upgHack + (monster.isReinforced ? 1 : 0));
-            scSpeed = (currentDiff === 0 ? 0.015 : currentDiff === 1 ? 0.025 : 0.035) * (1 - (upgQuick * 0.10));
+            scSpeed = (currentDiff === 0 ? 0.0195 : currentDiff === 1 ? 0.0325 : 0.0455) * (1 - (upgQuick * 0.10));
             let zoneWidth = currentDiff === 0 ? Math.PI/2 : currentDiff === 1 ? Math.PI/3 : Math.PI/5;
             scZoneStart = Math.random() * (Math.PI*2 - zoneWidth);
             scZoneEnd = scZoneStart + zoneWidth;
@@ -480,7 +480,7 @@ function startGame(diffLevel) {
     generateMaze();
     
     player.x = TS * 1.5; player.y = TS * 1.5;
-    player.baseSpeed = 3.8 * (1 + (upgShoe * 0.05));
+    player.baseSpeed = 4.3 * (1 + (upgShoe * 0.05));
     player.speed = player.baseSpeed;
     player.boostTimer = 0; player.stunTimer = 0;
     ambienceClock = 0;
@@ -488,9 +488,9 @@ function startGame(diffLevel) {
     nearGen = null; flashAlpha = 0;
     
     let diffData = [
-        { t: 10, gMin: 3, gMax: 4, mMin: 0, mMax: 1, mSpd: 2.2 },
-        { t: 25, gMin: 4, gMax: 5, mMin: 1, mMax: 2, mSpd: 2.7 },
-        { t: 40, gMin: 5, gMax: 6, mMin: 2, mMax: 3, mSpd: 3.1 }
+        { t: 10, gMin: 3, gMax: 4, mMin: 0, mMax: 1, mSpd: 2.5 },
+        { t: 25, gMin: 4, gMax: 5, mMin: 1, mMax: 2, mSpd: 3.0 },
+        { t: 40, gMin: 5, gMax: 6, mMin: 2, mMax: 3, mSpd: 3.4 }
     ][diffLevel];
     
     rewardTokens = diffData.t;
@@ -645,10 +645,12 @@ function checkPhase() {
 }
 
 function showMsg(text, time = 0) {
-    msgBox.innerHTML = text; msgBox.style.display = 'block';
+    msgBox.innerHTML = text;
+    msgBox.classList.toggle('top-alert', text.includes("THAT'S NOT A GENERATOR"));
+    msgBox.style.display = 'block';
     if (time > 0) setTimeout(hideMsg, time);
 }
-function hideMsg() { msgBox.style.display = 'none'; }
+function hideMsg() { msgBox.style.display = 'none'; msgBox.classList.remove('top-alert'); }
 
 function updateHUD() {
     document.getElementById('genCount').innerText = monster.hasScrambler ? "?/?" : `${activeGens}/${totalGens}`;
@@ -989,6 +991,10 @@ function draw() {
         ctx.fillStyle = '#888';
         ctx.beginPath(); ctx.arc(monster.x, monster.y, 12, 0, Math.PI * 2); ctx.fill();
         ctx.strokeStyle = '#000'; ctx.lineWidth = 2; ctx.stroke();
+        ctx.fillStyle = '#222';
+        ctx.fillRect(monster.x - 3, monster.y - 8, 6, 16);
+        ctx.fillStyle = '#aaa';
+        ctx.beginPath(); ctx.arc(monster.x, monster.y - 2, 2, 0, Math.PI * 2); ctx.fill();
     } else if (!monster.isPhantom || dist < 200 || state === 3) {
         ctx.fillStyle = monster.stunTimer > 0 ? '#fff' : (state === 3 ? '#555' : monster.color); 
         ctx.beginPath(); ctx.arc(monster.x, monster.y, monster.drawRadius, 0, Math.PI*2); ctx.fill();
