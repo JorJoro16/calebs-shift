@@ -123,7 +123,7 @@
         <div class="info-sections">
             <details class="info-section" open><summary style="color:#0ff;">HOW TO PLAY</summary><div>
             <b>Desktop:</b> WASD moves · E interacts · SPACE uses Adrenaline / hits skill checks · F uses Flashbang · hold SHIFT to crouch · hold B to hold breath · H hides near a cabinet · N throws a Noise Maker.<br>
-            <b>Phone:</b> Joystick moves · E interacts · ◎ Abilities · ▣ Items · ☰ Menu. Install from the Home Screen for the cleanest fullscreen experience.<br>
+            <b>Phone:</b> Joystick moves · E interacts · ◎ Abilities · ▣ Items · HIT Skill Check when repairing. Install from the Home Screen for the cleanest fullscreen experience.<br>
             <b>Goal:</b> Repair every generator, then catch the fleeing monster.<br></div></details>
 
             <details class="info-section"><summary style="color:#b8aaff;">GAME MODES</summary><div>
@@ -178,7 +178,7 @@
             <b>E:</b> Interact with generators, fuses, rooms, and hiding spots.<br>
             <b>◎ Abilities:</b> Pauses the game and opens Crouch, Hold Breath, and Hide. Crouch is a toggle on phone.<br>
             <b>▣ Items:</b> Pauses the game and opens Adrenaline, Flashbang, Noise Maker, Bear Trap, and Battery.<br>
-            <b>☰ Menu:</b> Pauses the game and opens Fullscreen, Info, and Settings.<br></div></details>
+            <b>Skill Check:</b> Appears during timing-based repairs. Tap it when the needle is inside the green zone.<br></div></details>
             <br><span style="color:#888;">Version <span id="infoVersion">1.0.0</span> · Created for local play with friends.</span>
         </div>
         <button onclick="showMenu('mainMenu')" style="margin-top: 15px; border-color: #ff4444; color: #ff4444;">BACK</button>
@@ -297,7 +297,7 @@
             <button id="touchInteract" class="touch-button interact-button" aria-label="Interact">E</button>
             <button id="touchAbilities" class="touch-button boost-button" aria-label="Abilities">◎</button>
             <button id="touchItems" class="touch-button flash-button" aria-label="Items">▣</button>
-            <button id="touchMenu" class="touch-button fullscreen-button" aria-label="Pause menu">☰</button>
+            <button id="touchSkillCheck" class="touch-button skill-check-button" aria-label="Skill check" style="display:none;">HIT</button>
         </div>
     </div>
 

@@ -4,7 +4,7 @@ A small browser survival-horror game built for desktop and mobile.
 
 ## Play
 
-Live game: https://jorjoro16.github.io/calebs-shift/
+Live game: https://jorjoro16.github.io/calebs-shift/backrooms-game/
 
 ## Goal
 
@@ -37,7 +37,7 @@ Use the virtual joystick and the four on-screen buttons:
 - **E:** interact with generators, fuses, rooms, and hiding spots.
 - **Abilities:** opens crouch, hold breath, and hide. Crouch is a toggle on phone.
 - **Items:** opens Adrenaline, Flashbang, Noise Maker, and Emergency Battery.
-- **Menu:** opens fullscreen, Info, and Settings.
+- **Skill Check:** appears during timing-based generator repairs; tap it when the needle is in the green zone.
 
 These three menus safely pause the run while they are open. For the best experience, open the live game in Safari or Chrome and add it to the Home Screen. Launching it from the icon enables the cleanest app-like display and offline play after the first online load.
 

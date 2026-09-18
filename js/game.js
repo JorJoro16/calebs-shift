@@ -1875,7 +1875,8 @@ function draw() {
 
         ctx.fillStyle = '#fff'; ctx.textAlign = 'center';
         ctx.font = '24px Arial'; ctx.fillText(`Hits: ${scHits} / ${scRequired}`, cx, cy - 140);
-        ctx.font = '18px Arial'; ctx.fillText("Press SPACE in the Green Zone", cx, cy + 140);
+        ctx.font = '18px Arial';
+        ctx.fillText(window.matchMedia?.('(pointer: coarse), (max-width: 700px)').matches ? 'TAP SKILL CHECK IN THE GREEN ZONE' : 'Press SPACE in the Green Zone', cx, cy + 140);
     }
 }
 
@@ -1936,10 +1937,16 @@ function openMobileActionMenu(kind) {
     } else if (kind === 'items') {
         title.textContent = 'ITEMS';
         content.innerHTML = `<button onclick="mobileKey(' '); closeMobileActionMenu()">ADRENALINE (${invAdrenaline})</button><button onclick="mobileKey('f'); closeMobileActionMenu()">FLASHBANG (${invFlashbang})</button><button onclick="mobileKey('n'); closeMobileActionMenu()">NOISE MAKER (${invNoiseMaker})</button><button onclick="mobileKey('t'); closeMobileActionMenu()">BEAR TRAP (${invBearTrap})</button><button onclick="mobileKey('r'); closeMobileActionMenu()">EMERGENCY BATTERY (${invBattery})</button>`;
-    } else {
-        title.textContent = 'GAME MENU';
-        content.innerHTML = `<button onclick="toggleFullscreen(); closeMobileActionMenu()">FULLSCREEN</button><button onclick="closeMobileActionMenu(); showMenu('infoMenu')">INFO / CONTROLS</button><button onclick="closeMobileActionMenu(); showMenu('settingsMenu')">SETTINGS</button>`;
     }
+}
+
+function updateMobileSkillCheckButton() {
+    const button = document.getElementById('touchSkillCheck');
+    if (!button) return;
+    const active = state === 5;
+    button.style.display = active ? 'block' : 'none';
+    button.disabled = !active || scDelay > 0;
+    button.textContent = scDelay > 0 ? 'READY...' : 'HIT';
 }
 
 
@@ -2033,7 +2040,10 @@ function openMobileActionMenu(kind) {
     bindAction('touchInteract', 'e');
     document.getElementById('touchAbilities')?.addEventListener('pointerdown', event => { event.preventDefault(); openMobileActionMenu('abilities'); });
     document.getElementById('touchItems')?.addEventListener('pointerdown', event => { event.preventDefault(); openMobileActionMenu('items'); });
-    document.getElementById('touchMenu')?.addEventListener('pointerdown', event => { event.preventDefault(); openMobileActionMenu('menu'); });
+    document.getElementById('touchSkillCheck')?.addEventListener('pointerdown', event => {
+        event.preventDefault();
+        if (state === 5 && scDelay <= 0) mobileKey(' ');
+    });
 
     document.querySelectorAll('[data-puzzle-key]').forEach(button => {
         button.addEventListener('pointerdown', event => {
@@ -2045,6 +2055,7 @@ function openMobileActionMenu(kind) {
     const puzzlePad = document.getElementById('touchPuzzle');
     function updatePuzzlePad() {
         if (puzzlePad) puzzlePad.style.display = (state === 2 || state === 6) ? 'grid' : 'none';
+        updateMobileSkillCheckButton();
     }
     setInterval(updatePuzzlePad, 100);
 
