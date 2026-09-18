@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.0.0
+
+- Added Campaign Mode with map unlocking and replayable map selection.
+- Added the procedural Boilerworks map with long halls, industrial rooms, cooling valves, heat zones, and a central-boiler objective.
+- Added Aeson, the Boilerworks Firestarter, with heat tracking and map-control events.
+- Added local daily objectives, rewards, and selectable item loadouts.
+- Added rare two-monster Normal/Campaign runs with shared awareness and separation behavior.
+- Bumped the save schema to 6 and the offline cache to `calebs-shift-v22` while preserving older progress.
+
 ## 1.3.1
 
 - Replaced the unreliable mobile Menu button with a dedicated Skill Check button.

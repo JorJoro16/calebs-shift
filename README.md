@@ -12,7 +12,9 @@ Explore the maze, repair every generator, survive the monster's mutations, and c
 
 ## Modes
 
+- **Campaign:** Progress through maps in order and unlock each new level.
 - **Normal:** Choose Easy, Normal, or Hard for the original single-round game.
+- **Normal and Campaign:** Choose any unlocked map. Boilerworks has a small chance to contain two cooperating monsters.
 - **Endless:** Every cleared round immediately starts a harder one. New rounds add generators, speed, mutations, stronger events, and eventually more monsters.
 - **Survival:** Choose the existing monster roster, number of monsters, difficulty, generators, mutation count, and whether events are active.
 
@@ -39,7 +41,7 @@ Use the virtual joystick and the four on-screen buttons:
 - **Items:** opens Adrenaline, Flashbang, Noise Maker, and Emergency Battery.
 - **Skill Check:** appears during timing-based generator repairs; tap it when the needle is in the green zone.
 
-These three menus safely pause the run while they are open. For the best experience, open the live game in Safari or Chrome and add it to the Home Screen. Launching it from the icon enables the cleanest app-like display and offline play after the first online load.
+The Abilities and Items panels safely pause the run while they are open. The Skill Check button appears in the spare action slot only during timing repairs. For the best experience, open the live game in Safari or Chrome and add it to the Home Screen. Launching it from the icon enables the cleanest app-like display and offline play after the first online load.
 
 ## Progression and atmosphere
 
@@ -49,12 +51,14 @@ These three menus safely pause the run while they are open. For the best experie
 - Bear Traps can be placed with **T** or from the mobile Items menu. They briefly stun a monster and disappear after triggering; only two can be active at once.
 - When more than one monster is active, the HUD identifies the group and offers a **MONSTERS** roster with each monster's mutations.
 - Hallucination mutations can create fake silhouettes, generator signals, alerts, and HUD readings without directly harming the player.
+- The Boilerworks map uses long procedural industrial halls, three cooling valves, heat zones, and a central boiler objective. Aeson is most likely to spawn there.
+- Daily objectives award local bonus tokens, and loadouts choose which owned consumable types are available during a run.
 
 The info screen inside the game lists every mobile button and the special map events, generators, rooms, and mutations.
 
 ## Progress and saves
 
-Progress is saved locally on each device. The game keeps a versioned save and a rotating backup. Use **Settings** to export a JSON save file, import a backup, or reset progress. No account or cloud save is required.
+Progress is saved locally on each device. The game keeps a versioned save and a rotating backup. Use **Settings** to export a JSON save file, import a backup, or reset progress. Campaign unlocks, daily objectives, and loadout selection are included. No account or cloud save is required.
 
 ## Project structure
 

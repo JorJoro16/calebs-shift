@@ -21,6 +21,7 @@
 
     <div id="gameHUD">
         Generators: <span id="genCount">0/0</span>
+        <div id="mapObjective"></div>
         <div id="inventory"></div>
         <div id="mutations"></div>
         <button id="monsterRosterToggle" onclick="toggleMonsterRoster()" style="display:none;">MONSTERS ▾</button>
@@ -40,6 +41,8 @@
         <button onclick="showMenu('infoMenu')">INFO</button>
         <button onclick="showMenu('statsMenu')">STATISTICS</button>
         <button onclick="showMenu('cosmeticsMenu')">COSMETICS</button>
+        <button onclick="showMenu('objectivesMenu')">OBJECTIVES</button>
+        <button onclick="showMenu('loadoutsMenu')">LOADOUTS</button>
         <button onclick="showInstallHelp()">PHONE / INSTALL</button>
         <button onclick="showMenu('settingsMenu')">SETTINGS</button>
     </div>
@@ -53,6 +56,20 @@
     <div id="cosmeticsMenu" class="menu-panel" style="max-height:80vh; overflow-y:auto;">
         <h2>COSMETICS</h2>
         <div id="cosmeticsContent" style="text-align:left; line-height:1.7;"></div>
+        <button onclick="showMenu('mainMenu')">BACK</button>
+    </div>
+
+    <div id="objectivesMenu" class="menu-panel" style="max-height:80vh; overflow-y:auto;">
+        <h2>DAILY OBJECTIVES</h2>
+        <div id="dailyObjectivesContent" style="text-align:left; line-height:1.5;"></div>
+        <p style="font-size:12px;color:#888">Objectives refresh each day on this device.</p>
+        <button onclick="showMenu('mainMenu')">BACK</button>
+    </div>
+
+    <div id="loadoutsMenu" class="menu-panel" style="max-height:80vh; overflow-y:auto;">
+        <h2>LOADOUTS</h2>
+        <p style="font-size:12px;color:#aaa">Choose which owned item types are available during your next run. Items still leave your inventory when used.</p>
+        <div id="loadoutsContent"></div>
         <button onclick="showMenu('mainMenu')">BACK</button>
     </div>
 
@@ -84,10 +101,18 @@
     <!-- Mode Menu -->
     <div id="modeMenu" class="menu-panel">
         <h2>CHOOSE MODE</h2>
+        <button onclick="chooseMode('campaign')">CAMPAIGN<br><span style="font-size:12px;color:#aaa">Unlock maps and progress through the story.</span></button>
         <button onclick="chooseMode('normal')">NORMAL MODE<br><span style="font-size:12px;color:#aaa">Repair generators, then catch the monster.</span></button>
         <button onclick="chooseMode('endless')">ENDLESS MODE<br><span style="font-size:12px;color:#aaa">Each completed round gets more dangerous.</span></button>
         <button onclick="showMenu('survivalMenu')">SURVIVAL MODE<br><span style="font-size:12px;color:#aaa">Build your own monster challenge.</span></button>
         <button onclick="showMenu('mainMenu')" style="margin-top:15px; border-color:#ff4444; color:#ff4444;">BACK</button>
+    </div>
+
+    <!-- Map Select -->
+    <div id="mapMenu" class="menu-panel" style="max-height:80vh; overflow-y:auto;">
+        <h2>SELECT MAP</h2>
+        <div id="mapOptions"></div>
+        <button onclick="showMenu('modeMenu')" style="margin-top:15px; border-color:#ff4444; color:#ff4444;">BACK</button>
     </div>
 
     <!-- Difficulty Menu -->
@@ -106,7 +131,9 @@
             <b>Monsters</b><br>
             <label><input id="survivalCaleb" type="checkbox" checked> Caleb</label>
             <label><input id="survivalMalakai" type="checkbox"> Malakai</label>
-            <label><input id="survivalJordan" type="checkbox"> Jordan</label><br>
+            <label><input id="survivalJordan" type="checkbox"> Jordan</label>
+            <label><input id="survivalAeson" type="checkbox"> Aeson</label><br>
+            <label>Map: <select id="survivalMap"><option value="level0">Level 0 — The Maze</option><option value="boilerworks">Level 3 — The Boilerworks</option></select></label><br>
             <label>How many: <select id="survivalCount"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option></select></label><br>
             <label>Difficulty: <select id="survivalDiff"><option value="0">Easy</option><option value="1" selected>Normal</option><option value="2">Hard</option></select></label><br>
             <label>Generators: <select id="survivalGens"><option value="3">3</option><option value="4" selected>4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option></select></label><br>
@@ -134,7 +161,8 @@
             <details class="info-section"><summary style="color:#ff4444;">MONSTERS</summary><div>
             <b>CALEB — The Disruptor</b><br>Patrols normally and periodically releases an EMP that makes the map difficult to read.<br><span style="color:#aaa">Counter:</span> Keep moving after the warning and use landmarks to reorient yourself.<br><br>
             <b>MALAKAI — The Blood Hunter</b><br>Fast and aggressive. Repairs, failed skill checks, false generators, and other mistakes can give him your last known trail for a short time.<br><span style="color:#aaa">Counter:</span> Crouch, break line of sight, use a Noise Maker, or let a trap slow him down.<br><br>
-            <b>JORDAN — The Mimic</b><br>Can disguise himself as a generator. Interacting with him reveals the trick and eventually triggers an enraged chase.<br><span style="color:#aaa">Counter:</span> Watch for the suspicious visual offset and be ready to run after checking a generator.<br></div></details>
+            <b>JORDAN — The Mimic</b><br>Can disguise himself as a generator. Interacting with him reveals the trick and eventually triggers an enraged chase.<br><span style="color:#aaa">Counter:</span> Watch for the suspicious visual offset and be ready to run after checking a generator.<br><br>
+            <b>AESON — The Firestarter</b><br>Ignites sections of the Boilerworks and senses players who build up too much heat.<br><span style="color:#aaa">Counter:</span> Leave burning areas, cool down, and use the facility’s alternate routes.<br></div></details>
             
             <details class="info-section"><summary style="color:#ff4444;">MUTATIONS</summary><div>
             <b>Speed Demon:</b> Flat speed boost.<br>
@@ -173,12 +201,19 @@
             <b>Hold Breath:</b> Hold your breath briefly to avoid the All-Seeing mutation. It has a cooldown.<br>
             <b>Noise Maker:</b> Throw a sound somewhere else to pull the monster away. Completed generators also make noise.<br>
             <b>Bear Trap:</b> Press T or use Items to place one at your feet. It briefly stuns a monster, then disappears. Only two can be active.<br></div></details>
+            <details class="info-section"><summary style="color:#ff6b2b;">THE BOILERWORKS</summary><div>
+            <b>Objective:</b> Repair every generator, activate all three cooling valves, then find and shut down the central boiler.<br>
+            <b>Heat:</b> Burning sections build heat and slightly slow you. Leave the area to cool down. The Boilerworks uses long procedural halls and rooms, so routes change every run.<br>
+            <b>Monsters:</b> Aeson is most likely here, but Jordan, Caleb, Malakai, and rare two-monster runs are possible.<br></div></details>
             <details class="info-section"><summary style="color:#0ff;">MOBILE CONTROLS</summary><div>
             <b>Joystick:</b> Move freely in any direction.<br>
             <b>E:</b> Interact with generators, fuses, rooms, and hiding spots.<br>
             <b>◎ Abilities:</b> Pauses the game and opens Crouch, Hold Breath, and Hide. Crouch is a toggle on phone.<br>
             <b>▣ Items:</b> Pauses the game and opens Adrenaline, Flashbang, Noise Maker, Bear Trap, and Battery.<br>
             <b>Skill Check:</b> Appears during timing-based repairs. Tap it when the needle is inside the green zone.<br></div></details>
+            <details class="info-section"><summary style="color:#d8b4ff;">OBJECTIVES & LOADOUTS</summary><div>
+            <b>Daily Objectives:</b> Complete rotating local objectives for bonus tokens from the main menu.<br>
+            <b>Loadouts:</b> Choose which owned item types are available during your next run. Items are still consumed normally when used.<br></div></details>
             <br><span style="color:#888;">Version <span id="infoVersion">1.0.0</span> · Created for local play with friends.</span>
         </div>
         <button onclick="showMenu('mainMenu')" style="margin-top: 15px; border-color: #ff4444; color: #ff4444;">BACK</button>
