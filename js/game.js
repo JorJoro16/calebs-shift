@@ -71,8 +71,8 @@ function playSound(type) {
 }
 
 // Versioned local progress with a backup copy and import/export support.
-const GAME_VERSION = '1.2.1';
-const SAVE_SCHEMA_VERSION = 4;
+const GAME_VERSION = '1.3.0';
+const SAVE_SCHEMA_VERSION = 5;
 const SAVE_KEY = 'br_save_v2';
 const SAVE_BACKUP_KEY = 'br_save_backup_v2';
 
@@ -136,6 +136,7 @@ function normalizeProgress(raw) {
         invAdrenaline: boundedInt(source.invAdrenaline, 0, 9999, 0),
         invFlashbang: boundedInt(source.invFlashbang, 0, 9999, 0),
         invNoiseMaker: boundedInt(source.invNoiseMaker, 0, 9999, 0),
+        invBearTrap: boundedInt(source.invBearTrap, 0, 9999, 0),
         invBattery: boundedInt(source.invBattery, 0, 9999, 0),
         invBreathFilter: boundedInt(source.invBreathFilter, 0, 9999, 0),
         cosmetics: normalizeCosmetics(source.cosmetics),
@@ -161,7 +162,8 @@ function loadProgress() {
         upgCoin: safeStorageGet('br_coin'),
         invAdrenaline: safeStorageGet('br_adrenaline'),
         invFlashbang: safeStorageGet('br_flashbang'),
-        invNoiseMaker: safeStorageGet('br_noiseMaker')
+        invNoiseMaker: safeStorageGet('br_noiseMaker'),
+        invBearTrap: safeStorageGet('br_bearTrap')
     }) || { tokens: 0, upgShoe: 0, upgHack: 0, upgQuick: 0, upgCoin: 0, invAdrenaline: 0, invFlashbang: 0, invNoiseMaker: 0, invBattery: 0, invBreathFilter: 0, cosmetics: { color: 'blue', trail: 'none', unlocked: ['blue', 'none'] }, stats: {} };
 }
 
@@ -174,6 +176,7 @@ let upgCoin = loadedProgress.upgCoin;
 let invAdrenaline = loadedProgress.invAdrenaline;
 let invFlashbang = loadedProgress.invFlashbang;
 let invNoiseMaker = loadedProgress.invNoiseMaker;
+let invBearTrap = loadedProgress.invBearTrap || 0;
 let invBattery = loadedProgress.invBattery;
 let invBreathFilter = loadedProgress.invBreathFilter;
 let cosmetics = normalizeCosmetics(loadedProgress.cosmetics);
@@ -186,7 +189,7 @@ let setVolM = localStorage.getItem('br_volM') || 100;
 let setVolS = localStorage.getItem('br_volS') || 100;
 
 function currentProgress() {
-    return { tokens, upgShoe, upgHack, upgQuick, upgCoin, invAdrenaline, invFlashbang, invNoiseMaker, invBattery, invBreathFilter, cosmetics, stats };
+    return { tokens, upgShoe, upgHack, upgQuick, upgCoin, invAdrenaline, invFlashbang, invNoiseMaker, invBearTrap, invBattery, invBreathFilter, cosmetics, stats };
 }
 
 function setSaveStatus(text, color = '#8f8') {
@@ -244,6 +247,7 @@ function saveData() {
         localStorage.setItem('br_adrenaline', invAdrenaline);
         localStorage.setItem('br_flashbang', invFlashbang);
         localStorage.setItem('br_noiseMaker', invNoiseMaker);
+        localStorage.setItem('br_bearTrap', invBearTrap);
         setSaveStatus(`Progress saved · ${new Date().toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}`);
     } catch (error) {
         setSaveStatus('Save unavailable on this device', '#ff8888');
@@ -286,6 +290,7 @@ function importSave(event) {
             invAdrenaline = imported.invAdrenaline;
             invFlashbang = imported.invFlashbang;
             invNoiseMaker = imported.invNoiseMaker;
+            invBearTrap = imported.invBearTrap;
             invBattery = imported.invBattery;
             invBreathFilter = imported.invBreathFilter;
             cosmetics = normalizeCosmetics(imported.cosmetics);
@@ -303,7 +308,7 @@ function importSave(event) {
 
 function resetProgress() {
     if (!confirm('Reset all tokens, upgrades, and items? Your previous save will remain in the backup slot.')) return;
-    tokens = 0; upgShoe = 0; upgHack = 0; upgQuick = 0; upgCoin = 0; invAdrenaline = 0; invFlashbang = 0; invNoiseMaker = 0; invBattery = 0; invBreathFilter = 0;
+    tokens = 0; upgShoe = 0; upgHack = 0; upgQuick = 0; upgCoin = 0; invAdrenaline = 0; invFlashbang = 0; invNoiseMaker = 0; invBearTrap = 0; invBattery = 0; invBreathFilter = 0;
     saveData();
     setSaveStatus('Progress reset; previous save kept as backup');
 }
@@ -414,13 +419,14 @@ function buyUpgrade(type, baseCost) {
     }
 }
 function buyConsumable(type, cost) {
-    const carried = invAdrenaline + invFlashbang + invNoiseMaker + invBattery + invBreathFilter;
+    const carried = invAdrenaline + invFlashbang + invNoiseMaker + invBearTrap + invBattery + invBreathFilter;
     if (carried >= 5) { setSaveStatus('Inventory full — carry at most 5 consumables', '#ffcc66'); return; }
     if (tokens >= cost) {
         tokens -= cost;
         if (type === 'adrenaline') invAdrenaline++;
         if (type === 'flashbang') invFlashbang++;
         if (type === 'noiseMaker') invNoiseMaker++;
+        if (type === 'bearTrap') invBearTrap++;
         if (type === 'battery') invBattery++;
         if (type === 'breathFilter') invBreathFilter++;
         saveData();
@@ -452,7 +458,7 @@ let lastSingleMutation = null;
 let jordanState = 'saboteur', mimicTimer = 0, stateTimer = 0, jordanSabotageCooldown = 0;
 let empTimer = 0, empWarning = 0, empActive = 0, flashAlpha = 0;
 let powerOutageTimer = 0, powerOutageCooldown = 0, flickerTimer = 0, flickerCooldown = 0, emergencyTimer = 0, emergencyCooldown = 0, outageFlickerTimer = 0;
-let noiseTarget = null, noiseTimer = 0;
+let noiseTarget = null, noiseTimer = 0, bearTraps = [];
 let ambienceClock = 0;
 let runStartedAt = 0, runItemsUsed = 0, hallucinationHudTimer = 0;
 let mobileMenuPaused = false;
@@ -523,6 +529,38 @@ function useNoiseMaker() {
     showMsg('<span style="color:#ff66cc">NOISE MAKER THROWN</span>', 900);
 }
 
+function triggerBloodHunt() {
+    for (const enemy of monsters) {
+        if (enemy.name !== 'MALAKAI' || player.hidden || isSafeRoom(player.x, player.y)) continue;
+        enemy.bloodHuntTimer = 300;
+        enemy.bloodHuntX = player.x;
+        enemy.bloodHuntY = player.y;
+        enemy.path = [];
+    }
+    if (monsters.some(enemy => enemy.name === 'MALAKAI' && enemy.bloodHuntTimer > 0)) {
+        showMsg('<span style="color:#d4f">MALAKAI CAUGHT YOUR TRAIL</span>', 900);
+    }
+}
+
+function placeBearTrap() {
+    if ((state !== 1 && state !== 3) || invBearTrap <= 0 || player.hidden || player.stunTimer > 0) return;
+    if (bearTraps.length >= 2) { showMsg('ONLY TWO TRAPS CAN BE ACTIVE', 800); return; }
+    invBearTrap--; runItemsUsed++; stats.itemsUsed++;
+    bearTraps.push({ x: player.x, y: player.y, life: 1800, triggered: false });
+    saveData(); updateHUD();
+    showMsg('<span style="color:#bbb">BEAR TRAP PLACED</span>', 800);
+}
+
+function triggerBearTrap(enemy) {
+    const trap = bearTraps.find(candidate => !candidate.triggered && Math.hypot(candidate.x - enemy.x, candidate.y - enemy.y) < enemy.r + 13);
+    if (!trap) return false;
+    trap.triggered = true; trap.life = 45;
+    enemy.stunTimer = enemy.isResilient || enemy.name === 'MALAKAI' ? 120 : 240;
+    enemy.path = [];
+    showMsg(`<span style="color:#ddd">${enemy.name} HIT A BEAR TRAP</span>`, 750);
+    return true;
+}
+
 function beginCircuitPuzzle() {
     state = 6;
     circuitStage = currentGen.stage;
@@ -549,6 +587,7 @@ function finishGeneratorInteraction() {
     stats.generators++;
     playSound('success');
     showMsg('<span style="color:#0f0">GENERATOR ONLINE</span>', 900);
+    triggerBloodHunt();
     state = 1;
     checkPhase();
     if (state === 1) for (const enemy of monsters) if (enemy.isFrenzy) enemy.speed += 0.15;
@@ -580,6 +619,7 @@ window.addEventListener('keydown', (e) => {
     if ((state === 1 || state === 3) && k === 'b') activateBreath();
     if (state === 1 && k === 'h') toggleHide();
     if ((state === 1 || state === 3) && k === 'n') useNoiseMaker();
+    if ((state === 1 || state === 3) && k === 't') placeBearTrap();
     if ((state === 1 || state === 3) && k === 'r') useBattery();
 
     // Generator Interaction
@@ -606,6 +646,7 @@ window.addEventListener('keydown', (e) => {
         clearMovementKeys();
 
         if (currentGen.isFalse) {
+            triggerBloodHunt();
             state = 1; player.stunTimer = 120; playSound('fail');
             showMsg(`<span style="color:#ff4444">FALSE GENERATOR</span><br>THAT'S NOT REAL`, 1400);
             return;
@@ -655,6 +696,7 @@ window.addEventListener('keydown', (e) => {
                 scNeedle = 0;
             }
         } else {
+            triggerBloodHunt();
             state = 1; player.stunTimer = 120;
             playSound('fail'); showMsg('<span style="color:#ff4444">WIRING FAILED</span>', 900);
             keys.w = false; keys.a = false; keys.s = false; keys.d = false;
@@ -671,6 +713,7 @@ window.addEventListener('keydown', (e) => {
                 finishGeneratorInteraction();
             }
         } else if (['w','a','s','d'].includes(k)) {
+            triggerBloodHunt();
             state = 1; player.stunTimer = 120; playSound('fail');
             showMsg('<span style="color:#ff4444">WRONG CONNECTION</span>', 900);
         }
@@ -681,6 +724,7 @@ window.addEventListener('keydown', (e) => {
             circuitSequence.shift(); playSound('tick');
             if (circuitSequence.length === 0) finishGeneratorInteraction();
         } else {
+            triggerBloodHunt();
             state = 1; player.stunTimer = 120; playSound('fail');
             showMsg('<span style="color:#ff4444">CIRCUIT FAILED</span>', 900);
         }
@@ -808,7 +852,7 @@ function createExtraMonster(name, diffData, index) {
         color: '#800', textColor: 'red', allSeeing: false, isPhantom: false,
         isFrenzy: false, isReinforced: false, hasGloom: false, isResilient: false,
         hasScrambler: false, hasHexed: false, hasHallucinations: false,
-        stunTimer: 0, lastTargetC: -1, lastTargetR: -1, path: [], activeMutations: [], extra: true
+        stunTimer: 0, bloodHuntTimer: 0, bloodHuntX: 0, bloodHuntY: 0, lastTargetC: -1, lastTargetR: -1, path: [], activeMutations: [], extra: true
     };
     if (name === 'MALAKAI') { enemy.baseSpeed += 0.45; enemy.speed = enemy.baseSpeed; enemy.color = '#50a'; enemy.textColor = '#d4f'; }
     if (name === 'JORDAN') { enemy.baseSpeed += 0.18; enemy.speed = enemy.baseSpeed; enemy.color = '#050'; enemy.textColor = '#0f0'; }
@@ -893,7 +937,7 @@ function startGame(diffLevel) {
         r: 14, drawRadius: 14, 
         speed: diffData.mSpd, baseSpeed: diffData.mSpd,
         color: '#800', textColor: 'red',
-        allSeeing: false, isPhantom: false, isFrenzy: false, isReinforced: false, hasGloom: false, isResilient: false, hasScrambler: false, hasHexed: false, hasHallucinations: false, stunTimer: 0, lastTargetC: -1, lastTargetR: -1,
+        allSeeing: false, isPhantom: false, isFrenzy: false, isReinforced: false, hasGloom: false, isResilient: false, hasScrambler: false, hasHexed: false, hasHallucinations: false, stunTimer: 0, bloodHuntTimer: 0, bloodHuntX: 0, bloodHuntY: 0, lastTargetC: -1, lastTargetR: -1,
         path: [], activeMutations: []
     };
     monsters = [monster];
@@ -1131,6 +1175,7 @@ function updateHUD() {
     if (invAdrenaline > 0) invText.push(`Adrenaline: ${invAdrenaline} (SPACE)`);
     if (invFlashbang > 0) invText.push(`Flashbang: ${invFlashbang} (F)`);
     if (invNoiseMaker > 0) invText.push(`Noise: ${invNoiseMaker} (N)`);
+    if (invBearTrap > 0) invText.push(`Trap: ${invBearTrap} (T)`);
     if (invBattery > 0) invText.push(`Battery: ${invBattery} (R)`);
     if (invBreathFilter > 0) invText.push(`Filter: ${invBreathFilter}`);
     if (player.crouching) invText.push('CROUCHING');
@@ -1246,9 +1291,11 @@ function getMonsterSpeed(enemy = monster) {
 
 function updateExtraMonsters() {
     for (const enemy of monsters.slice(1)) {
+        triggerBearTrap(enemy);
         if (enemy.stunTimer > 0) { enemy.stunTimer--; continue; }
         const protectedPlayer = player.hidden || isSafeRoom(player.x, player.y);
         const sawHide = player.hidden && player.hideCompromised;
+        const tracksBlood = !protectedPlayer && enemy.name === 'MALAKAI' && enemy.bloodHuntTimer > 0;
         const tracksPlayer = !protectedPlayer && (emergencyTimer > 0 || enemy.allSeeing || monsterCanSeeUnhiddenPlayer(enemy));
         let targetC, targetR;
         if (sawHide) {
@@ -1256,6 +1303,8 @@ function updateExtraMonsters() {
         } else if (state === 3) {
             const far = floors.reduce((best, tile) => Math.hypot(tile.c * TS - player.x, tile.r * TS - player.y) > Math.hypot(best.c * TS - player.x, best.r * TS - player.y) ? tile : best, floors[0]);
             targetC = far.c; targetR = far.r;
+        } else if (tracksBlood) {
+            targetC = Math.floor(enemy.bloodHuntX / TS); targetR = Math.floor(enemy.bloodHuntY / TS);
         } else if (tracksPlayer) {
             targetC = Math.floor(player.x / TS); targetR = Math.floor(player.y / TS);
         } else if (noiseTarget && noiseTimer > 0) {
@@ -1302,6 +1351,9 @@ function update() {
         }
     }
     if (hallucinationHudTimer > 0) hallucinationHudTimer--;
+    for (const enemy of monsters) if (enemy.bloodHuntTimer > 0) enemy.bloodHuntTimer--;
+    for (const trap of bearTraps) trap.life--;
+    bearTraps = bearTraps.filter(trap => trap.life > 0);
     if (monsters.some(enemy => enemy.hasHallucinations) && state === 1 && Math.random() < 0.0025) {
         hallucinationHudTimer = 120;
         if (Math.random() < 0.3) showMsg('<span style="color:#77ffdd">POWER RESTORED</span>', 700);
@@ -1393,10 +1445,12 @@ function update() {
 
     // --- MONSTER AI ---
     // A hiding spot or safe room breaks detection, but never pauses the monster.
+    triggerBearTrap(monster);
     if (monster.stunTimer > 0) {
         monster.stunTimer--;
     } else if (state === 1 || state === 3) {
         let canSeePlayer = !player.hidden && !player.breathing && !isSafeRoom(player.x, player.y) && monsterCanSeeUnhiddenPlayer();
+        let tracksBlood = !player.hidden && !isSafeRoom(player.x, player.y) && monster.name === 'MALAKAI' && monster.bloodHuntTimer > 0;
         
         if (state === 1 && player.hidden && player.hideCompromised) {
             // The monster watched the player enter this exact hiding spot.
@@ -1493,7 +1547,15 @@ function update() {
                     }
                     moveMonsterAlongPath(getMonsterSpeed());
                 } else {
-                    if (noiseTarget && noiseTimer > 0) {
+                    if (tracksBlood) {
+                        const bC = Math.floor(monster.bloodHuntX / TS), bR = Math.floor(monster.bloodHuntY / TS);
+                        if (monster.lastTargetC !== bC || monster.lastTargetR !== bR || monster.path.length === 0) {
+                            monster.path = findPath(Math.floor(monster.x / TS), Math.floor(monster.y / TS), bC, bR);
+                            monster.lastTargetC = bC; monster.lastTargetR = bR;
+                        }
+                        moveMonsterAlongPath(getMonsterSpeed());
+                        if (Math.hypot(monster.x - monster.bloodHuntX, monster.y - monster.bloodHuntY) < 22) monster.bloodHuntTimer = 0;
+                    } else if (noiseTarget && noiseTimer > 0) {
                         const nC = Math.floor(noiseTarget.x / TS), nR = Math.floor(noiseTarget.y / TS);
                         if (monster.lastTargetC !== nC || monster.lastTargetR !== nR || monster.path.length === 0) {
                             monster.path = findPath(Math.floor(monster.x / TS), Math.floor(monster.y / TS), nC, nR);
@@ -1589,6 +1651,16 @@ function draw() {
         const pulse = 14 + Math.sin(ambienceClock * 0.18) * 5;
         ctx.beginPath(); ctx.arc(noiseTarget.x, noiseTarget.y, pulse, 0, Math.PI * 2);
         ctx.strokeStyle = 'rgba(255,102,204,0.7)'; ctx.lineWidth = 3; ctx.stroke();
+    }
+
+    for (const trap of bearTraps) {
+        ctx.save();
+        ctx.translate(trap.x, trap.y);
+        ctx.fillStyle = trap.triggered ? '#ddd' : '#777';
+        ctx.strokeStyle = '#222'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(0, 0, 9, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(-8, 0); ctx.lineTo(8, 0); ctx.moveTo(0, -8); ctx.lineTo(0, 8); ctx.stroke();
+        ctx.restore();
     }
 
     if (empWarning > 0) {
@@ -1863,7 +1935,7 @@ function openMobileActionMenu(kind) {
         content.innerHTML = `<button onclick="player.crouching=!player.crouching; updateHUD(); closeMobileActionMenu()">${player.crouching ? 'STOP CROUCHING' : 'CROUCH'}</button><button onclick="activateBreath(); closeMobileActionMenu()">HOLD BREATH</button><button onclick="toggleHide(); closeMobileActionMenu()">HIDE / LEAVE HIDING</button><p style="font-size:12px;color:#aaa">Crouching is a toggle on phone. It slows both you and the monsters.</p>`;
     } else if (kind === 'items') {
         title.textContent = 'ITEMS';
-        content.innerHTML = `<button onclick="mobileKey(' '); closeMobileActionMenu()">ADRENALINE (${invAdrenaline})</button><button onclick="mobileKey('f'); closeMobileActionMenu()">FLASHBANG (${invFlashbang})</button><button onclick="mobileKey('n'); closeMobileActionMenu()">NOISE MAKER (${invNoiseMaker})</button><button onclick="mobileKey('r'); closeMobileActionMenu()">EMERGENCY BATTERY (${invBattery})</button>`;
+        content.innerHTML = `<button onclick="mobileKey(' '); closeMobileActionMenu()">ADRENALINE (${invAdrenaline})</button><button onclick="mobileKey('f'); closeMobileActionMenu()">FLASHBANG (${invFlashbang})</button><button onclick="mobileKey('n'); closeMobileActionMenu()">NOISE MAKER (${invNoiseMaker})</button><button onclick="mobileKey('t'); closeMobileActionMenu()">BEAR TRAP (${invBearTrap})</button><button onclick="mobileKey('r'); closeMobileActionMenu()">EMERGENCY BATTERY (${invBattery})</button>`;
     } else {
         title.textContent = 'GAME MENU';
         content.innerHTML = `<button onclick="toggleFullscreen(); closeMobileActionMenu()">FULLSCREEN</button><button onclick="closeMobileActionMenu(); showMenu('infoMenu')">INFO / CONTROLS</button><button onclick="closeMobileActionMenu(); showMenu('settingsMenu')">SETTINGS</button>`;

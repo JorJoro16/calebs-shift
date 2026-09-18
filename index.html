@@ -132,9 +132,9 @@
             <b>Survival:</b> Choose Caleb, Malakai, and/or Jordan, how many appear, difficulty, generator count, mutations per monster, and whether map events are active.<br></div></details>
 
             <details class="info-section"><summary style="color:#ff4444;">MONSTERS</summary><div>
-            <b>Caleb:</b> Standard patrol. Periodically unleashes an EMP that blinds you.<br>
-            <b>Malakai:</b> Highly aggressive and fast, but cannot spawn with 'All-Seeing'.<br>
-            <b>Jordan:</b> Disguises himself as a generator. If triggered, he rapidly enrages.<br></div></details>
+            <b>CALEB — The Disruptor</b><br>Patrols normally and periodically releases an EMP that makes the map difficult to read.<br><span style="color:#aaa">Counter:</span> Keep moving after the warning and use landmarks to reorient yourself.<br><br>
+            <b>MALAKAI — The Blood Hunter</b><br>Fast and aggressive. Repairs, failed skill checks, false generators, and other mistakes can give him your last known trail for a short time.<br><span style="color:#aaa">Counter:</span> Crouch, break line of sight, use a Noise Maker, or let a trap slow him down.<br><br>
+            <b>JORDAN — The Mimic</b><br>Can disguise himself as a generator. Interacting with him reveals the trick and eventually triggers an enraged chase.<br><span style="color:#aaa">Counter:</span> Watch for the suspicious visual offset and be ready to run after checking a generator.<br></div></details>
             
             <details class="info-section"><summary style="color:#ff4444;">MUTATIONS</summary><div>
             <b>Speed Demon:</b> Flat speed boost.<br>
@@ -171,12 +171,13 @@
             <b>Hiding Spot:</b> Hide for up to 20 seconds while the monster keeps patrolling. If it sees you enter, it will check the spot and catch you.<br>
             <b>Crouch:</b> Hold the crouch button to slow yourself and the monster while you reposition.<br>
             <b>Hold Breath:</b> Hold your breath briefly to avoid the All-Seeing mutation. It has a cooldown.<br>
-            <b>Noise Maker:</b> Throw a sound somewhere else to pull the monster away. Completed generators also make noise.<br></div></details>
+            <b>Noise Maker:</b> Throw a sound somewhere else to pull the monster away. Completed generators also make noise.<br>
+            <b>Bear Trap:</b> Press T or use Items to place one at your feet. It briefly stuns a monster, then disappears. Only two can be active.<br></div></details>
             <details class="info-section"><summary style="color:#0ff;">MOBILE CONTROLS</summary><div>
             <b>Joystick:</b> Move freely in any direction.<br>
             <b>E:</b> Interact with generators, fuses, rooms, and hiding spots.<br>
             <b>◎ Abilities:</b> Pauses the game and opens Crouch, Hold Breath, and Hide. Crouch is a toggle on phone.<br>
-            <b>▣ Items:</b> Pauses the game and opens Adrenaline, Flashbang, Noise Maker, and Battery.<br>
+            <b>▣ Items:</b> Pauses the game and opens Adrenaline, Flashbang, Noise Maker, Bear Trap, and Battery.<br>
             <b>☰ Menu:</b> Pauses the game and opens Fullscreen, Info, and Settings.<br></div></details>
             <br><span style="color:#888;">Version <span id="infoVersion">1.0.0</span> · Created for local play with friends.</span>
         </div>
@@ -238,6 +239,13 @@
                 <div class="shop-desc">Press N or ♬ to lure the monster away.</div>
             </div>
             <button onclick="buyConsumable('noiseMaker', 18)">18 T</button>
+        </div>
+        <div class="shop-item">
+            <div>
+                <div>Bear Trap</div>
+                <div class="shop-desc">Press T or choose it from Items to place a trap. Monsters are briefly stunned.</div>
+            </div>
+            <button onclick="buyConsumable('bearTrap', 24)">24 T</button>
         </div>
         <button onclick="showMenu('mainMenu')" style="margin-top: 15px; border-color: #ff4444; color: #ff4444;">BACK</button>
     </div>

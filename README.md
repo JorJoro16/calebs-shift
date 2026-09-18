@@ -28,6 +28,7 @@ Explore the maze, repair every generator, survive the monster's mutations, and c
 - Hold B: hold your breath from All-Seeing
 - H: hide near a hiding spot (20 seconds)
 - N: use a Noise Maker
+- T: place a Bear Trap
 
 ### Phone
 
@@ -44,7 +45,8 @@ These three menus safely pause the run while they are open. For the best experie
 
 - Cosmetic player colors and trails are unlocked by challenges such as winning on Hard, catching specific monsters, clearing Endless rounds, and winning without items.
 - The Statistics screen tracks games, wins, repairs, catches, Endless progress, item use, and favorite monster.
-- Inventory is limited to five consumables total. The shop includes Adrenaline, Flashbangs, Noise Makers, Emergency Batteries, and Breath Filters.
+- Inventory is limited to five consumables total. The shop includes Adrenaline, Flashbangs, Noise Makers, Bear Traps, Emergency Batteries, and Breath Filters.
+- Bear Traps can be placed with **T** or from the mobile Items menu. They briefly stun a monster and disappear after triggering; only two can be active at once.
 - When more than one monster is active, the HUD identifies the group and offers a **MONSTERS** roster with each monster's mutations.
 - Hallucination mutations can create fake silhouettes, generator signals, alerts, and HUD readings without directly harming the player.
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.3.0
+
+- Added Malakai's Blood Hunt: loud mistakes and generator progress can give him the player's last known trail temporarily.
+- Added Bear Traps with desktop T control, mobile Items control, limited active traps, and shorter stun duration for Malakai or Resilient monsters.
+- Rewrote the monster guide around each monster's identity, behavior, and counterplay.
+- Added Bear Trap inventory persistence, shop support, mobile support, and save import/export support.
+
 ## 1.2.1
 
 - Removed chase music for now.
