@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.3.1
+
+- Replaced the unreliable mobile Menu button with a dedicated Skill Check button.
+- Added mobile skill-check instructions and updated the mobile controls documentation.
+- Bumped the service-worker cache to `calebs-shift-v21` so installed copies receive the update.
+
 ## 1.3.0
 
 - Added Malakai's Blood Hunt: loud mistakes and generator progress can give him the player's last known trail temporarily.
