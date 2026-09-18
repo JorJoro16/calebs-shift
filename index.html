@@ -101,11 +101,33 @@
             <b>Resilient:</b> Flashbang stun duration is halved.<br>
             <b>Scrambler:</b> Hides your generator progress UI.<br>
             <b>Hexed:</b> Player boosts (Adrenaline) only last half as long.<br>
+            <b>Hallucinations:</b> Creates harmless visual decoys nearby. Do not chase every shape you see.<br>
             
             <h3 style="color:#0f0; margin-bottom:5px; margin-top: 15px; border-bottom: 1px solid #0f0;">TIPS</h3>
             - Use <b>'E'</b> to repair generators.<br>
             - Skill check needles now loop endlessly! Take your time to hit the green zone.<br>
             - Jordan has a 30-second cooldown before he can sabotage multiple generators.<br>
+            <h3 style="color:#ffcc00; margin-bottom:5px; margin-top: 15px; border-bottom: 1px solid #ffcc00;">MAP EVENTS & GENERATORS</h3>
+            <b>Power Outage:</b> The map darkens for a short time. Maintenance rooms can restore the lights early.<br>
+            <b>Emergency Lights:</b> Red alarms briefly reveal both you and the monster.<br>
+            <b>False Generators:</b> Their small amber marker means they are not real. Do not repair them.<br>
+            <b>Fuse Generator:</b> Find the loose fuses around the map before repairing it.<br>
+            <b>Multi-stage Generator:</b> Complete several repair stages before it comes online. It uses a circuit puzzle.<br>
+            <b>Safe Room:</b> Monsters cannot enter, but leaving is still your responsibility.<br>
+            <b>Hiding Spot:</b> Hide for up to 20 seconds, then get moving.<br>
+            <b>Crouch:</b> Hold the crouch button to slow yourself and the monster while you reposition.<br>
+            <b>Hold Breath:</b> Hold your breath briefly to avoid the All-Seeing mutation. It has a cooldown.<br>
+            <b>Noise Maker:</b> Throw a sound somewhere else to pull the monster away. Completed generators also make noise.<br>
+            <h3 style="color:#0ff; margin-bottom:5px; margin-top: 15px; border-bottom: 1px solid #0ff;">MOBILE BUTTONS</h3>
+            <b>Joystick:</b> Move freely in any direction.<br>
+            <b>E:</b> Interact with generators, fuses, rooms, and hiding spots.<br>
+            <b>⚡:</b> Use Adrenaline for a speed burst.<br>
+            <b>F:</b> Use a Flashbang to stun the monster.<br>
+            <b>◎:</b> Crouch while held; you and the monster slow down.<br>
+            <b>◉:</b> Hold your breath to hide from All-Seeing.<br>
+            <b>▣:</b> Hide when near a hiding spot.<br>
+            <b>♬:</b> Use a Noise Maker to distract the monster.<br>
+            <b>⛶:</b> Toggle fullscreen when the browser allows it.<br>
             <br><span style="color:#888;">Version <span id="infoVersion">1.0.0</span> · Created for local play with friends.</span>
         </div>
         <button onclick="showMenu('mainMenu')" style="margin-top: 15px; border-color: #ff4444; color: #ff4444;">BACK</button>
@@ -158,6 +180,13 @@
             </div>
             <button onclick="buyConsumable('flashbang', 20)">20 T</button>
         </div>
+        <div class="shop-item">
+            <div>
+                <div>Noise Maker</div>
+                <div class="shop-desc">Press N or ♬ to lure the monster away.</div>
+            </div>
+            <button onclick="buyConsumable('noiseMaker', 18)">18 T</button>
+        </div>
         <button onclick="showMenu('mainMenu')" style="margin-top: 15px; border-color: #ff4444; color: #ff4444;">BACK</button>
     </div>
 
@@ -208,6 +237,10 @@
             <button id="touchInteract" class="touch-button interact-button" aria-label="Interact">E</button>
             <button id="touchBoost" class="touch-button boost-button" aria-label="Use adrenaline">⚡</button>
             <button id="touchFlash" class="touch-button flash-button" aria-label="Use flashbang">F</button>
+            <button id="touchCrouch" class="touch-button crouch-button" aria-label="Crouch">◎</button>
+            <button id="touchBreath" class="touch-button breath-button" aria-label="Hold breath">◉</button>
+            <button id="touchHide" class="touch-button hide-button" aria-label="Hide">▣</button>
+            <button id="touchNoise" class="touch-button noise-button" aria-label="Use noise maker">♬</button>
             <button id="touchFullscreen" class="touch-button fullscreen-button" aria-label="Toggle fullscreen">⛶</button>
         </div>
     </div>

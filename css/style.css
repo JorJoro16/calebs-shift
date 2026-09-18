@@ -198,7 +198,7 @@ canvas {
     right: max(18px, env(safe-area-inset-right));
     bottom: max(18px, env(safe-area-inset-bottom));
     display: grid;
-    grid-template-columns: repeat(2, 64px);
+    grid-template-columns: repeat(3, 58px);
     gap: 10px;
     pointer-events: auto;
 }
@@ -221,6 +221,10 @@ canvas {
 .interact-button { border-color: #0f0; color: #0f0; }
 .boost-button { border-color: #0ff; color: #0ff; }
 .flash-button { border-color: #ff4444; color: #ff4444; }
+.crouch-button { border-color: #ffcc00; color: #ffcc00; }
+.breath-button { border-color: #b8aaff; color: #b8aaff; }
+.hide-button { border-color: #ff9900; color: #ff9900; }
+.noise-button { border-color: #ff66cc; color: #ff66cc; }
 .fullscreen-button { border-color: #aaa; color: #fff; font-size: 28px; }
 
 @media (pointer: coarse), (max-width: 700px) {
@@ -248,8 +252,8 @@ canvas {
 @media (orientation: portrait) and (max-width: 700px) {
     #gameCanvas { max-height: 58vh; }
     .joystick { width: 112px; height: 112px; }
-    .touch-actions { grid-template-columns: repeat(2, 58px); }
-    .touch-button { width: 58px; height: 58px; }
+    .touch-actions { grid-template-columns: repeat(3, 50px); gap: 6px; }
+    .touch-button { width: 50px; height: 50px; font-size: 18px; }
     .touch-puzzle { grid-template-columns: repeat(4, 48px); gap: 6px; }
     .puzzle-button { width: 48px; height: 48px; }
 }

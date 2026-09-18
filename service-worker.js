@@ -1,4 +1,4 @@
-const CACHE_NAME = 'calebs-shift-v9';
+const CACHE_NAME = 'calebs-shift-v10';
 const FILES_TO_CACHE = [
   './',
   './index.html',

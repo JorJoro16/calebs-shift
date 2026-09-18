@@ -59,12 +59,20 @@ function playSound(type) {
         gain.gain.setValueAtTime(vol * 0.1, audioCtx.currentTime);
         gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
         osc.start(); osc.stop(audioCtx.currentTime + 0.1);
+    } else if (type === 'alarm') {
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(320, audioCtx.currentTime);
+        osc.frequency.linearRampToValueAtTime(640, audioCtx.currentTime + 0.18);
+        osc.frequency.linearRampToValueAtTime(320, audioCtx.currentTime + 0.36);
+        gain.gain.setValueAtTime(vol * 0.18, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.45);
+        osc.start(); osc.stop(audioCtx.currentTime + 0.45);
     }
 }
 
 // Versioned local progress with a backup copy and import/export support.
 const GAME_VERSION = '1.0.0';
-const SAVE_SCHEMA_VERSION = 2;
+const SAVE_SCHEMA_VERSION = 3;
 const SAVE_KEY = 'br_save_v2';
 const SAVE_BACKUP_KEY = 'br_save_backup_v2';
 
@@ -89,7 +97,8 @@ function normalizeProgress(raw) {
         upgQuick: boundedInt(source.upgQuick, 0, 3, 0),
         upgCoin: boundedInt(source.upgCoin, 0, 1, 0),
         invAdrenaline: boundedInt(source.invAdrenaline, 0, 9999, 0),
-        invFlashbang: boundedInt(source.invFlashbang, 0, 9999, 0)
+        invFlashbang: boundedInt(source.invFlashbang, 0, 9999, 0),
+        invNoiseMaker: boundedInt(source.invNoiseMaker, 0, 9999, 0)
     };
 }
 
@@ -110,8 +119,9 @@ function loadProgress() {
         upgQuick: safeStorageGet('br_quick'),
         upgCoin: safeStorageGet('br_coin'),
         invAdrenaline: safeStorageGet('br_adrenaline'),
-        invFlashbang: safeStorageGet('br_flashbang')
-    }) || { tokens: 0, upgShoe: 0, upgHack: 0, upgQuick: 0, upgCoin: 0, invAdrenaline: 0, invFlashbang: 0 };
+        invFlashbang: safeStorageGet('br_flashbang'),
+        invNoiseMaker: safeStorageGet('br_noiseMaker')
+    }) || { tokens: 0, upgShoe: 0, upgHack: 0, upgQuick: 0, upgCoin: 0, invAdrenaline: 0, invFlashbang: 0, invNoiseMaker: 0 };
 }
 
 const loadedProgress = loadProgress();
@@ -122,6 +132,7 @@ let upgQuick = loadedProgress.upgQuick;
 let upgCoin = loadedProgress.upgCoin;
 let invAdrenaline = loadedProgress.invAdrenaline;
 let invFlashbang = loadedProgress.invFlashbang;
+let invNoiseMaker = loadedProgress.invNoiseMaker;
 
 // Settings Data
 let setFPS = localStorage.getItem('br_fps') === 'true';
@@ -130,7 +141,7 @@ let setVolM = localStorage.getItem('br_volM') || 100;
 let setVolS = localStorage.getItem('br_volS') || 100;
 
 function currentProgress() {
-    return { tokens, upgShoe, upgHack, upgQuick, upgCoin, invAdrenaline, invFlashbang };
+    return { tokens, upgShoe, upgHack, upgQuick, upgCoin, invAdrenaline, invFlashbang, invNoiseMaker };
 }
 
 function setSaveStatus(text, color = '#8f8') {
@@ -187,6 +198,7 @@ function saveData() {
         localStorage.setItem('br_coin', upgCoin);
         localStorage.setItem('br_adrenaline', invAdrenaline);
         localStorage.setItem('br_flashbang', invFlashbang);
+        localStorage.setItem('br_noiseMaker', invNoiseMaker);
         setSaveStatus(`Progress saved · ${new Date().toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}`);
     } catch (error) {
         setSaveStatus('Save unavailable on this device', '#ff8888');
@@ -228,6 +240,7 @@ function importSave(event) {
             upgCoin = imported.upgCoin;
             invAdrenaline = imported.invAdrenaline;
             invFlashbang = imported.invFlashbang;
+            invNoiseMaker = imported.invNoiseMaker;
             saveData();
             setSaveStatus('Save imported successfully');
         } catch (error) {
@@ -241,7 +254,7 @@ function importSave(event) {
 
 function resetProgress() {
     if (!confirm('Reset all tokens, upgrades, and items? Your previous save will remain in the backup slot.')) return;
-    tokens = 0; upgShoe = 0; upgHack = 0; upgQuick = 0; upgCoin = 0; invAdrenaline = 0; invFlashbang = 0;
+    tokens = 0; upgShoe = 0; upgHack = 0; upgQuick = 0; upgCoin = 0; invAdrenaline = 0; invFlashbang = 0; invNoiseMaker = 0;
     saveData();
     setSaveStatus('Progress reset; previous save kept as backup');
 }
@@ -308,6 +321,7 @@ function buyConsumable(type, cost) {
         tokens -= cost;
         if (type === 'adrenaline') invAdrenaline++;
         if (type === 'flashbang') invFlashbang++;
+        if (type === 'noiseMaker') invNoiseMaker++;
         saveData();
     }
 }
@@ -316,19 +330,22 @@ function buyConsumable(type, cost) {
 const TS = 40; const COLS = 31; const ROWS = 23; 
 let state = 0; let currentDiff = 0; let rewardTokens = 0;
 
-let map = [], floors = [];
-let player = { x: 0, y: 0, r: 12, baseSpeed: 3.8, speed: 3.8, boostTimer: 0, stunTimer: 0 };
+let map = [], floors = [], rooms = [], fuses = [], hidingSpots = [];
+let nearFuse = null, nearHide = null;
+let player = { x: 0, y: 0, r: 12, baseSpeed: 3.8, speed: 3.8, boostTimer: 0, stunTimer: 0, crouching: false, breathing: false, breathTimer: 0, breathCooldown: 0, hidden: false, hideTimer: 0 };
 let monster = { name: '', x: 0, y: 0, r: 14, drawRadius: 14, speed: 2.2, baseSpeed: 2.2, color: '', textColor: '', activeMutations: [], isReinforced: false, hasGloom: false, isResilient: false, hasScrambler: false, hasHexed: false, stunTimer: 0, lastTargetC: -1, lastTargetR: -1 };
 let camera = { x: 0, y: 0, targetZoom: 1.0, zoom: 1.0 };
 let nearGen = null; 
 
 let generators = [], activeGens = 0, totalGens = 0;
-let puzzleSequence = [], currentGen = null;
+let puzzleSequence = [], circuitSequence = [], circuitStage = 0, circuitRequired = 3, currentGen = null;
 let lastSingleMutation = null; 
 
 // AI & Item Variables
 let jordanState = 'saboteur', mimicTimer = 0, stateTimer = 0, jordanSabotageCooldown = 0;
 let empTimer = 0, empWarning = 0, empActive = 0, flashAlpha = 0;
+let powerOutageTimer = 0, powerOutageCooldown = 0, flickerTimer = 0, flickerCooldown = 0, emergencyTimer = 0, emergencyCooldown = 0, outageFlickerTimer = 0;
+let noiseTarget = null, noiseTimer = 0;
 let ambienceClock = 0;
 
 // Skill Check Variables
@@ -337,6 +354,75 @@ let scNeedle = 0, scSpeed = 0, scZoneStart = 0, scZoneEnd = 0, scHits = 0, scReq
 let lastTime = 0, frames = 0;
 let lastFrameTime = 0, gameAccumulator = 0;
 const keys = { w: false, a: false, s: false, d: false };
+
+function clearMovementKeys() {
+    keys.w = false; keys.a = false; keys.s = false; keys.d = false;
+}
+
+function activateBreath() {
+    if ((state === 1 || state === 3) && !player.hidden && player.breathCooldown <= 0 && player.breathTimer <= 0) {
+        player.breathTimer = 300;
+        player.breathing = true;
+        showMsg('<span style="color:#b8aaff">HOLDING BREATH</span>', 800);
+    }
+}
+
+function toggleHide() {
+    if (state !== 1 || !nearHide || player.stunTimer > 0) return;
+    if (!player.hidden) {
+        player.hidden = true;
+        player.hideTimer = 1200;
+        nearHide.occupied = true;
+        clearMovementKeys();
+        showMsg('<span style="color:#ff9900">HIDDEN</span>', 700);
+    } else {
+        player.hidden = false;
+        nearHide.occupied = false;
+        showMsg('BACK OUT', 500);
+    }
+}
+
+function useNoiseMaker() {
+    if ((state !== 1 && state !== 3) || invNoiseMaker <= 0 || player.hidden) return;
+    invNoiseMaker--;
+    const options = floors.filter(tile => Math.hypot(tile.c * TS + TS / 2 - player.x, tile.r * TS + TS / 2 - player.y) > 240);
+    const tile = options[Math.floor(Math.random() * Math.max(1, options.length))] || floors[0];
+    noiseTarget = { x: tile.c * TS + TS / 2, y: tile.r * TS + TS / 2 };
+    noiseTimer = 600;
+    monster.path = findPath(Math.floor(monster.x / TS), Math.floor(monster.y / TS), tile.c, tile.r);
+    saveData(); updateHUD(); playSound('tick');
+    showMsg('<span style="color:#ff66cc">NOISE MAKER THROWN</span>', 900);
+}
+
+function beginCircuitPuzzle() {
+    state = 6;
+    circuitStage = currentGen.stage;
+    circuitSequence = [];
+    const options = ['w', 'a', 's', 'd'];
+    const length = 3 + circuitStage;
+    for (let i = 0; i < length; i++) circuitSequence.push(options[Math.floor(Math.random() * options.length)]);
+    updateHUD();
+}
+
+function finishGeneratorInteraction() {
+    if (currentGen.type === 'multi' && currentGen.stage < currentGen.requiredStages - 1) {
+        currentGen.stage++;
+        playSound('success');
+        showMsg(`<span style="color:#ffcc00">CIRCUIT STAGE ${currentGen.stage + 1}/${currentGen.requiredStages}</span>`, 850);
+        beginCircuitPuzzle();
+        return;
+    }
+    currentGen.active = true;
+    currentGen.repairFlash = 45;
+    noiseTarget = { x: currentGen.x, y: currentGen.y };
+    noiseTimer = 300;
+    activeGens++;
+    playSound('success');
+    showMsg('<span style="color:#0f0">GENERATOR ONLINE</span>', 900);
+    state = 1;
+    checkPhase();
+    if (state === 1 && monster.isFrenzy) monster.speed += 0.15;
+}
 
 window.addEventListener('keydown', (e) => {
     let k = e.key.toLowerCase();
@@ -358,10 +444,47 @@ window.addEventListener('keydown', (e) => {
         saveData(); updateHUD();
     }
 
+    if ((state === 1 || state === 3) && k === 'shift') player.crouching = true;
+    if ((state === 1 || state === 3) && k === 'b') activateBreath();
+    if (state === 1 && k === 'h') toggleHide();
+    if ((state === 1 || state === 3) && k === 'n') useNoiseMaker();
+
     // Generator Interaction
-    if (state === 1 && k === 'e' && nearGen && player.stunTimer <= 0) {
+    if (state === 1 && k === 'e' && player.stunTimer <= 0) {
+        const nearbyRoom = getRoomAt(player.x, player.y);
+        if (nearbyRoom?.type === 'maintenance' && powerOutageTimer > 0) {
+            powerOutageTimer = 0;
+            powerOutageCooldown = 1500;
+            playSound('success');
+            showMsg('<span style="color:#ffcc00">MAINTENANCE POWER RESTORED</span>', 1200);
+            return;
+        }
+        if (nearFuse) {
+            nearFuse.collected = true;
+            const fuseGenerator = generators.find(generator => generator.type === 'fuse');
+            if (fuseGenerator) fuseGenerator.collectedFuses = fuses.filter(fuse => fuse.collected).length;
+            showMsg('<span style="color:#ffcc00">FUSE COLLECTED</span>', 700);
+            updateHUD();
+            return;
+        }
+        if (nearHide) { toggleHide(); return; }
+        if (!nearGen) return;
         currentGen = nearGen;
-        keys.w = false; keys.a = false; keys.s = false; keys.d = false;
+        clearMovementKeys();
+
+        if (currentGen.isFalse) {
+            state = 1; player.stunTimer = 120; playSound('fail');
+            showMsg(`<span style="color:#ff4444">FALSE GENERATOR</span><br>THAT'S NOT REAL`, 1400);
+            return;
+        }
+        if (currentGen.type === 'fuse' && currentGen.collectedFuses < currentGen.requiredFuses) {
+            showMsg(`<span style="color:#ffcc00">MISSING FUSES</span><br>${currentGen.collectedFuses}/${currentGen.requiredFuses}`, 1200);
+            return;
+        }
+        if (currentGen.type === 'multi') {
+            beginCircuitPuzzle();
+            return;
+        }
 
         let roll = Math.random();
         let isSkillCheck = (currentDiff === 0 && roll < 0.2) || (currentDiff === 1 && roll < 0.5) || (currentDiff === 2 && roll < 0.8);
@@ -392,10 +515,7 @@ window.addEventListener('keydown', (e) => {
             scHits++;
             playSound('success');
             if (scHits >= scRequired) {
-                currentGen.active = true; currentGen.repairFlash = 45; activeGens++;
-                showMsg('<span style="color:#0f0">GENERATOR ONLINE</span>', 900);
-                state = 1; checkPhase();
-                if(state===1 && monster.isFrenzy) monster.speed += 0.15;
+                finishGeneratorInteraction();
             } else {
                 scZoneStart = Math.random() * (Math.PI*2 - (scZoneEnd - scZoneStart));
                 scZoneEnd = scZoneStart + (currentDiff === 0 ? Math.PI/2 : currentDiff === 1 ? Math.PI/3 : Math.PI/5);
@@ -415,16 +535,21 @@ window.addEventListener('keydown', (e) => {
             puzzleSequence.shift();
             playSound('tick');
             if (puzzleSequence.length === 0) {
-                currentGen.active = true; currentGen.repairFlash = 45; activeGens++;
-                playSound('success');
-                showMsg('<span style="color:#0f0">GENERATOR ONLINE</span>', 900);
-                state = 1; checkPhase();
-                keys.w = false; keys.a = false; keys.s = false; keys.d = false;
-                if (state === 1 && monster.isFrenzy) monster.speed += 0.15; 
+                finishGeneratorInteraction();
             }
         } else if (['w','a','s','d'].includes(k)) {
             state = 1; player.stunTimer = 120; playSound('fail');
             showMsg('<span style="color:#ff4444">WRONG CONNECTION</span>', 900);
+        }
+        return;
+    }
+    if (state === 6 && ['w','a','s','d'].includes(k)) {
+        if (k === circuitSequence[0]) {
+            circuitSequence.shift(); playSound('tick');
+            if (circuitSequence.length === 0) finishGeneratorInteraction();
+        } else {
+            state = 1; player.stunTimer = 120; playSound('fail');
+            showMsg('<span style="color:#ff4444">CIRCUIT FAILED</span>', 900);
         }
         return;
     }
@@ -437,6 +562,8 @@ window.addEventListener('keyup', (e) => {
     if (k in keys) {
         keys[k] = false;
     }
+    if (k === 'shift') player.crouching = false;
+    if (k === 'b') player.breathing = false;
 });
 
 function generateMaze() {
@@ -471,6 +598,30 @@ function generateMaze() {
     }
 }
 
+function generateSpecialRooms() {
+    rooms = [];
+    hidingSpots = [];
+    const edgeTiles = floors.filter(tile => tile.c <= 3 || tile.c >= COLS - 4 || tile.r <= 3 || tile.r >= ROWS - 4);
+    const roomTypes = ['storage', 'maintenance', 'empty', 'safe'];
+    for (const type of roomTypes) {
+        const options = edgeTiles.filter(tile => !rooms.some(room => Math.hypot(room.c - tile.c, room.r - tile.r) < 5));
+        if (options.length === 0) continue;
+        const tile = options[Math.floor(Math.random() * options.length)];
+        rooms.push({ type, c: tile.c, r: tile.r, x: tile.c * TS + TS / 2, y: tile.r * TS + TS / 2 });
+        if (type === 'storage' || type === 'empty') {
+            hidingSpots.push({ x: tile.c * TS + TS / 2, y: tile.r * TS + TS / 2, occupied: false });
+        }
+    }
+}
+
+function getRoomAt(x, y) {
+    return rooms.find(room => Math.hypot(room.x - x, room.y - y) < TS * 1.25) || null;
+}
+
+function isSafeRoom(x, y) {
+    return getRoomAt(x, y)?.type === 'safe';
+}
+
 function startGame(diffLevel) {
     initAudio();
     currentDiff = diffLevel;
@@ -478,11 +629,12 @@ function startGame(diffLevel) {
     hud.style.display = 'block';
     
     generateMaze();
+    generateSpecialRooms();
     
     player.x = TS * 1.5; player.y = TS * 1.5;
     player.baseSpeed = 4.3 * (1 + (upgShoe * 0.05));
     player.speed = player.baseSpeed;
-    player.boostTimer = 0; player.stunTimer = 0;
+    player.boostTimer = 0; player.stunTimer = 0; player.crouching = false; player.breathing = false; player.breathTimer = 0; player.breathCooldown = 0; player.hidden = false; player.hideTimer = 0;
     ambienceClock = 0;
     camera.targetZoom = 1.0; camera.zoom = 1.0;
     nearGen = null; flashAlpha = 0;
@@ -516,11 +668,15 @@ function startGame(diffLevel) {
         r: 14, drawRadius: 14, 
         speed: diffData.mSpd, baseSpeed: diffData.mSpd,
         color: '#800', textColor: 'red',
-        allSeeing: false, isPhantom: false, isFrenzy: false, isReinforced: false, hasGloom: false, isResilient: false, hasScrambler: false, hasHexed: false, stunTimer: 0, lastTargetC: -1, lastTargetR: -1,
+        allSeeing: false, isPhantom: false, isFrenzy: false, isReinforced: false, hasGloom: false, isResilient: false, hasScrambler: false, hasHexed: false, hasHallucinations: false, stunTimer: 0, lastTargetC: -1, lastTargetR: -1,
         path: [], activeMutations: []
     };
 
     empTimer = 0; empWarning = 0; empActive = 0;
+    powerOutageTimer = 0; outageFlickerTimer = 0; powerOutageCooldown = Math.floor(Math.random() * 600) + 900;
+    flickerTimer = 0; flickerCooldown = Math.floor(Math.random() * 600) + 600;
+    emergencyTimer = 0; emergencyCooldown = Math.floor(Math.random() * 1200) + 1200;
+    noiseTarget = null; noiseTimer = 0; fuses = [];
     jordanSabotageCooldown = 0;
 
     if (monsterName === 'MALAKAI') {
@@ -545,7 +701,8 @@ function startGame(diffLevel) {
         { name: 'Lethargy', apply: (m) => { player.baseSpeed *= 0.9; player.speed = player.baseSpeed; } },
         { name: 'Resilient', apply: (m) => m.isResilient = true },
         { name: 'Scrambler', apply: (m) => m.hasScrambler = true },
-        { name: 'Hexed', apply: (m) => m.hasHexed = true }
+        { name: 'Hexed', apply: (m) => m.hasHexed = true },
+        { name: 'Hallucinations', apply: (m) => m.hasHallucinations = true }
     ];
 
     if (Math.random() > 0.25) possibleMutations = possibleMutations.filter(mut => mut.name !== 'Phantom');
@@ -585,14 +742,37 @@ function startGame(diffLevel) {
         if (generators.length >= totalGens) break;
         let tx = tile.c * TS + TS / 2, ty = tile.r * TS + TS / 2;
         if (!generators.some(g => Math.hypot(tx - g.x, ty - g.y) < TS * 6)) {
-            generators.push({ x: tx, y: ty, r: 12, active: false });
+            generators.push({ x: tx, y: ty, r: 12, active: false, type: 'normal', isFalse: false, repairFlash: 0, stage: 0, requiredStages: 3, requiredFuses: 2, collectedFuses: 0 });
         }
     }
     while (generators.length < totalGens) {
         let tile = genPool.pop();
         if (!tile) break; // Breakout to prevent infinite generation looping
         let tx = tile.c * TS + TS / 2, ty = tile.r * TS + TS / 2;
-        generators.push({ x: tx, y: ty, r: 12, active: false });
+        generators.push({ x: tx, y: ty, r: 12, active: false, type: 'normal', isFalse: false, repairFlash: 0, stage: 0, requiredStages: 3, requiredFuses: 2, collectedFuses: 0 });
+    }
+
+    let fuseGeneratorAssigned = false;
+    let multiGeneratorAssigned = false;
+    for (const generator of generators) {
+        const roll = Math.random();
+        if (!fuseGeneratorAssigned && roll < 0.12) {
+            generator.type = 'fuse';
+            fuseGeneratorAssigned = true;
+            const fuseTiles = [...floors].sort(() => Math.random() - 0.5).slice(0, generator.requiredFuses);
+            for (const tile of fuseTiles) fuses.push({ x: tile.c * TS + TS / 2, y: tile.r * TS + TS / 2, collected: false });
+        } else if (!multiGeneratorAssigned && roll < 0.30) {
+            generator.type = 'multi';
+            multiGeneratorAssigned = true;
+        } else if (roll < 0.50) {
+            generator.isFalse = true;
+        }
+    }
+    const storageRoom = rooms.find(room => room.type === 'storage');
+    if (storageRoom && Math.random() < 0.55 && generators.length > 0) {
+        const roomGenerator = generators[Math.floor(Math.random() * generators.length)];
+        roomGenerator.x = storageRoom.x;
+        roomGenerator.y = storageRoom.y;
     }
     
     canvas.classList.remove('shake');
@@ -658,6 +838,11 @@ function updateHUD() {
     let invText = [];
     if (invAdrenaline > 0) invText.push(`Adrenaline: ${invAdrenaline} (SPACE)`);
     if (invFlashbang > 0) invText.push(`Flashbang: ${invFlashbang} (F)`);
+    if (invNoiseMaker > 0) invText.push(`Noise: ${invNoiseMaker} (N)`);
+    if (player.crouching) invText.push('CROUCHING');
+    if (player.breathing) invText.push(`BREATH: ${Math.ceil(player.breathTimer / 60)}s`);
+    if (fuses.some(fuse => !fuse.collected)) invText.push(`Fuses: ${fuses.filter(fuse => !fuse.collected).length}`);
+    if (player.hidden) invText.push(`HIDDEN: ${Math.ceil(player.hideTimer / 60)}s`);
     document.getElementById('inventory').innerText = invText.join(' | ');
     
     let mText = monster.activeMutations.length > 0 ? `[${monster.activeMutations.join(', ')}]` : '[None]';
@@ -666,8 +851,10 @@ function updateHUD() {
 }
 
 function moveEntity(ent, dx, dy) {
+    const oldX = ent.x, oldY = ent.y;
     ent.x += dx; if (checkWall(ent)) ent.x -= dx;
     ent.y += dy; if (checkWall(ent)) ent.y -= dy;
+    if (ent === monster && isSafeRoom(ent.x, ent.y)) { ent.x = oldX; ent.y = oldY; }
 }
 
 function checkWall(ent) {
@@ -733,8 +920,12 @@ function moveMonsterAlongPath(spd) {
     }
 }
 
+function getMonsterSpeed() {
+    return monster.speed * (player.crouching ? 0.55 : 1);
+}
+
 function update() {
-    if (state !== 1 && state !== 3 && state !== 5) return;
+    if (state !== 1 && state !== 3 && state !== 5 && state !== 6) return;
 
     if (flashAlpha > 0) flashAlpha -= 0.02;
     ambienceClock++;
@@ -742,6 +933,37 @@ function update() {
 
     for (const generator of generators) {
         if (generator.repairFlash > 0) generator.repairFlash--;
+    }
+
+    if (player.breathCooldown > 0) player.breathCooldown--;
+    if (player.breathing) {
+        player.breathTimer--;
+        if (player.breathTimer <= 0) { player.breathing = false; player.breathCooldown = 180; }
+    }
+    if (player.hidden) {
+        player.hideTimer--;
+        if (player.hideTimer <= 0) {
+            player.hidden = false;
+            if (nearHide) nearHide.occupied = false;
+            showMsg('HIDING SPOT EXPIRED', 900);
+        }
+    }
+
+    if (state === 1 || state === 3) {
+        if (powerOutageTimer > 0) {
+            powerOutageTimer--;
+            if (powerOutageTimer === 0) { powerOutageCooldown = 1500; showMsg('LIGHTS RESTORED', 800); }
+        } else if (powerOutageCooldown > 0) powerOutageCooldown--;
+        else { powerOutageTimer = 1080; outageFlickerTimer = 45; showMsg('<span style="color:#888">POWER OUTAGE</span>', 1000); playSound('emp'); }
+        if (outageFlickerTimer > 0) outageFlickerTimer--;
+        if (flickerTimer > 0) flickerTimer--;
+        else if (flickerCooldown > 0) flickerCooldown--;
+        else { flickerTimer = 90; flickerCooldown = 1500; playSound('tick'); }
+        if (emergencyTimer > 0) emergencyTimer--;
+        else if (emergencyCooldown > 0) emergencyCooldown--;
+        else { emergencyTimer = 420; emergencyCooldown = 2100; showMsg('<span style="color:#f44">EMERGENCY LIGHTS</span>', 1200); playSound('alarm'); }
+        if (noiseTimer > 0) noiseTimer--;
+        else noiseTarget = null;
     }
 
     if (monster.name === 'CALEB' && state === 1) {
@@ -767,12 +989,12 @@ function update() {
 
     if (player.stunTimer > 0) {
         player.stunTimer--;
-    } else {
+    } else if (!player.hidden) {
+        const normalSpeed = player.crouching ? player.baseSpeed * 0.55 : player.baseSpeed;
         if (player.boostTimer > 0) {
             player.boostTimer--;
-            player.speed = player.baseSpeed * 1.5;
-            if (player.boostTimer <= 0) player.speed = player.baseSpeed;
-        }
+            player.speed = normalSpeed * 1.5;
+        } else player.speed = normalSpeed;
 
         let dx = 0, dy = 0;
         if (keys.w && (state === 1 || state === 3)) dy -= player.speed;
@@ -783,13 +1005,15 @@ function update() {
         if (dx !== 0 || dy !== 0) moveEntity(player, dx, dy);
     }
 
-    nearGen = null;
+    nearGen = null; nearFuse = null; nearHide = null;
     if (state === 1 && player.stunTimer <= 0) {
         for (let g of generators) {
             if (!g.active && Math.hypot(player.x - g.x, player.y - g.y) < player.r + g.r + 15) {
                 nearGen = g; break;
             }
         }
+        nearFuse = fuses.find(fuse => !fuse.collected && Math.hypot(player.x - fuse.x, player.y - fuse.y) < 25) || null;
+        nearHide = hidingSpots.find(spot => Math.hypot(player.x - spot.x, player.y - spot.y) < 30) || null;
     }
 
     camera.targetZoom = (empActive > 0) ? 1.4 : 1.0;
@@ -809,10 +1033,12 @@ function update() {
     }
 
     // --- MONSTER AI ---
-    if (monster.stunTimer > 0) {
+    if (player.hidden) {
+        monster.path = [];
+    } else if (monster.stunTimer > 0) {
         monster.stunTimer--;
     } else if (state === 1 || state === 3) {
-        let canSeePlayer = getLineOfSight(monster.x, monster.y, player.x, player.y);
+        let canSeePlayer = !player.breathing && getLineOfSight(monster.x, monster.y, player.x, player.y);
         
         if (state === 1 && monster.name === 'JORDAN') {
             if (jordanState === 'saboteur') {
@@ -828,7 +1054,7 @@ function update() {
                         monster.path = findPath(Math.floor(monster.x/TS), Math.floor(monster.y/TS), pC, pR);
                         monster.lastTargetC = pC; monster.lastTargetR = pR;
                     }
-                    moveMonsterAlongPath(monster.speed);
+                    moveMonsterAlongPath(getMonsterSpeed());
                     
                     if (Math.hypot(monster.x - targetGen.x, monster.y - targetGen.y) < 10) {
                         targetGen.active = false; activeGens--; 
@@ -841,7 +1067,7 @@ function update() {
                         let tile = floors[Math.floor(Math.random() * floors.length)];
                         monster.path = findPath(Math.floor(monster.x/TS), Math.floor(monster.y/TS), tile.c, tile.r);
                     }
-                    moveMonsterAlongPath(monster.speed);
+                    moveMonsterAlongPath(getMonsterSpeed());
                 }
                 
                 if (mimicTimer <= 0) {
@@ -871,7 +1097,7 @@ function update() {
                 if (stateTimer <= 0) { jordanState = 'enrage'; stateTimer = 600; canvas.classList.add('shake'); playSound('emp'); }
             } else if (jordanState === 'enrage') {
                 stateTimer--;
-                let boostSpeed = monster.baseSpeed * 1.45; 
+                let boostSpeed = monster.baseSpeed * 1.45 * (player.crouching ? 0.55 : 1); 
                 let pC = Math.floor(player.x/TS), pR = Math.floor(player.y/TS);
                 if (monster.lastTargetC !== pC || monster.lastTargetR !== pR || monster.path.length === 0) {
                     monster.path = findPath(Math.floor(monster.x/TS), Math.floor(monster.y/TS), pC, pR);
@@ -888,8 +1114,11 @@ function update() {
         else if (state === 1) { // Chase
             if (monster.isPhantom) {
                 let ang = Math.atan2(player.y - monster.y, player.x - monster.x);
-                monster.x += Math.cos(ang) * monster.speed;
-                monster.y += Math.sin(ang) * monster.speed;
+                const phantomSpeed = getMonsterSpeed();
+                const oldMonsterX = monster.x, oldMonsterY = monster.y;
+                monster.x += Math.cos(ang) * phantomSpeed;
+                monster.y += Math.sin(ang) * phantomSpeed;
+                if (isSafeRoom(monster.x, monster.y)) { monster.x = oldMonsterX; monster.y = oldMonsterY; }
             } else {
                 if (canSeePlayer) {
                     let pC = Math.floor(player.x/TS), pR = Math.floor(player.y/TS);
@@ -897,14 +1126,26 @@ function update() {
                         monster.path = findPath(Math.floor(monster.x/TS), Math.floor(monster.y/TS), pC, pR);
                         monster.lastTargetC = pC; monster.lastTargetR = pR;
                     }
-                    moveMonsterAlongPath(monster.speed);
+                    moveMonsterAlongPath(getMonsterSpeed());
                 } else {
+                    if (noiseTarget && noiseTimer > 0) {
+                        const nC = Math.floor(noiseTarget.x / TS), nR = Math.floor(noiseTarget.y / TS);
+                        if (monster.lastTargetC !== nC || monster.lastTargetR !== nR || monster.path.length === 0) {
+                            monster.path = findPath(Math.floor(monster.x / TS), Math.floor(monster.y / TS), nC, nR);
+                            monster.lastTargetC = nC; monster.lastTargetR = nR;
+                        }
+                        moveMonsterAlongPath(getMonsterSpeed());
+                        if (Math.hypot(monster.x - noiseTarget.x, monster.y - noiseTarget.y) < 18) {
+                            noiseTarget = null; noiseTimer = 0;
+                        }
+                    } else {
                     if (monster.path.length === 0 || (monster.allSeeing && Math.random() < 0.05)) {
-                        let targetC = monster.allSeeing ? Math.floor(player.x/TS) : floors[Math.floor(Math.random() * floors.length)].c;
-                        let targetR = monster.allSeeing ? Math.floor(player.y/TS) : floors[Math.floor(Math.random() * floors.length)].r;
+                        let targetC = monster.allSeeing && !player.breathing ? Math.floor(player.x/TS) : floors[Math.floor(Math.random() * floors.length)].c;
+                        let targetR = monster.allSeeing && !player.breathing ? Math.floor(player.y/TS) : floors[Math.floor(Math.random() * floors.length)].r;
                         monster.path = findPath(Math.floor(monster.x/TS), Math.floor(monster.y/TS), targetC, targetR);
                     }
-                    moveMonsterAlongPath(monster.speed);
+                    moveMonsterAlongPath(getMonsterSpeed());
+                    }
                 }
             }
             if (Math.hypot(player.x - monster.x, player.y - monster.y) < player.r + monster.r - 2) {
@@ -920,7 +1161,7 @@ function update() {
                 }
                 monster.path = findPath(Math.floor(monster.x/TS), Math.floor(monster.y/TS), bestTile.c, bestTile.r);
             }
-            moveMonsterAlongPath(monster.speed);
+            moveMonsterAlongPath(getMonsterSpeed());
             
             if (Math.hypot(player.x - monster.x, player.y - monster.y) < player.r + monster.r - 2) {
                 endGame(true);
@@ -950,6 +1191,39 @@ function draw() {
         }
     }
 
+    for (const room of rooms) {
+        const roomColor = room.type === 'safe' ? 'rgba(40,110,255,0.28)' : room.type === 'maintenance' ? 'rgba(255,190,40,0.22)' : room.type === 'storage' ? 'rgba(180,180,180,0.16)' : 'rgba(80,80,80,0.14)';
+        ctx.fillStyle = roomColor;
+        ctx.fillRect((room.c - 1) * TS, (room.r - 1) * TS, TS * 3, TS * 3);
+        ctx.strokeStyle = room.type === 'safe' ? '#5790ff' : 'rgba(255,255,255,0.2)';
+        ctx.lineWidth = 2;
+        ctx.strokeRect((room.c - 1) * TS, (room.r - 1) * TS, TS * 3, TS * 3);
+        ctx.fillStyle = room.type === 'safe' ? '#9fc0ff' : '#ddd';
+        ctx.font = 'bold 9px Arial'; ctx.textAlign = 'center';
+        ctx.fillText(room.type.toUpperCase(), room.x, room.y - 24);
+    }
+
+    for (const fuse of fuses) {
+        if (fuse.collected) continue;
+        ctx.fillStyle = '#ffcc00';
+        ctx.fillRect(fuse.x - 4, fuse.y - 8, 8, 16);
+        ctx.fillStyle = '#fff4a0';
+        ctx.fillRect(fuse.x - 2, fuse.y - 6, 4, 4);
+    }
+
+    for (const spot of hidingSpots) {
+        ctx.fillStyle = spot.occupied ? '#552200' : '#8c4d20';
+        ctx.fillRect(spot.x - 12, spot.y - 17, 24, 34);
+        ctx.strokeStyle = '#1b0d05'; ctx.strokeRect(spot.x - 12, spot.y - 17, 24, 34);
+        ctx.fillStyle = '#ffb060'; ctx.fillRect(spot.x + 5, spot.y - 2, 3, 3);
+    }
+
+    if (noiseTarget && noiseTimer > 0) {
+        const pulse = 14 + Math.sin(ambienceClock * 0.18) * 5;
+        ctx.beginPath(); ctx.arc(noiseTarget.x, noiseTarget.y, pulse, 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(255,102,204,0.7)'; ctx.lineWidth = 3; ctx.stroke();
+    }
+
     if (empWarning > 0) {
         let maxRad = 400;
         let currentRad = (1 - (empWarning / 60)) * maxRad;
@@ -970,17 +1244,57 @@ function draw() {
             ctx.fillStyle = gradient;
             ctx.beginPath(); ctx.arc(g.x, g.y, glowRadius, 0, Math.PI * 2); ctx.fill();
         }
-        ctx.fillStyle = g.active ? '#0f0' : '#888';
+        const generatorColor = g.active ? '#0f0' : g.isFalse ? '#9a8060' : g.type === 'fuse' ? '#ffcc00' : g.type === 'multi' ? '#ff8c3a' : '#888';
+        ctx.fillStyle = generatorColor;
         ctx.beginPath(); ctx.arc(g.x, g.y, g.r, 0, Math.PI * 2); ctx.fill();
         ctx.strokeStyle = '#000'; ctx.lineWidth = 2; ctx.stroke();
-        ctx.fillStyle = g.active ? '#031' : '#222';
+        ctx.fillStyle = g.active ? '#031' : g.type === 'fuse' ? '#5a4300' : g.type === 'multi' ? '#5a2500' : '#222';
         ctx.fillRect(g.x - 3, g.y - 8, 6, 16);
         ctx.fillStyle = g.active ? '#afffb0' : '#aaa';
         ctx.beginPath(); ctx.arc(g.x, g.y - 2, 2, 0, Math.PI * 2); ctx.fill();
+        if (!g.active && g.isFalse) {
+            ctx.fillStyle = '#ffb44d'; ctx.font = 'bold 9px Arial'; ctx.textAlign = 'center';
+            ctx.fillText('FALSE', g.x, g.y + 24);
+        } else if (!g.active && g.type === 'fuse') {
+            ctx.fillStyle = '#fff0a0'; ctx.font = 'bold 9px Arial'; ctx.textAlign = 'center';
+            ctx.fillText(`${g.collectedFuses}/${g.requiredFuses} FUSE`, g.x, g.y + 24);
+        } else if (!g.active && g.type === 'multi') {
+            ctx.fillStyle = '#ffbb80'; ctx.font = 'bold 9px Arial'; ctx.textAlign = 'center';
+            ctx.fillText(`${g.stage}/${g.requiredStages} STAGES`, g.x, g.y + 24);
+        }
         
         if (state === 1 && nearGen === g && player.stunTimer <= 0) {
             ctx.fillStyle = '#fff'; ctx.font = 'bold 12px Arial'; ctx.textAlign = 'center';
             ctx.fillText("[E]", g.x, g.y - 18);
+        }
+    }
+
+    if (nearFuse && state === 1) {
+        ctx.fillStyle = '#ffcc00'; ctx.font = 'bold 12px Arial'; ctx.textAlign = 'center';
+        ctx.fillText('[E] FUSE', nearFuse.x, nearFuse.y - 14);
+    }
+    if (nearHide && state === 1 && !player.hidden) {
+        ctx.fillStyle = '#ffb060'; ctx.font = 'bold 12px Arial'; ctx.textAlign = 'center';
+        ctx.fillText('[H] HIDE', nearHide.x, nearHide.y - 22);
+    }
+    const nearbyRoom = getRoomAt(player.x, player.y);
+    if (nearbyRoom?.type === 'maintenance' && state === 1 && powerOutageTimer > 0) {
+        ctx.fillStyle = '#ffcc00'; ctx.font = 'bold 12px Arial'; ctx.textAlign = 'center';
+        ctx.fillText('[E] POWER PANEL', nearbyRoom.x, nearbyRoom.y + 42);
+    }
+
+    if (monster.hasHallucinations && state === 1 && !player.hidden) {
+        // Visual decoys only: hallucinations never collide and never affect monster AI.
+        const hallucinationSeed = Math.floor(ambienceClock / 75);
+        for (let i = 0; i < 2; i++) {
+            const tile = floors[(hallucinationSeed * 17 + i * 31) % Math.max(1, floors.length)];
+            if (!tile) continue;
+            const hx = tile.c * TS + TS / 2, hy = tile.r * TS + TS / 2;
+            if (Math.hypot(hx - player.x, hy - player.y) < 260) {
+                ctx.fillStyle = 'rgba(255,255,255,0.18)';
+                ctx.beginPath(); ctx.arc(hx, hy, 13, 0, Math.PI * 2); ctx.fill();
+                ctx.fillStyle = 'rgba(255,0,0,0.35)'; ctx.font = 'bold 9px Arial'; ctx.fillText('?', hx, hy - 18);
+            }
         }
     }
 
@@ -1008,21 +1322,38 @@ function draw() {
         }
     }
 
-    ctx.fillStyle = 'rgba(0,0,0,0.35)';
-    ctx.beginPath(); ctx.ellipse(player.x, player.y + player.r * 0.7, player.r * 0.9, player.r * 0.35, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = player.boostTimer > 0 ? '#0ff' : (player.stunTimer > 0 ? '#ff0' : '#00f');
-    ctx.beginPath(); ctx.arc(player.x, player.y, player.r, 0, Math.PI * 2); ctx.fill();
+    if (!player.hidden) {
+        ctx.fillStyle = 'rgba(0,0,0,0.35)';
+        ctx.beginPath(); ctx.ellipse(player.x, player.y + player.r * 0.7, player.r * 0.9, player.r * 0.35, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = player.boostTimer > 0 ? '#0ff' : (player.stunTimer > 0 ? '#ff0' : '#00f');
+        ctx.beginPath(); ctx.arc(player.x, player.y, player.r, 0, Math.PI * 2); ctx.fill();
+    }
     ctx.restore();
 
-    if (state === 1 || state === 2 || state === 5) {
+    if (state === 1 || state === 2 || state === 3 || state === 5 || state === 6) {
         if (empActive > 0) {
             let grad = ctx.createRadialGradient(canvas.width/2, canvas.height/2, 20, canvas.width/2, canvas.height/2, 250);
             grad.addColorStop(0, 'rgba(0,0,0,0)'); grad.addColorStop(1, 'rgba(0,0,0,0.98)');
             ctx.fillStyle = grad; ctx.fillRect(0, 0, canvas.width, canvas.height);
         } else {
-            ctx.fillStyle = monster.hasGloom ? 'rgba(0, 0, 0, 0.85)' : 'rgba(0, 0, 0, 0.55)';
+            let darkness = monster.hasGloom ? 0.85 : 0.55;
+            if (powerOutageTimer > 0) darkness = Math.min(0.92, darkness + 0.25);
+            if (outageFlickerTimer > 0 && ambienceClock % 6 < 3) darkness = Math.max(0.05, darkness - 0.42);
+            if (flickerTimer > 0 && ambienceClock % 8 < 4) darkness = Math.max(0, darkness - 0.25);
+            ctx.fillStyle = `rgba(0, 0, 0, ${darkness})`;
             ctx.fillRect(0, 0, canvas.width, canvas.height);
         }
+    }
+
+    if (emergencyTimer > 0) {
+        ctx.fillStyle = `rgba(150,0,0,${0.13 + Math.sin(ambienceClock * 0.35) * 0.04})`;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        const worldToScreen = (x, y) => [canvas.width / 2 + (x - camera.x - canvas.width / 2) * camera.zoom, canvas.height / 2 + (y - camera.y - canvas.height / 2) * camera.zoom];
+        const [playerScreenX, playerScreenY] = worldToScreen(player.x, player.y);
+        const [monsterScreenX, monsterScreenY] = worldToScreen(monster.x, monster.y);
+        ctx.strokeStyle = '#ff3030'; ctx.lineWidth = 4;
+        ctx.beginPath(); ctx.arc(playerScreenX, playerScreenY, 22, 0, Math.PI * 2); ctx.stroke();
+        ctx.beginPath(); ctx.arc(monsterScreenX, monsterScreenY, monster.drawRadius + 12, 0, Math.PI * 2); ctx.stroke();
     }
 
     if (flashAlpha > 0) {
@@ -1037,6 +1368,16 @@ function draw() {
         ctx.fillText(`WIRING...`, cx, cy - 40);
         ctx.fillStyle = 'yellow'; ctx.font = '45px Arial'; 
         ctx.fillText(`${puzzleSequence[0].toUpperCase()}`, cx, cy + 20);
+    }
+
+    if (state === 6) {
+        let cx = canvas.width/2, cy = canvas.height/2;
+        ctx.fillStyle = 'rgba(0,0,0,0.72)'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#ffcc00'; ctx.textAlign = 'center'; ctx.font = '24px Arial';
+        ctx.fillText(`CIRCUIT REPAIR · STAGE ${circuitStage + 1}/${currentGen.requiredStages}`, cx, cy - 55);
+        ctx.fillStyle = '#fff'; ctx.font = '18px Arial'; ctx.fillText('Enter the wire sequence', cx, cy - 20);
+        ctx.font = '38px Arial'; ctx.fillText(circuitSequence.map(key => key.toUpperCase()).join('  '), cx, cy + 35);
+        ctx.font = '16px Arial'; ctx.fillText('Use the W A S D buttons', cx, cy + 78);
     }
 
     if (state === 5) {
@@ -1162,10 +1503,29 @@ requestAnimationFrame(loop);
             triggerKey(key);
         });
     }
+    function bindHoldAction(id, key) {
+        const button = document.getElementById(id);
+        if (!button) return;
+        const release = (event) => {
+            event.preventDefault();
+            window.dispatchEvent(new KeyboardEvent('keyup', { key, bubbles: true }));
+        };
+        button.addEventListener('pointerdown', event => {
+            event.preventDefault();
+            button.setPointerCapture(event.pointerId);
+            window.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
+        });
+        button.addEventListener('pointerup', release);
+        button.addEventListener('pointercancel', release);
+    }
 
     bindAction('touchInteract', 'e');
     bindAction('touchBoost', ' ');
     bindAction('touchFlash', 'f');
+    bindAction('touchHide', 'h');
+    bindAction('touchNoise', 'n');
+    bindHoldAction('touchCrouch', 'Shift');
+    bindHoldAction('touchBreath', 'b');
 
     document.querySelectorAll('[data-puzzle-key]').forEach(button => {
         button.addEventListener('pointerdown', event => {
@@ -1176,7 +1536,7 @@ requestAnimationFrame(loop);
 
     const puzzlePad = document.getElementById('touchPuzzle');
     function updatePuzzlePad() {
-        if (puzzlePad) puzzlePad.style.display = state === 2 ? 'grid' : 'none';
+        if (puzzlePad) puzzlePad.style.display = (state === 2 || state === 6) ? 'grid' : 'none';
     }
     setInterval(updatePuzzlePad, 100);
 

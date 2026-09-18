@@ -18,10 +18,16 @@ Explore the maze, repair every generator, survive the monster's mutations, and c
 - E: interact with a nearby generator
 - Space: use Adrenaline or hit a skill check
 - F: use a Flashbang
+- Hold Shift: crouch and slow the chase
+- Hold B: hold your breath from All-Seeing
+- H: hide near a hiding spot (20 seconds)
+- N: use a Noise Maker
 
 ### Phone
 
 Use the virtual joystick and on-screen action buttons. For the best experience, open the live game in Safari or Chrome and add it to the Home Screen. Launching it from the icon enables the cleanest app-like display and offline play after the first online load.
+
+The info screen inside the game lists every mobile button and the special map events, generators, rooms, and mutations.
 
 ## Progress and saves
 
@@ -43,4 +49,3 @@ Upload changed files to the repository root and commit them. GitHub Pages redepl
 ## Credits
 
 Created by JorJoro16 with collaborative coding support.
-
