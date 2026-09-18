@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.0.1
+
+- Enlarged Boilerworks to a 65×49 procedural play area with more physical rooms and longer connections.
+- Made Boilerworks maintenance, cooling, storage, control, industrial, and boiler rooms distinct physical spaces.
+- Made Aeson’s circular ignition zones visibly burn, slow the player strongly, blur/heat-distort the screen, and alert Aeson to the player’s location.
+
 ## 2.0.0
 
 - Added Campaign Mode with map unlocking and replayable map selection.

@@ -71,7 +71,7 @@ function playSound(type) {
 }
 
 // Versioned local progress with a backup copy and import/export support.
-const GAME_VERSION = '2.0.0';
+const GAME_VERSION = '2.0.1';
 const SAVE_SCHEMA_VERSION = 6;
 const SAVE_KEY = 'br_save_v2';
 const SAVE_BACKUP_KEY = 'br_save_backup_v2';
@@ -569,7 +569,7 @@ function buyConsumable(type, cost) {
 const TS = 40;
 // The maze sits inside a larger canvas grid. The spare border is used for real
 // side rooms, so they are physically connected to the maze rather than painted on it.
-const COLS = 41, ROWS = 33;
+let COLS = 41, ROWS = 33;
 const MAZE_LEFT = 5, MAZE_TOP = 5, MAZE_COLS = 31, MAZE_ROWS = 23;
 let state = 0; let currentDiff = 0; let rewardTokens = 0;
 let gameMode = 'normal', endlessRound = 1, survivalConfig = null, eventsEnabled = true, safeRoomsReliable = true;
@@ -578,8 +578,8 @@ let currentMapId = 'level0';
 let map = [], floors = [], rooms = [], fuses = [], hidingSpots = [], coolingValves = [];
 let centralBoiler = null, boilerShutdown = false, boilerReadyShown = false;
 let nearFuse = null, nearHide = null, nearValve = null, nearBoiler = false;
-let player = { x: 0, y: 0, r: 12, baseSpeed: 3.8, speed: 3.8, boostTimer: 0, stunTimer: 0, crouching: false, breathing: false, breathTimer: 0, breathCooldown: 0, heat: 0, hidden: false, hideTimer: 0, hideCompromised: false };
-let monster = { name: '', x: 0, y: 0, r: 14, drawRadius: 14, speed: 2.2, baseSpeed: 2.2, color: '', textColor: '', activeMutations: [], isReinforced: false, hasGloom: false, isResilient: false, hasScrambler: false, hasHexed: false, hasHallucinations: false, allSeeing: false, stunTimer: 0, lastTargetC: -1, lastTargetR: -1 };
+let player = { x: 0, y: 0, r: 12, baseSpeed: 3.8, speed: 3.8, boostTimer: 0, stunTimer: 0, crouching: false, breathing: false, breathTimer: 0, breathCooldown: 0, heat: 0, inHeatZone: false, hidden: false, hideTimer: 0, hideCompromised: false };
+let monster = { name: '', x: 0, y: 0, r: 14, drawRadius: 14, speed: 2.2, baseSpeed: 2.2, color: '', textColor: '', activeMutations: [], isReinforced: false, hasGloom: false, isResilient: false, hasScrambler: false, hasHexed: false, hasHallucinations: false, allSeeing: false, heatAlertTimer: 0, heatAlertX: 0, heatAlertY: 0, stunTimer: 0, lastTargetC: -1, lastTargetR: -1 };
 let monsters = [];
 let camera = { x: 0, y: 0, targetZoom: 1.0, zoom: 1.0 };
 let nearGen = null; 
@@ -593,6 +593,7 @@ let jordanState = 'saboteur', mimicTimer = 0, stateTimer = 0, jordanSabotageCool
 let empTimer = 0, empWarning = 0, empActive = 0, flashAlpha = 0;
 let powerOutageTimer = 0, powerOutageCooldown = 0, flickerTimer = 0, flickerCooldown = 0, emergencyTimer = 0, emergencyCooldown = 0, outageFlickerTimer = 0;
 let noiseTarget = null, noiseTimer = 0, bearTraps = [], heatZones = [], heatEventCooldown = 0;
+let heatOverlay = null;
 let ambienceClock = 0;
 let runStartedAt = 0, runItemsUsed = 0, hallucinationHudTimer = 0;
 let mobileMenuPaused = false;
@@ -983,14 +984,16 @@ function generateBoilerworks() {
     map = Array.from({length: ROWS}, () => Array(COLS).fill(1));
     rooms = []; hidingSpots = []; coolingValves = []; fuses = [];
     const nodes = [];
-    for (let i = 0; i < 8; i++) {
+    const roomCount = 12;
+    for (let i = 0; i < roomCount; i++) {
         const c = Math.min(COLS - 5, 4 + i * 5 + Math.floor(Math.random() * 3) - 1);
         const r = 5 + Math.floor(Math.random() * (ROWS - 10));
         const width = 3 + Math.floor(Math.random() * 4);
         const height = 3 + Math.floor(Math.random() * 4);
         carveBoilerRect(c, r, width, height);
         nodes.push({ c, r, width, height });
-        rooms.push({ type: i === 0 ? 'maintenance' : i === 7 ? 'boiler' : 'industrial', side: 'interior', c, r, x: c * TS + TS / 2, y: r * TS + TS / 2 });
+        const type = i === 0 ? 'maintenance' : i === roomCount - 1 ? 'boiler' : [1, 4, 7].includes(i) ? 'cooling' : i === 2 ? 'storage' : i === 9 ? 'control' : 'industrial';
+        rooms.push({ type, side: 'interior', c, r, x: c * TS + TS / 2, y: r * TS + TS / 2 });
         if (i > 0) carveBoilerCorridor(nodes[i - 1], nodes[i]);
     }
     // A few cross-connections keep the long halls navigable and prevent one-route dead ends.
@@ -1001,13 +1004,13 @@ function generateBoilerworks() {
     }
     rebuildFloors();
 
-    const emptyRoom = rooms[2];
-    const storageRoom = rooms[4];
-    if (emptyRoom) hidingSpots.push({ x: emptyRoom.x, y: emptyRoom.y, occupied: false });
+    const storageRoom = rooms.find(room => room.type === 'storage');
+    const controlRoom = rooms.find(room => room.type === 'control');
     if (storageRoom) hidingSpots.push({ x: storageRoom.x, y: storageRoom.y, occupied: false });
+    if (controlRoom) hidingSpots.push({ x: controlRoom.x, y: controlRoom.y, occupied: false });
     centralBoiler = rooms[rooms.length - 1] ? { x: rooms[rooms.length - 1].x, y: rooms[rooms.length - 1].y } : null;
 
-    const valveRooms = [rooms[1], rooms[3], rooms[5]].filter(Boolean);
+    const valveRooms = [rooms[1], rooms[4], rooms[7]].filter(Boolean);
     coolingValves = valveRooms.map((room, index) => ({ x: room.x, y: room.y, active: false, index }));
     // Keep the spawn and objective objects separated inside the connected floor network.
 }
@@ -1028,9 +1031,31 @@ function updateAesonEvents() {
 }
 
 function updateHeat() {
-    if (currentMapId !== 'boilerworks') { player.heat = 0; return; }
+    heatOverlay ||= document.getElementById('heatOverlay');
+    if (currentMapId !== 'boilerworks') {
+        player.heat = 0; player.inHeatZone = false;
+        if (heatOverlay) { heatOverlay.style.opacity = '0'; heatOverlay.style.backdropFilter = 'blur(0px)'; }
+        return;
+    }
     const hot = isInHeatZone(player.x, player.y);
-    player.heat = Math.max(0, Math.min(300, player.heat + (hot ? 1.8 : -1.2)));
+    if (hot && !player.inHeatZone) {
+        for (const enemy of monsters) {
+            if (enemy.name !== 'AESON') continue;
+            enemy.heatAlertTimer = 420;
+            enemy.heatAlertX = player.x;
+            enemy.heatAlertY = player.y;
+            enemy.path = [];
+        }
+        showMsg('<span style="color:#ff6b2b">THE FIRE GIVES YOU AWAY</span>', 850);
+    }
+    player.inHeatZone = hot;
+    player.heat = Math.max(0, Math.min(300, player.heat + (hot ? 3.8 : -2.2)));
+    if (heatOverlay) {
+        const intensity = Math.min(0.78, (player.heat / 300) * 0.68 + (hot ? 0.18 : 0));
+        const blur = hot ? 4 : Math.min(3, player.heat / 100);
+        heatOverlay.style.opacity = intensity.toFixed(2);
+        heatOverlay.style.backdropFilter = `blur(${blur.toFixed(1)}px)`;
+    }
 }
 
 function generateSpecialRooms() {
@@ -1107,7 +1132,7 @@ function createExtraMonster(name, diffData, index) {
         color: '#800', textColor: 'red', allSeeing: false, isPhantom: false,
         isFrenzy: false, isReinforced: false, hasGloom: false, isResilient: false,
         hasScrambler: false, hasHexed: false, hasHallucinations: false,
-        stunTimer: 0, bloodHuntTimer: 0, bloodHuntX: 0, bloodHuntY: 0, lastTargetC: -1, lastTargetR: -1, path: [], activeMutations: [], extra: true
+        heatAlertTimer: 0, heatAlertX: 0, heatAlertY: 0, stunTimer: 0, bloodHuntTimer: 0, bloodHuntX: 0, bloodHuntY: 0, lastTargetC: -1, lastTargetR: -1, path: [], activeMutations: [], extra: true
     };
     if (name === 'MALAKAI') { enemy.baseSpeed += 0.45; enemy.speed = enemy.baseSpeed; enemy.color = '#50a'; enemy.textColor = '#d4f'; }
     if (name === 'JORDAN') { enemy.baseSpeed += 0.18; enemy.speed = enemy.baseSpeed; enemy.color = '#050'; enemy.textColor = '#0f0'; }
@@ -1136,6 +1161,8 @@ function startGame(diffLevel) {
     document.querySelectorAll('.menu-panel').forEach(p => p.style.display = 'none');
     hud.style.display = 'block';
     
+    if (currentMapId === 'boilerworks') { COLS = 65; ROWS = 49; }
+    else { COLS = 41; ROWS = 33; }
     if (currentMapId === 'boilerworks') generateBoilerworks();
     else { generateMaze(); generateSpecialRooms(); }
     
@@ -1143,7 +1170,7 @@ function startGame(diffLevel) {
     player.x = spawnRoom?.x || (MAZE_LEFT + 1.5) * TS; player.y = spawnRoom?.y || (MAZE_TOP + 1.5) * TS;
     player.baseSpeed = 4.3 * (1 + (upgShoe * 0.05));
     player.speed = player.baseSpeed;
-    player.boostTimer = 0; player.stunTimer = 0; player.crouching = false; player.breathing = false; player.breathTimer = 0; player.breathCooldown = 0; player.heat = 0; player.hidden = false; player.hideTimer = 0; player.hideCompromised = false;
+    player.boostTimer = 0; player.stunTimer = 0; player.crouching = false; player.breathing = false; player.breathTimer = 0; player.breathCooldown = 0; player.heat = 0; player.inHeatZone = false; player.hidden = false; player.hideTimer = 0; player.hideCompromised = false;
     ambienceClock = 0;
     camera.targetZoom = 1.0; camera.zoom = 1.0;
     nearGen = null; nearValve = null; nearBoiler = false; flashAlpha = 0;
@@ -1570,6 +1597,7 @@ function updateExtraMonsters() {
         const protectedPlayer = player.hidden || isSafeRoom(player.x, player.y);
         const sawHide = player.hidden && player.hideCompromised;
         const tracksBlood = !protectedPlayer && enemy.name === 'MALAKAI' && enemy.bloodHuntTimer > 0;
+        const tracksHeat = !protectedPlayer && enemy.name === 'AESON' && enemy.heatAlertTimer > 0;
         const alliedSight = monsters.some(other => other !== enemy && !player.hidden && !isSafeRoom(player.x, player.y) && (monsterCanSeeUnhiddenPlayer(other) || (other.name === 'AESON' && player.heat > 120)));
         const tracksPlayer = !protectedPlayer && (emergencyTimer > 0 || enemy.allSeeing || alliedSight || monsterCanSeeUnhiddenPlayer(enemy) || (enemy.name === 'AESON' && player.heat > 120));
         let targetC, targetR;
@@ -1580,6 +1608,8 @@ function updateExtraMonsters() {
             targetC = far.c; targetR = far.r;
         } else if (tracksBlood) {
             targetC = Math.floor(enemy.bloodHuntX / TS); targetR = Math.floor(enemy.bloodHuntY / TS);
+        } else if (tracksHeat) {
+            targetC = Math.floor(enemy.heatAlertX / TS); targetR = Math.floor(enemy.heatAlertY / TS);
         } else if (tracksPlayer) {
             targetC = Math.floor(player.x / TS); targetR = Math.floor(player.y / TS);
         } else if (noiseTarget && noiseTimer > 0) {
@@ -1640,7 +1670,10 @@ function update() {
         }
     }
     if (hallucinationHudTimer > 0) hallucinationHudTimer--;
-    for (const enemy of monsters) if (enemy.bloodHuntTimer > 0) enemy.bloodHuntTimer--;
+    for (const enemy of monsters) {
+        if (enemy.bloodHuntTimer > 0) enemy.bloodHuntTimer--;
+        if (enemy.heatAlertTimer > 0) enemy.heatAlertTimer--;
+    }
     for (const trap of bearTraps) trap.life--;
     bearTraps = bearTraps.filter(trap => trap.life > 0);
     for (const zone of heatZones) zone.life--;
@@ -1694,7 +1727,9 @@ function update() {
     if (player.stunTimer > 0) {
         player.stunTimer--;
     } else if (!player.hidden) {
-        const heatPenalty = currentMapId === 'boilerworks' ? 1 - Math.min(0.18, player.heat / 1700) : 1;
+        const heatPenalty = currentMapId === 'boilerworks'
+            ? (player.inHeatZone ? 0.48 : 1 - Math.min(0.28, player.heat / 1070))
+            : 1;
         const normalSpeed = (player.crouching ? player.baseSpeed * 0.55 : player.baseSpeed) * heatPenalty;
         if (player.boostTimer > 0) {
             player.boostTimer--;
@@ -1747,6 +1782,7 @@ function update() {
     } else if (state === 1 || state === 3) {
         let canSeePlayer = !player.hidden && !player.breathing && !isSafeRoom(player.x, player.y) && (monsterCanSeeUnhiddenPlayer() || (monster.name === 'AESON' && player.heat > 120));
         let tracksBlood = !player.hidden && !isSafeRoom(player.x, player.y) && monster.name === 'MALAKAI' && monster.bloodHuntTimer > 0;
+        let tracksHeat = !player.hidden && !isSafeRoom(player.x, player.y) && monster.name === 'AESON' && monster.heatAlertTimer > 0;
         
         if (state === 1 && player.hidden && player.hideCompromised) {
             // The monster watched the player enter this exact hiding spot.
@@ -1829,7 +1865,15 @@ function update() {
             }
         } 
         else if (state === 1) { // Chase
-            if (monster.isPhantom) {
+            if (tracksHeat) {
+                const heatC = Math.floor(monster.heatAlertX / TS), heatR = Math.floor(monster.heatAlertY / TS);
+                if (monster.lastTargetC !== heatC || monster.lastTargetR !== heatR || monster.path.length === 0) {
+                    monster.path = findPath(Math.floor(monster.x / TS), Math.floor(monster.y / TS), heatC, heatR);
+                    monster.lastTargetC = heatC; monster.lastTargetR = heatR;
+                }
+                moveMonsterAlongPath(getMonsterSpeed());
+                if (Math.hypot(monster.x - monster.heatAlertX, monster.y - monster.heatAlertY) < 24) monster.heatAlertTimer = 0;
+            } else if (monster.isPhantom) {
                 let ang = Math.atan2(player.y - monster.y, player.x - monster.x);
                 const phantomSpeed = getMonsterSpeed();
                 monster.x += Math.cos(ang) * phantomSpeed;
@@ -1921,7 +1965,7 @@ function draw() {
 
     for (const room of rooms) {
         const roomColor = currentMapId === 'boilerworks'
-            ? (room.type === 'boiler' ? 'rgba(255,80,20,0.3)' : room.type === 'maintenance' ? 'rgba(80,180,220,0.22)' : 'rgba(160,100,50,0.18)')
+            ? (room.type === 'boiler' ? 'rgba(255,80,20,0.3)' : room.type === 'maintenance' ? 'rgba(80,180,220,0.22)' : room.type === 'cooling' ? 'rgba(40,190,220,0.2)' : room.type === 'control' ? 'rgba(160,100,220,0.2)' : room.type === 'storage' ? 'rgba(180,180,180,0.16)' : 'rgba(160,100,50,0.18)')
             : (room.type === 'safe' ? 'rgba(40,110,255,0.28)' : room.type === 'maintenance' ? 'rgba(255,190,40,0.22)' : room.type === 'storage' ? 'rgba(180,180,180,0.16)' : 'rgba(80,80,80,0.14)');
         ctx.fillStyle = roomColor;
         ctx.fillRect((room.c - 1) * TS, (room.r - 1) * TS, TS * 3, TS * 3);
@@ -1991,10 +2035,19 @@ function draw() {
     }
 
     for (const zone of heatZones) {
-        const pulse = 0.18 + Math.sin(ambienceClock * 0.12 + zone.x) * 0.04;
-        ctx.fillStyle = `rgba(255, 70, 0, ${Math.max(0.08, pulse)})`;
+        const pulse = 0.28 + Math.sin(ambienceClock * 0.12 + zone.x) * 0.06;
+        ctx.fillStyle = `rgba(255, 70, 0, ${Math.max(0.12, pulse)})`;
         ctx.beginPath(); ctx.arc(zone.x, zone.y, zone.radius, 0, Math.PI * 2); ctx.fill();
-        ctx.strokeStyle = 'rgba(255,150,40,0.7)'; ctx.lineWidth = 3; ctx.stroke();
+        ctx.strokeStyle = 'rgba(255,190,60,0.95)'; ctx.lineWidth = 4; ctx.stroke();
+        for (let flame = 0; flame < 5; flame++) {
+            const angle = ambienceClock * 0.02 + flame * 1.25;
+            const fx = zone.x + Math.cos(angle) * (zone.radius * 0.65);
+            const fy = zone.y + Math.sin(angle) * (zone.radius * 0.65);
+            ctx.fillStyle = 'rgba(255,220,100,0.82)';
+            ctx.beginPath(); ctx.arc(fx, fy, 5 + (flame % 2) * 3, 0, Math.PI * 2); ctx.fill();
+        }
+        ctx.fillStyle = '#ffe0a0'; ctx.font = 'bold 10px Arial'; ctx.textAlign = 'center';
+        ctx.fillText('BURNING', zone.x, zone.y - zone.radius - 7);
     }
 
     if (empWarning > 0) {
