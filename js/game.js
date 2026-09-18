@@ -336,7 +336,7 @@ let state = 0; let currentDiff = 0; let rewardTokens = 0;
 
 let map = [], floors = [], rooms = [], fuses = [], hidingSpots = [];
 let nearFuse = null, nearHide = null;
-let player = { x: 0, y: 0, r: 12, baseSpeed: 3.8, speed: 3.8, boostTimer: 0, stunTimer: 0, crouching: false, breathing: false, breathTimer: 0, breathCooldown: 0, hidden: false, hideTimer: 0 };
+let player = { x: 0, y: 0, r: 12, baseSpeed: 3.8, speed: 3.8, boostTimer: 0, stunTimer: 0, crouching: false, breathing: false, breathTimer: 0, breathCooldown: 0, hidden: false, hideTimer: 0, hideCompromised: false };
 let monster = { name: '', x: 0, y: 0, r: 14, drawRadius: 14, speed: 2.2, baseSpeed: 2.2, color: '', textColor: '', activeMutations: [], isReinforced: false, hasGloom: false, isResilient: false, hasScrambler: false, hasHexed: false, stunTimer: 0, lastTargetC: -1, lastTargetR: -1 };
 let camera = { x: 0, y: 0, targetZoom: 1.0, zoom: 1.0 };
 let nearGen = null; 
@@ -374,14 +374,21 @@ function activateBreath() {
 function toggleHide() {
     if (state !== 1 || !nearHide || player.stunTimer > 0) return;
     if (!player.hidden) {
+        const wasSeenEntering = monsterCanSeeUnhiddenPlayer();
         player.hidden = true;
         player.hideTimer = 1200;
+        player.hideCompromised = wasSeenEntering;
         nearHide.occupied = true;
         clearMovementKeys();
-        monster.path = [];
-        showMsg('<span style="color:#ff9900">HIDDEN</span>', 700);
+        if (wasSeenEntering) {
+            showMsg('<span style="color:#ff4444">SPOTTED HIDING</span>', 900);
+        } else {
+            monster.path = [];
+            showMsg('<span style="color:#ff9900">HIDDEN</span>', 700);
+        }
     } else {
         player.hidden = false;
+        player.hideCompromised = false;
         nearHide.occupied = false;
         showMsg('BACK OUT', 500);
     }
@@ -650,6 +657,11 @@ function isSafeRoom(x, y) {
     return getRoomAt(x, y)?.type === 'safe';
 }
 
+function monsterCanSeeUnhiddenPlayer() {
+    if (isSafeRoom(player.x, player.y)) return false;
+    return emergencyTimer > 0 || getLineOfSight(monster.x, monster.y, player.x, player.y);
+}
+
 function isOpenObjectSpot(x, y, distance = TS * 1.5) {
     if (generators.some(generator => Math.hypot(generator.x - x, generator.y - y) < distance)) return false;
     if (hidingSpots.some(spot => Math.hypot(spot.x - x, spot.y - y) < distance)) return false;
@@ -669,7 +681,7 @@ function startGame(diffLevel) {
     player.x = (MAZE_LEFT + 1.5) * TS; player.y = (MAZE_TOP + 1.5) * TS;
     player.baseSpeed = 4.3 * (1 + (upgShoe * 0.05));
     player.speed = player.baseSpeed;
-    player.boostTimer = 0; player.stunTimer = 0; player.crouching = false; player.breathing = false; player.breathTimer = 0; player.breathCooldown = 0; player.hidden = false; player.hideTimer = 0;
+    player.boostTimer = 0; player.stunTimer = 0; player.crouching = false; player.breathing = false; player.breathTimer = 0; player.breathCooldown = 0; player.hidden = false; player.hideTimer = 0; player.hideCompromised = false;
     ambienceClock = 0;
     camera.targetZoom = 1.0; camera.zoom = 1.0;
     nearGen = null; flashAlpha = 0;
@@ -986,6 +998,7 @@ function update() {
         player.hideTimer--;
         if (player.hideTimer <= 0) {
             player.hidden = false;
+            player.hideCompromised = false;
             if (nearHide) nearHide.occupied = false;
             showMsg('HIDING SPOT EXPIRED', 900);
         }
@@ -1079,9 +1092,18 @@ function update() {
     if (monster.stunTimer > 0) {
         monster.stunTimer--;
     } else if (state === 1 || state === 3) {
-        let canSeePlayer = !player.hidden && !player.breathing && !isSafeRoom(player.x, player.y) && getLineOfSight(monster.x, monster.y, player.x, player.y);
+        let canSeePlayer = !player.hidden && !player.breathing && !isSafeRoom(player.x, player.y) && monsterCanSeeUnhiddenPlayer();
         
-        if (state === 1 && monster.name === 'JORDAN') {
+        if (state === 1 && player.hidden && player.hideCompromised) {
+            // The monster watched the player enter this exact hiding spot.
+            const targetC = Math.floor(player.x / TS), targetR = Math.floor(player.y / TS);
+            if (monster.lastTargetC !== targetC || monster.lastTargetR !== targetR || monster.path.length === 0) {
+                monster.path = findPath(Math.floor(monster.x / TS), Math.floor(monster.y / TS), targetC, targetR);
+                monster.lastTargetC = targetC; monster.lastTargetR = targetR;
+            }
+            moveMonsterAlongPath(getMonsterSpeed());
+            if (Math.hypot(player.x - monster.x, player.y - monster.y) < player.r + monster.r + 4) endGame(false);
+        } else if (state === 1 && monster.name === 'JORDAN') {
             if (jordanState === 'saboteur') {
                 mimicTimer--;
                 let targetGen = null;
@@ -1179,7 +1201,7 @@ function update() {
                         }
                     } else {
                     if (monster.path.length === 0 || (monster.allSeeing && Math.random() < 0.05)) {
-                        const tracksPlayer = monster.allSeeing && !player.breathing && !player.hidden && !isSafeRoom(player.x, player.y);
+                        const tracksPlayer = (monster.allSeeing || emergencyTimer > 0) && !player.breathing && !player.hidden && !isSafeRoom(player.x, player.y);
                         let targetC = tracksPlayer ? Math.floor(player.x/TS) : floors[Math.floor(Math.random() * floors.length)].c;
                         let targetR = tracksPlayer ? Math.floor(player.y/TS) : floors[Math.floor(Math.random() * floors.length)].r;
                         monster.path = findPath(Math.floor(monster.x/TS), Math.floor(monster.y/TS), targetC, targetR);
