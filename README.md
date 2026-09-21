@@ -20,6 +20,8 @@ Explore the maze, repair every generator, survive the monster's mutations, and c
 
 The main menu is intentionally compact: **Play**, **Shop**, **Info**, **Records**, and **Settings**. Records combines statistics, cosmetics, map collection, and daily objectives. Loadouts are selected during run setup, and Survival settings use that same setup flow.
 
+**Optimization Mode** is available in Settings for older computers. It reduces visual detail and draws the game at approximately 30 FPS while keeping the game simulation running normally.
+
 ## Controls
 
 ### Desktop

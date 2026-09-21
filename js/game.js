@@ -93,7 +93,7 @@ function playSound(type) {
 }
 
 // Versioned local progress with a backup copy and import/export support.
-const GAME_VERSION = '2.1.1';
+const GAME_VERSION = '2.1.2';
 const SAVE_SCHEMA_VERSION = 7;
 const SAVE_KEY = 'br_save_v2';
 const SAVE_BACKUP_KEY = 'br_save_backup_v2';
@@ -244,6 +244,7 @@ let daily = loadedProgress.daily || { date: '', objectives: [] };
 // Settings Data
 let setFPS = localStorage.getItem('br_fps') === 'true';
 let setCRT = localStorage.getItem('br_crt') === 'true';
+let setOptimization = localStorage.getItem('br_optimization') === 'true';
 let setVolM = localStorage.getItem('br_volM') || 100;
 let setVolS = localStorage.getItem('br_volS') || 100;
 
@@ -371,6 +372,7 @@ function setSaveStatus(text, color = '#8f8') {
 function saveSettings() {
     localStorage.setItem('br_fps', setFPS);
     localStorage.setItem('br_crt', setCRT);
+    localStorage.setItem('br_optimization', setOptimization);
     setVolM = document.getElementById('volMaster').value;
     setVolS = document.getElementById('volSFX').value;
     localStorage.setItem('br_volM', setVolM);
@@ -385,6 +387,8 @@ function applySettings() {
     document.getElementById('btnFPS').style.color = setFPS ? '#0f0' : '#fff';
     document.getElementById('btnCRT').innerText = setCRT ? 'ON' : 'OFF';
     document.getElementById('btnCRT').style.color = setCRT ? '#0f0' : '#fff';
+    document.getElementById('btnOptimization').innerText = setOptimization ? 'ON' : 'OFF';
+    document.getElementById('btnOptimization').style.color = setOptimization ? '#0f0' : '#fff';
     document.getElementById('volMaster').value = setVolM;
     document.getElementById('volSFX').value = setVolS;
 }
@@ -392,6 +396,7 @@ function applySettings() {
 function toggleSetting(type) {
     if(type === 'fps') setFPS = !setFPS;
     if(type === 'crt') setCRT = !setCRT;
+    if(type === 'optimization') setOptimization = !setOptimization;
     saveSettings();
 }
 
@@ -696,6 +701,7 @@ let scNeedle = 0, scSpeed = 0, scZoneStart = 0, scZoneEnd = 0, scHits = 0, scReq
 
 let lastTime = 0, frames = 0;
 let lastFrameTime = 0, gameAccumulator = 0;
+let lastDrawTime = 0;
 const keys = { w: false, a: false, s: false, d: false };
 
 function clearMovementKeys() {
@@ -1269,7 +1275,7 @@ function updateHeat() {
     player.heat = Math.max(0, Math.min(300, player.heat + (hot ? 3.8 : -2.2)));
     if (heatOverlay) {
         const intensity = Math.min(0.78, (player.heat / 300) * 0.68 + (hot ? 0.18 : 0));
-        const blur = hot ? 4 : Math.min(3, player.heat / 100);
+        const blur = setOptimization ? (hot ? 1.5 : 0) : (hot ? 4 : Math.min(3, player.heat / 100));
         heatOverlay.style.opacity = intensity.toFixed(2);
         heatOverlay.style.backdropFilter = `blur(${blur.toFixed(1)}px)`;
     }
@@ -2354,13 +2360,13 @@ function draw() {
         for (let c = 0; c < COLS; c++) {
             if (map[r][c] === 1) {
                 ctx.fillStyle = currentMapId === 'boilerworks' ? '#171a1d' : currentMapId === 'hotel' ? '#211a20' : '#2d2216'; ctx.fillRect(c * TS, r * TS, TS, TS);
-                ctx.strokeStyle = currentMapId === 'boilerworks' ? '#0b0d0f' : currentMapId === 'hotel' ? '#0e0a10' : '#181109'; ctx.strokeRect(c * TS, r * TS, TS, TS);
+                if (!setOptimization) { ctx.strokeStyle = currentMapId === 'boilerworks' ? '#0b0d0f' : currentMapId === 'hotel' ? '#0e0a10' : '#181109'; ctx.strokeRect(c * TS, r * TS, TS, TS); }
             } else {
                 ctx.fillStyle = currentMapId === 'boilerworks' ? '#4b4540' : currentMapId === 'hotel' ? ((r + c) % 2 ? '#5b4850' : '#65505a') : '#8b7355'; ctx.fillRect(c * TS, r * TS, TS, TS);
-                if (currentMapId === 'boilerworks' && (r + c) % 7 === 0) {
+                if (!setOptimization && currentMapId === 'boilerworks' && (r + c) % 7 === 0) {
                     ctx.fillStyle = 'rgba(180,120,55,0.2)'; ctx.fillRect(c * TS + 5, r * TS + 7, TS - 10, 3);
                 }
-                if (currentMapId === 'hotel' && r % 3 === 0) { ctx.fillStyle = 'rgba(220,190,180,0.08)'; ctx.fillRect(c * TS + 4, r * TS + 18, TS - 8, 2); }
+                if (!setOptimization && currentMapId === 'hotel' && r % 3 === 0) { ctx.fillStyle = 'rgba(220,190,180,0.08)'; ctx.fillRect(c * TS + 4, r * TS + 18, TS - 8, 2); }
             }
         }
     }
@@ -2473,7 +2479,7 @@ function draw() {
         ctx.fillStyle = `rgba(255, 70, 0, ${Math.max(0.12, pulse)})`;
         ctx.beginPath(); ctx.arc(zone.x, zone.y, zone.radius, 0, Math.PI * 2); ctx.fill();
         ctx.strokeStyle = 'rgba(255,190,60,0.95)'; ctx.lineWidth = 4; ctx.stroke();
-        for (let flame = 0; flame < 5; flame++) {
+        for (let flame = 0; flame < (setOptimization ? 2 : 5); flame++) {
             const angle = ambienceClock * 0.02 + flame * 1.25;
             const fx = zone.x + Math.cos(angle) * (zone.radius * 0.65);
             const fy = zone.y + Math.sin(angle) * (zone.radius * 0.65);
@@ -2494,7 +2500,7 @@ function draw() {
         ctx.stroke();
     }
 
-    if (monster.hasEcho && state === 1 && ambienceClock % 90 < 35) {
+    if (!setOptimization && monster.hasEcho && state === 1 && ambienceClock % 90 < 35) {
         const echoTile = floors[(Math.floor(ambienceClock / 90) * 17) % Math.max(1, floors.length)];
         if (echoTile) {
             ctx.strokeStyle = 'rgba(210,180,255,0.5)'; ctx.lineWidth = 2;
@@ -2555,7 +2561,7 @@ function draw() {
         ctx.fillText('[E] POWER PANEL', nearbyRoom.x, nearbyRoom.y + 42);
     }
 
-    if (monster.hasHallucinations && state === 1 && !player.hidden) {
+    if (!setOptimization && monster.hasHallucinations && state === 1 && !player.hidden) {
         // Visual decoys only: hallucinations never collide and never affect monster AI.
         const hallucinationSeed = Math.floor(ambienceClock / 75);
         for (let i = 0; i < 2; i++) {
@@ -2581,7 +2587,7 @@ function draw() {
     }
 
     let dist = Math.hypot(player.x - monster.x, player.y - monster.y);
-    if (monster.hasAfterimage && state === 1 && monster.path.length > 0) {
+    if (!setOptimization && monster.hasAfterimage && state === 1 && monster.path.length > 0) {
         const previous = monster.path[0];
         const ax = previous.c * TS + TS / 2, ay = previous.r * TS + TS / 2;
         ctx.fillStyle = 'rgba(255,255,255,0.13)';
@@ -2737,7 +2743,10 @@ function loop(timestamp) {
         gameAccumulator -= fixedStep;
         updatesThisFrame++;
     }
-    draw();
+    if (!setOptimization || timestamp - lastDrawTime >= 33) {
+        draw();
+        lastDrawTime = timestamp;
+    }
     requestAnimationFrame(loop);
 }
 

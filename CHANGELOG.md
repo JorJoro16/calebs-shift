@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.1.2
+
+- Added an Optimization Mode toggle for older computers.
+- Reduced decorative rendering, screen blur, and visual effects while keeping gameplay simulation unchanged.
+- Added a lower-cost approximately 30 FPS render path.
+- Bumped the offline cache to `calebs-shift-v26`.
+
 ## 2.1.1
 
 - Simplified the main menu to Play, Shop, Info, Records, and Settings.
