@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.2.1
+
+- Fixed Hotel assignments so they place visible, named collectible objects on reserved interior room tiles, away from generators and doors.
+- Fixed Bassam's disguised patrol to walk between rooms rather than repeatedly teleporting or flashing.
+- Made Bassam's assignment presentation match real staff, including a believable department, neutral task panel styling, and no emergency-light outline while disguised.
+- Bumped the offline cache to `calebs-shift-v28`.
+
 ## 2.2.0
 
 - Rebuilt the Endless Hotel as a larger procedural room-and-hallway layout instead of a fixed room grid.

@@ -93,7 +93,7 @@ function playSound(type) {
 }
 
 // Versioned local progress with a backup copy and import/export support.
-const GAME_VERSION = '2.2.0';
+const GAME_VERSION = '2.2.1';
 const SAVE_SCHEMA_VERSION = 7;
 const SAVE_KEY = 'br_save_v2';
 const SAVE_BACKUP_KEY = 'br_save_backup_v2';
@@ -687,7 +687,7 @@ let puzzleSequence = [], circuitSequence = [], circuitStage = 0, circuitRequired
 let lastSingleMutation = null; 
 
 // AI & Item Variables
-let jordanState = 'saboteur', mimicTimer = 0, stateTimer = 0, jordanSabotageCooldown = 0, bassamState = 'roaming', bassamRevealPending = false, bassamTrapTaskId = null, bassamFakeTask = null;
+let jordanState = 'saboteur', mimicTimer = 0, stateTimer = 0, jordanSabotageCooldown = 0, bassamState = 'roaming', bassamRevealPending = false, bassamTrapTaskId = null, bassamFakeTask = null, bassamStaffDepartment = 'FRONT DESK';
 let empTimer = 0, empWarning = 0, empActive = 0, flashAlpha = 0;
 let powerOutageTimer = 0, powerOutageCooldown = 0, flickerTimer = 0, flickerCooldown = 0, emergencyTimer = 0, emergencyCooldown = 0, outageFlickerTimer = 0;
 let noiseTarget = null, noiseTimer = 0, bearTraps = [], heatZones = [], heatEventCooldown = 0;
@@ -1231,6 +1231,12 @@ function generateHotel() {
     staffRooms.forEach((room, index) => {
         employees.push({ x: room.x, y: room.y, r: 10, homeRoom: room, department: staffNames[index], index, path: [], roamTimer: 0, task: null, evacuated: false });
     });
+    // Each staff task receives a real reserved floor tile now, before generators
+    // are placed. The object only becomes visible after the player accepts it.
+    employees.forEach(employee => {
+        employee.task = chooseHotelTaskTarget(employee);
+        reserveObjectTile(Math.floor(employee.task.x / TS), Math.floor(employee.task.y / TS), 1);
+    });
     const storageRoom = rooms.find(room => room.type === 'storage');
     const serviceRoom = rooms.find(room => room.type === 'service');
     if (storageRoom) hidingSpots.push({ x: storageRoom.x, y: storageRoom.y, occupied: false });
@@ -1387,6 +1393,21 @@ function evacuatedHotelEmployees() { return employees.filter(employee => employe
 function hotelElevatorReady() { return activeGens >= totalGens && reportedHotelEmployees().length >= hotelEmployeesRequired; }
 function hotelObjectiveComplete() { return currentMapId !== 'hotel' || (activeGens >= totalGens && evacuatedHotelEmployees().length >= hotelEmployeesRequired); }
 
+function chooseHotelItemTile(room) {
+    const candidates = [];
+    const left = room.c - Math.floor(room.width / 2) + 1, right = room.c + Math.floor(room.width / 2) - 1;
+    const top = room.r - Math.floor(room.height / 2) + 1, bottom = room.r + Math.floor(room.height / 2) - 1;
+    for (let r = top; r <= bottom; r++) for (let c = left; c <= right; c++) {
+        const x = c * TS + TS / 2, y = r * TS + TS / 2;
+        if (map[r]?.[c] !== 0) continue;
+        if (employees.some(employee => employee.task && Math.floor(employee.task.x / TS) === c && Math.floor(employee.task.y / TS) === r)) continue;
+        if (generators.some(generator => Math.hypot(generator.x - x, generator.y - y) < TS * 1.5)) continue;
+        if (hidingSpots.some(spot => Math.hypot(spot.x - x, spot.y - y) < TS * 1.5)) continue;
+        candidates.push({ c, r });
+    }
+    return candidates[Math.floor(Math.random() * Math.max(1, candidates.length))] || { c: room.c, r: room.r };
+}
+
 function chooseHotelTaskTarget(employee) {
     const targets = rooms.filter(room => !['lobby', 'elevator', employee.homeRoom.type].includes(room.type));
     const room = targets[Math.floor(Math.random() * Math.max(1, targets.length))] || employee.homeRoom;
@@ -1397,7 +1418,9 @@ function chooseHotelTaskTarget(employee) {
         'KITCHEN': ['Recover the banquet inventory', 'Inspect the dining supply cart']
     };
     const label = (taskByDepartment[employee.department] || ['Inspect the hotel wing'])[Math.floor(Math.random() * 2)];
-    return { id: ++hotelTaskSerial, label, room, x: room.x, y: room.y, status: 'offered', fake: false };
+    const itemNames = { 'FRONT DESK':'RESERVATION LEDGER', 'MAINTENANCE':'SERVICE FUSE', 'HOUSEKEEPING':'ROOM KEY', 'KITCHEN':'BANQUET CRATE' };
+    const tile = chooseHotelItemTile(room);
+    return { id: ++hotelTaskSerial, label, itemName: itemNames[employee.department] || 'HOTEL SUPPLIES', room, x: tile.c * TS + TS / 2, y: tile.r * TS + TS / 2, status: 'offered', fake: false };
 }
 
 function renderHotelTasks() {
@@ -1405,7 +1428,7 @@ function renderHotelTasks() {
     if (!panel || !list || currentMapId !== 'hotel' || state === 0 || state === 4) return;
     const tasks = [...employees.map(employee => ({ employee, task: employee.task })), ...(bassamFakeTask ? [{ employee: null, task: bassamFakeTask }] : [])].filter(entry => entry.task && ['accepted','readyToReport'].includes(entry.task.status));
     panel.style.display = 'block'; count.textContent = `${tasks.length}/2`;
-    list.innerHTML = tasks.length ? tasks.map(({ employee, task }) => `<div class="hotel-task ${task.fake ? 'fake' : ''} ${task.status === 'readyToReport' ? 'ready' : ''}"><b>${task.fake ? 'STAFF REQUEST' : employee.department}</b><br>${task.label}<small>${task.status === 'readyToReport' ? `Return to ${employee.department}` : `Go to ${task.room.type.toUpperCase()}`}</small></div>`).join('') : '<div class="hotel-task"><small>Speak with hotel staff to accept an assignment.</small></div>';
+    list.innerHTML = tasks.length ? tasks.map(({ employee, task }) => `<div class="hotel-task ${task.status === 'readyToReport' ? 'ready' : ''}"><b>${task.department || employee.department}</b><br>${task.label}<small>${task.status === 'readyToReport' ? `Return to ${employee.department}` : `Go to ${task.room.type.toUpperCase()}`}</small></div>`).join('') : '<div class="hotel-task"><small>Speak with hotel staff to accept an assignment.</small></div>';
 }
 
 function openHotelDialogue(name, text, choices = []) {
@@ -1449,14 +1472,16 @@ function completeHotelTaskAtTarget() {
 function interactWithEmployee() {
     if (!nearEmployee) return false;
     if (nearEmployee.isBassam) {
+        if (bassamFakeTask?.status === 'accepted') { openHotelDialogue('FRONT DESK', 'Please hurry. The guest is waiting in the room I marked.'); return true; }
         if (!bassamFakeTask) {
             const targetRooms = rooms.filter(room => ['guest','bathroom','storage','service'].includes(room.type));
             const room = targetRooms[Math.floor(Math.random() * Math.max(1, targetRooms.length))] || rooms.at(-1);
-            bassamFakeTask = { id: ++hotelTaskSerial, label: 'Check a private guest request', room, x: room.x, y: room.y, status: 'offered', fake: true };
+            const fakeTile = chooseHotelItemTile(room);
+            bassamFakeTask = { id: ++hotelTaskSerial, department: bassamStaffDepartment, label: 'Deliver the room key', itemName: 'ROOM KEY', room, x: fakeTile.c * TS + TS / 2, y: fakeTile.r * TS + TS / 2, status: 'offered', fake: true };
         }
         const fakeTask = bassamFakeTask;
-        if (activeHotelTasks().length >= 2) { openHotelDialogue('HOTEL STAFF', 'You are already carrying two assignments. Return when you have room.'); return true; }
-        openHotelDialogue('HOTEL STAFF', 'The concierge needs help in a private wing. Can you take this request?', [{ label: 'ACCEPT REQUEST', action: () => { fakeTask.status = 'accepted'; bassamTrapTaskId = fakeTask.id; closeHotelDialogue(); renderHotelTasks(); notify('STAFF REQUEST ACCEPTED', 'warning'); } }]);
+        if (activeHotelTasks().length >= 2) { openHotelDialogue(bassamStaffDepartment, 'You are already carrying two assignments. Return when you have room.'); return true; }
+        openHotelDialogue(bassamStaffDepartment, 'A guest is waiting for their room key. Can you deliver it for me?', [{ label: 'ACCEPT ASSIGNMENT', action: () => { fakeTask.status = 'accepted'; bassamTrapTaskId = fakeTask.id; closeHotelDialogue(); renderHotelTasks(); notify(`${bassamStaffDepartment} ASSIGNMENT ACCEPTED`, 'info'); } }]);
         return true;
     }
     if (nearEmployee.evacuated) return false;
@@ -1495,7 +1520,8 @@ function useHotelElevator() {
 function moveBassamToEmployee() {
     if (currentMapId !== 'hotel' || bassamState !== 'disguised') return;
     const room = rooms.filter(candidate => candidate.type !== 'elevator')[Math.floor(Math.random() * Math.max(1, rooms.length - 1))] || rooms[0];
-    monster.x = room.x; monster.y = room.y; monster.path = []; stateTimer = 540;
+    monster.path = findPath(Math.floor(monster.x / TS), Math.floor(monster.y / TS), room.c, room.r);
+    stateTimer = 360 + Math.floor(Math.random() * 300);
 }
 
 function isOnPlayerScreen(entity) {
@@ -1569,6 +1595,7 @@ function startGame(diffLevel) {
     if (currentMapId === 'boilerworks') { COLS = 65; ROWS = 49; }
     else if (currentMapId === 'hotel') { COLS = 91; ROWS = 69; }
     else { COLS = 41; ROWS = 33; }
+    hotelTaskSerial = 0;
     if (currentMapId === 'boilerworks') generateBoilerworks();
     else if (currentMapId === 'hotel') generateHotel();
     else { generateMaze(); generateSpecialRooms(); }
@@ -1585,7 +1612,7 @@ function startGame(diffLevel) {
     nearGen = null; nearValve = null; nearBoiler = false; flashAlpha = 0;
     boilerShutdown = false; boilerReadyShown = false; heatZones = []; heatEventCooldown = currentMapId === 'boilerworks' ? 360 : 0;
     hotelLockdownTimer = 0; hotelEventCooldown = currentMapId === 'hotel' ? 480 : 0; hotelLockdownActive = false; hotelBlockedDoor = null;
-    bassamState = 'roaming'; bassamRevealPending = false; bassamTrapTaskId = null; bassamFakeTask = null; hotelTaskSerial = 0; closeHotelDialogue();
+    bassamState = 'roaming'; bassamRevealPending = false; bassamTrapTaskId = null; bassamFakeTask = null; bassamStaffDepartment = ['FRONT DESK','MAINTENANCE','HOUSEKEEPING','KITCHEN'][Math.floor(Math.random() * 4)]; closeHotelDialogue();
     document.getElementById('hotelTaskHUD').style.display = currentMapId === 'hotel' ? 'block' : 'none';
     
     const roundScale = gameMode === 'endless' ? endlessRound - 1 : 0;
@@ -2230,7 +2257,7 @@ function update() {
         if (currentMapId === 'hotel') {
             nearEmployee = employees.find(employee => !employee.evacuated && Math.hypot(player.x - employee.x, player.y - employee.y) < 34) || null;
             if (monster.name === 'BASSAM' && bassamState === 'disguised' && Math.hypot(player.x - monster.x, player.y - monster.y) < 34) {
-                nearEmployee = { x: monster.x, y: monster.y, department: 'HOTEL STAFF', isBassam: true };
+                nearEmployee = { x: monster.x, y: monster.y, department: bassamStaffDepartment, isBassam: true };
             }
             const taskEntries = [...employees.map(employee => ({ employee, task: employee.task })), ...(bassamFakeTask ? [{ employee: null, task: bassamFakeTask }] : [])];
             nearHotelTask = taskEntries.find(entry => entry.task?.status === 'accepted' && Math.hypot(player.x - entry.task.x, player.y - entry.task.y) < 34) || null;
@@ -2280,7 +2307,7 @@ function update() {
                     bassamState = 'revealed'; bassamRevealPending = false; monster.path = [];
                     notify('BASSAM DROPPED THE DISGUISE', 'danger'); showMsg('<span style="color:#ff5555">BASSAM FOUND YOU</span>', 1250); updateHUD();
                 } else {
-                    if (monster.path.length === 0 || stateTimer <= 0) moveBassamToEmployee();
+                    if (stateTimer <= 0) moveBassamToEmployee();
                     moveMonsterAlongPath(1.15, monster);
                 }
             } else if (bassamState === 'roaming') {
@@ -2500,17 +2527,20 @@ function draw() {
     }
 
     if (monster.name === 'BASSAM' && bassamState === 'disguised' && state !== 3) {
-        ctx.fillStyle = '#a88b63'; ctx.fillRect(monster.x - 9, monster.y - 14, 18, 28);
+        ctx.fillStyle = '#d4c09a'; ctx.fillRect(monster.x - 9, monster.y - 14, 18, 28);
         ctx.fillStyle = '#f0d5b5'; ctx.beginPath(); ctx.arc(monster.x, monster.y - 19, 7, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = '#6b4a2f'; ctx.fillRect(monster.x - 4, monster.y - 6, 8, 6);
-        ctx.fillStyle = '#fff'; ctx.font = 'bold 8px Arial'; ctx.textAlign = 'center'; ctx.fillText('STAFF', monster.x, monster.y - 30);
+        ctx.fillStyle = '#fff'; ctx.fillRect(monster.x - 4, monster.y - 6, 8, 6);
+        ctx.fillStyle = '#fff'; ctx.font = 'bold 8px Arial'; ctx.textAlign = 'center'; ctx.fillText(bassamStaffDepartment, monster.x, monster.y - 30);
         if (nearEmployee?.isBassam && state === 1) { ctx.font = 'bold 11px Arial'; ctx.fillText('[E] TALK', monster.x, monster.y + 28); }
     }
 
     const visibleHotelTasks = [...employees.map(employee => employee.task), bassamFakeTask].filter(task => task?.status === 'accepted');
     for (const task of visibleHotelTasks) {
-        ctx.fillStyle = task.fake ? '#d98a8a' : '#8fffa1'; ctx.beginPath(); ctx.arc(task.x, task.y, 12, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = '#111'; ctx.font = 'bold 10px Arial'; ctx.textAlign = 'center'; ctx.fillText('E', task.x, task.y + 4);
+        ctx.fillStyle = '#d4c09a'; ctx.fillRect(task.x - 10, task.y - 8, 20, 16);
+        ctx.strokeStyle = '#271b1b'; ctx.lineWidth = 2; ctx.strokeRect(task.x - 10, task.y - 8, 20, 16);
+        ctx.fillStyle = '#fff2c8'; ctx.fillRect(task.x - 5, task.y - 4, 10, 8);
+        ctx.fillStyle = '#f1d9c4'; ctx.font = 'bold 8px Arial'; ctx.textAlign = 'center'; ctx.fillText(task.itemName, task.x, task.y - 15);
+        if (nearHotelTask?.task === task) { ctx.fillStyle = '#fff'; ctx.font = 'bold 11px Arial'; ctx.fillText('[E] COLLECT', task.x, task.y + 22); }
     }
 
     if (currentMapId === 'hotel' && hotelElevator) {
@@ -2785,6 +2815,7 @@ function draw() {
         ctx.strokeStyle = '#ff3030'; ctx.lineWidth = 4;
         ctx.beginPath(); ctx.arc(playerScreenX, playerScreenY, 22, 0, Math.PI * 2); ctx.stroke();
         for (const enemy of monsters) {
+            if (enemy.name === 'BASSAM' && bassamState === 'disguised') continue;
             const [monsterScreenX, monsterScreenY] = worldToScreen(enemy.x, enemy.y);
             ctx.beginPath(); ctx.arc(monsterScreenX, monsterScreenY, enemy.drawRadius + 12, 0, Math.PI * 2); ctx.stroke();
         }
