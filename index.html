@@ -30,6 +30,19 @@
         <button id="monsterRosterToggle" onclick="toggleMonsterRoster()" style="display:none;">MONSTERS ▾</button>
         <div id="monsterRoster" style="display:none;"></div>
     </div>
+    <aside id="hotelTaskHUD" aria-live="polite" style="display:none;">
+        <div class="hotel-task-title">HOTEL ASSIGNMENTS <span id="hotelTaskCount">0/2</span></div>
+        <div id="hotelTaskList"></div>
+    </aside>
+
+    <div id="hotelDialogue" role="dialog" aria-modal="false" aria-live="polite" style="display:none;">
+        <div class="hotel-dialogue-card">
+            <div id="hotelDialogueName" class="hotel-dialogue-name">HOTEL STAFF</div>
+            <div id="hotelDialogueText" class="hotel-dialogue-text"></div>
+            <div id="hotelDialogueChoices" class="hotel-dialogue-choices"></div>
+            <button class="hotel-dialogue-close" onclick="closeHotelDialogue()">LEAVE</button>
+        </div>
+    </div>
     
     <!-- In-Game Alert Messages -->
     <div id="message" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(10, 10, 10, 0.85); backdrop-filter: blur(10px); padding: 30px 50px; border: 2px solid rgba(255,255,255,0.3); border-radius: 15px; font-size: 30px; text-align: center; display: none; pointer-events: none; z-index: 200; box-shadow: 0 10px 30px rgba(0,0,0,0.8);"></div>
@@ -234,9 +247,9 @@
             <b>Heat:</b> Burning sections build heat and slightly slow you. Leave the area to cool down. The Boilerworks uses long procedural halls and rooms, so routes change every run.<br>
             <b>Monsters:</b> Aeson is most likely here, but Jordan, Caleb, Malakai, and rare two-monster runs are possible.<br></div></details>
             <details class="info-section"><summary style="color:#d4c09a;">THE ENDLESS HOTEL</summary><div>
-            <b>Objective:</b> Repair the hotel generators, help the real employees, then use the elevator when it becomes available.<br>
-            <b>Employees:</b> Genuine employees can give a clue or a small task. Bassam can replace one of them and turn the interaction into a trap.<br>
-            <b>Events:</b> Hotel Lockdown can close one route temporarily. Elevator Arrival can offer a short-lived opportunity before the hotel resets.<br></div></details>
+            <b>Objective:</b> Repair the hotel generators, complete and report staff assignments, evacuate the employees through the elevator, then catch Bassam.<br>
+            <b>Employees:</b> Speak to staff to accept up to two assignments. Complete the work, then return to the same staff member to report it.<br>
+            <b>Events:</b> Hotel Lockdown seals a whole corridor section temporarily. Bassam can impersonate staff and place a false assignment among your real ones.<br></div></details>
             <details class="info-section"><summary style="color:#0ff;">MOBILE CONTROLS</summary><div>
             <b>Joystick:</b> Move freely in any direction.<br>
             <b>E:</b> Interact with generators, fuses, rooms, and hiding spots.<br>

@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.2.0
+
+- Rebuilt the Endless Hotel as a larger procedural room-and-hallway layout instead of a fixed room grid.
+- Added clickable, touch-friendly employee dialogue; players can accept at most two assignments, complete the work at real generated locations, and return to report it.
+- Added a top-right Hotel Assignments panel, genuine staff roaming, staff evacuation through the elevator, and a final Bassam chase after all generators and evacuations are complete.
+- Reworked Bassam's disguise: he roams as separate staff, offers a false assignment, does not collide while disguised, and only reveals himself after he is off-screen.
+- Reworked Hotel Lockdown to block the full width of a real corridor section, and removed the brief random elevator arrival window.
+- Bumped the offline cache to `calebs-shift-v27`.
+
 ## 2.1.2
 
 - Added an Optimization Mode toggle for older computers.

@@ -93,7 +93,7 @@ function playSound(type) {
 }
 
 // Versioned local progress with a backup copy and import/export support.
-const GAME_VERSION = '2.1.2';
+const GAME_VERSION = '2.2.0';
 const SAVE_SCHEMA_VERSION = 7;
 const SAVE_KEY = 'br_save_v2';
 const SAVE_BACKUP_KEY = 'br_save_backup_v2';
@@ -671,11 +671,11 @@ let gameMode = 'normal', endlessRound = 1, survivalConfig = null, eventsEnabled 
 let currentMapId = 'level0';
 
 let map = [], floors = [], rooms = [], fuses = [], hidingSpots = [], coolingValves = [], employees = [];
-let reservedObjectTiles = new Set(), hotelDoorTiles = [], hotelBlockedDoor = null;
+let reservedObjectTiles = new Set(), hotelDoorTiles = [], hotelBlockedDoor = null, hotelCorridorSections = [];
 let centralBoiler = null, boilerShutdown = false, boilerReadyShown = false;
-let hotelElevator = null, hotelElevatorOpenTimer = 0, hotelLockdownTimer = 0, hotelEventCooldown = 0, hotelLockdownActive = false;
-let employeeTasksCompleted = 0, hotelEmployeesRequired = 3, elevatorUsed = false;
-let nearFuse = null, nearHide = null, nearValve = null, nearBoiler = false, nearEmployee = null, nearElevator = false;
+let hotelElevator = null, hotelLockdownTimer = 0, hotelEventCooldown = 0, hotelLockdownActive = false;
+let hotelEmployeesRequired = 3, hotelDialogueOpen = false, hotelTaskSerial = 0;
+let nearFuse = null, nearHide = null, nearValve = null, nearBoiler = false, nearEmployee = null, nearElevator = false, nearHotelTask = null;
 let player = { x: 0, y: 0, r: 12, baseSpeed: 3.8, speed: 3.8, boostTimer: 0, stunTimer: 0, crouching: false, breathing: false, breathTimer: 0, breathCooldown: 0, heat: 0, inHeatZone: false, hidden: false, hideTimer: 0, hideCompromised: false };
 let monster = { name: '', x: 0, y: 0, r: 14, drawRadius: 14, speed: 2.2, baseSpeed: 2.2, color: '', textColor: '', activeMutations: [], isReinforced: false, hasGloom: false, isResilient: false, hasScrambler: false, hasHexed: false, hasHallucinations: false, hasLockedIn: false, hasEcho: false, hasFalseObjective: false, hasWatcher: false, hasPanic: false, hasHeavyFootfall: false, hasAfterimage: false, allSeeing: false, heatAlertTimer: 0, heatAlertX: 0, heatAlertY: 0, stunTimer: 0, lastTargetC: -1, lastTargetR: -1 };
 let monsters = [];
@@ -687,7 +687,7 @@ let puzzleSequence = [], circuitSequence = [], circuitStage = 0, circuitRequired
 let lastSingleMutation = null; 
 
 // AI & Item Variables
-let jordanState = 'saboteur', mimicTimer = 0, stateTimer = 0, jordanSabotageCooldown = 0, bassamState = 'roaming', bassamDisguiseIndex = -1;
+let jordanState = 'saboteur', mimicTimer = 0, stateTimer = 0, jordanSabotageCooldown = 0, bassamState = 'roaming', bassamRevealPending = false, bassamTrapTaskId = null, bassamFakeTask = null;
 let empTimer = 0, empWarning = 0, empActive = 0, flashAlpha = 0;
 let powerOutageTimer = 0, powerOutageCooldown = 0, flickerTimer = 0, flickerCooldown = 0, emergencyTimer = 0, emergencyCooldown = 0, outageFlickerTimer = 0;
 let noiseTarget = null, noiseTimer = 0, bearTraps = [], heatZones = [], heatEventCooldown = 0;
@@ -816,7 +816,7 @@ function beginFinalChase() {
     for (const enemy of monsters) enemy.speed = Math.max(enemy.speed, 4.0 + (gameMode === 'endless' ? (endlessRound - 1) * 0.18 : 0));
     player.speed = player.baseSpeed + 1.0;
     const targetText = monsters.length === 1 ? monster.name : 'THE MONSTERS';
-    const objectiveCompleteText = currentMapId === 'boilerworks' ? 'CENTRAL BOILER SHUT DOWN' : currentMapId === 'hotel' ? 'ELEVATOR ESCAPE STARTED' : 'POWER RESTORED';
+    const objectiveCompleteText = currentMapId === 'boilerworks' ? 'CENTRAL BOILER SHUT DOWN' : currentMapId === 'hotel' ? 'EMPLOYEES EVACUATED' : 'POWER RESTORED';
     showMsg(`<span style="color:#0f0">${objectiveCompleteText}</span><br>GO CATCH ${targetText}`, 3500);
     if (monster.isPhantom) {
         monster.isPhantom = false;
@@ -870,6 +870,10 @@ function finishGeneratorInteraction() {
 
 window.addEventListener('keydown', (e) => {
     let k = e.key.toLowerCase();
+    if (hotelDialogueOpen) {
+        if (k === 'escape' || k === 'e') closeHotelDialogue();
+        return;
+    }
     if (state === 0 || state === 4) return;
     
     // Adrenaline
@@ -908,6 +912,7 @@ window.addEventListener('keydown', (e) => {
             return;
         }
         if (nearEmployee) { interactWithEmployee(); return; }
+        if (nearHotelTask) { completeHotelTaskAtTarget(); return; }
         if (nearValve) { activateCoolingValve(); return; }
         if (currentMapId === 'boilerworks' && nearBoiler) {
             if (!boilerObjectiveComplete()) {
@@ -1143,63 +1148,95 @@ function generateBoilerworks() {
     // Room interiors and door thresholds are reserved before object placement.
 }
 
-function carveHotelCorridor(a, b) {
-    let c = a.c, r = a.r;
-    const carve = (col, row) => { if (map[row]?.[col] !== undefined) map[row][col] = 0; };
+function carveHotelRoom(room) {
+    const left = room.c - Math.floor(room.width / 2), top = room.r - Math.floor(room.height / 2);
+    for (let r = top; r < top + room.height; r++) for (let c = left; c < left + room.width; c++) {
+        if (map[r]?.[c] !== undefined) map[r][c] = 0;
+    }
+}
+
+function hotelRoomFits(candidate) {
+    const left = candidate.c - Math.floor(candidate.width / 2) - 2;
+    const right = candidate.c + Math.ceil(candidate.width / 2) + 2;
+    const top = candidate.r - Math.floor(candidate.height / 2) - 2;
+    const bottom = candidate.r + Math.ceil(candidate.height / 2) + 2;
+    return left > 1 && right < COLS - 2 && top > 1 && bottom < ROWS - 2 && !rooms.some(room =>
+        Math.abs(room.c - candidate.c) < (room.width + candidate.width) / 2 + 3 &&
+        Math.abs(room.r - candidate.r) < (room.height + candidate.height) / 2 + 3
+    );
+}
+
+function carveHotelSegment(from, to) {
+    const cells = [];
+    const horizontal = from.r === to.r;
+    const step = horizontal ? Math.sign(to.c - from.c) : Math.sign(to.r - from.r);
+    const length = horizontal ? Math.abs(to.c - from.c) : Math.abs(to.r - from.r);
+    for (let i = 0; i <= length; i++) {
+        const c = horizontal ? from.c + i * step : from.c;
+        const r = horizontal ? from.r : from.r + i * step;
+        const pair = horizontal ? [{ c, r }, { c, r: r + 1 }] : [{ c, r }, { c: c + 1, r }];
+        for (const cell of pair) if (map[cell.r]?.[cell.c] !== undefined) { map[cell.r][cell.c] = 0; cells.push(cell); }
+    }
+    if (cells.length > 8) hotelCorridorSections.push({ cells, horizontal });
+}
+
+function connectHotelRooms(a, b) {
     const horizontalFirst = Math.random() < 0.5;
-    const horizontal = () => { while (c !== b.c) { carve(c, r); carve(c, r + 1); c += Math.sign(b.c - c); } };
-    const vertical = () => { while (r !== b.r) { carve(c, r); carve(c + 1, r); r += Math.sign(b.r - r); } };
-    if (horizontalFirst) { horizontal(); vertical(); } else { vertical(); horizontal(); }
-    carve(b.c, b.r); carve(b.c + 1, b.r);
+    const corner = horizontalFirst ? { c: b.c, r: a.r } : { c: a.c, r: b.r };
+    carveHotelSegment({ c: a.c, r: a.r }, corner);
+    carveHotelSegment(corner, { c: b.c, r: b.r });
+    hotelDoorTiles.push({ c: a.c, r: a.r }, { c: b.c, r: b.r });
 }
 
 function generateHotel() {
     map = Array.from({length: ROWS}, () => Array(COLS).fill(1));
     rooms = []; hidingSpots = []; coolingValves = []; fuses = []; employees = [];
-    reservedObjectTiles = new Set(); hotelDoorTiles = [];
-    const roomTypes = [
-        'lobby', 'guest', 'guest', 'guest', 'guest', 'laundry', 'conference', 'kitchen',
-        'service', 'guest', 'guest', 'office', 'elevator', 'guest', 'storage'
+    reservedObjectTiles = new Set(); hotelDoorTiles = []; hotelCorridorSections = [];
+    const roomSpecs = [
+        ['lobby', 11, 8], ['ballroom', 12, 9], ['dining', 9, 7], ['kitchen', 8, 6],
+        ['laundry', 8, 6], ['office', 7, 6], ['security', 7, 6], ['service', 8, 6],
+        ['elevator', 7, 6], ['storage', 7, 6], ['guest', 7, 6], ['guest', 7, 6],
+        ['guest', 7, 6], ['bathroom', 6, 5], ['maintenance', 8, 6]
     ];
-    const nodes = [];
-    const slots = [];
-    for (let row = 0; row < 3; row++) {
-        for (let col = 0; col < 5; col++) slots.push({ c: 9 + col * 14, r: 9 + row * 18 });
+    const lobby = { type: 'lobby', c: Math.floor(COLS / 2), r: Math.floor(ROWS / 2), width: 11, height: 8 };
+    rooms.push(lobby); carveHotelRoom(lobby);
+    for (const [type, baseWidth, baseHeight] of roomSpecs.slice(1)) {
+        let placed = null, parent = null;
+        for (let tries = 0; tries < 240 && !placed; tries++) {
+            parent = rooms[Math.floor(Math.random() * rooms.length)];
+            const direction = [[1,0],[-1,0],[0,1],[0,-1]][Math.floor(Math.random() * 4)];
+            const width = baseWidth + (Math.random() < .35 ? 1 : 0);
+            const height = baseHeight + (Math.random() < .3 ? 1 : 0);
+            const distance = 4 + Math.floor(Math.random() * 5);
+            const c = parent.c + direction[0] * (Math.ceil(parent.width / 2) + Math.ceil(width / 2) + distance);
+            const r = parent.r + direction[1] * (Math.ceil(parent.height / 2) + Math.ceil(height / 2) + distance);
+            const candidate = { type, c, r, width, height };
+            if (hotelRoomFits(candidate)) placed = candidate;
+        }
+        if (!placed) continue;
+        rooms.push(placed); carveHotelRoom(placed); connectHotelRooms(parent, placed);
     }
-    for (let i = 0; i < roomTypes.length; i++) {
-        const slot = slots[i];
-        const node = { c: slot.c + Math.floor(Math.random() * 3) - 1, r: slot.r + Math.floor(Math.random() * 3) - 1, width: 7 + Math.floor(Math.random() * 3), height: 5 + Math.floor(Math.random() * 2) };
-        carveBoilerRect(node.c, node.r, node.width, node.height);
-        nodes.push(node);
-        rooms.push({ type: roomTypes[i], side: 'interior', ...node, x: node.c * TS + TS / 2, y: node.r * TS + TS / 2 });
-    }
-    // A central corridor spine and randomized room branches create long hotel wings.
-    carveHotelCorridor({ c: 4, r: 28 }, { c: 68, r: 28 });
-    for (const node of nodes) carveHotelCorridor(node, { c: node.c, r: 28 });
+    // Add a few room-to-room links so each wing has alternate routes, never isolated hall ends.
     for (let i = 0; i < 4; i++) {
-        const a = nodes[Math.floor(Math.random() * nodes.length)];
-        const b = nodes[Math.floor(Math.random() * nodes.length)];
-        if (a !== b) carveHotelCorridor(a, b);
+        const a = rooms[Math.floor(Math.random() * rooms.length)], b = rooms[Math.floor(Math.random() * rooms.length)];
+        if (a !== b && Math.abs(a.c - b.c) + Math.abs(a.r - b.r) < 32) connectHotelRooms(a, b);
     }
     for (const room of rooms) {
-        const door = Math.abs(room.r - 28) <= 2
-            ? { c: room.c + (room.c < COLS / 2 ? Math.floor(room.width / 2) + 1 : -Math.floor(room.width / 2) - 1), r: room.r }
-            : { c: room.c, r: room.r + (room.r < 28 ? 1 : -1) * (Math.floor(room.height / 2) + 1) };
-        hotelDoorTiles.push(door);
-        reserveObjectTile(door.c, door.r, 1);
+        room.x = room.c * TS + TS / 2; room.y = room.r * TS + TS / 2;
+        reserveObjectTile(room.c, room.r, 1);
     }
     rebuildFloors();
-    const employeeRooms = rooms.filter(room => ['lobby','laundry','conference','kitchen','office'].includes(room.type));
-    employeeRooms.slice(0, 4).forEach((room, index) => {
-        employees.push({ x: room.x, y: room.y, department: ['FRONT DESK','MAINTENANCE','HOUSEKEEPING','KITCHEN'][index], task: ['Find the master keycard.', 'Check the wing fuse.', 'Deliver the room ledger.', 'Inspect the service lift.'][index], completed: false, index });
-        reserveObjectTile(Math.floor(room.x / TS), Math.floor(room.y / TS), 1);
+    const staffRooms = ['lobby','laundry','kitchen','office'].map(type => rooms.find(room => room.type === type)).filter(Boolean);
+    const staffNames = ['FRONT DESK', 'MAINTENANCE', 'HOUSEKEEPING', 'KITCHEN'];
+    staffRooms.forEach((room, index) => {
+        employees.push({ x: room.x, y: room.y, r: 10, homeRoom: room, department: staffNames[index], index, path: [], roamTimer: 0, task: null, evacuated: false });
     });
     const storageRoom = rooms.find(room => room.type === 'storage');
     const serviceRoom = rooms.find(room => room.type === 'service');
     if (storageRoom) hidingSpots.push({ x: storageRoom.x, y: storageRoom.y, occupied: false });
     if (serviceRoom) hidingSpots.push({ x: serviceRoom.x, y: serviceRoom.y, occupied: false });
-    const elevatorRoom = rooms.find(room => room.type === 'elevator') || rooms[rooms.length - 1];
-    hotelElevator = elevatorRoom ? { x: elevatorRoom.x, y: elevatorRoom.y } : null;
+    const elevatorRoom = rooms.find(room => room.type === 'elevator') || rooms.at(-1);
+    hotelElevator = elevatorRoom ? { x: elevatorRoom.x, y: elevatorRoom.y, room: elevatorRoom } : null;
 }
 
 function isInHeatZone(x, y) {
@@ -1218,7 +1255,7 @@ function updateAesonEvents() {
 }
 
 function isDynamicBlockedCell(c, r) {
-    return currentMapId === 'hotel' && hotelLockdownActive && hotelBlockedDoor && hotelBlockedDoor.c === c && hotelBlockedDoor.r === r;
+    return currentMapId === 'hotel' && hotelLockdownActive && hotelBlockedDoor?.cells?.some(cell => cell.c === c && cell.r === r);
 }
 
 function updateHotelEvents() {
@@ -1232,24 +1269,23 @@ function updateHotelEvents() {
         }
         return;
     }
-    if (hotelElevatorOpenTimer > 0) {
-        hotelElevatorOpenTimer--;
-        if (hotelElevatorOpenTimer === 0) notify('THE ELEVATOR DOORS CLOSE', 'warning');
-    }
     if (hotelEventCooldown > 0) { hotelEventCooldown--; return; }
     hotelEventCooldown = 1200;
-    if (Math.random() < 0.58 && hotelDoorTiles.length) {
-        const candidates = hotelDoorTiles.filter(door => Math.hypot(door.c * TS + TS / 2 - player.x, door.r * TS + TS / 2 - player.y) > 180);
-        hotelBlockedDoor = candidates[Math.floor(Math.random() * Math.max(1, candidates.length))] || hotelDoorTiles[0];
+    if (hotelCorridorSections.length) {
+        const candidates = hotelCorridorSections.filter(section => {
+            const middle = section.cells[Math.floor(section.cells.length / 2)];
+            return Math.hypot(middle.c * TS + TS / 2 - player.x, middle.r * TS + TS / 2 - player.y) > 180;
+        });
+        const section = candidates[Math.floor(Math.random() * Math.max(1, candidates.length))] || hotelCorridorSections[0];
+        const middleIndex = Math.floor(section.cells.length / 2);
+        const first = section.cells[middleIndex];
+        const second = section.cells[middleIndex + 1] || section.cells[middleIndex - 1];
+        hotelBlockedDoor = { cells: [first, second].filter(Boolean) };
         hotelLockdownActive = true;
         hotelLockdownTimer = 720 + (monster.hasLockedIn ? 300 : 0);
         playSound('alarm');
-        notify('HOTEL LOCKDOWN · ONE ROUTE SEALED', 'danger');
+        notify('HOTEL LOCKDOWN · CORRIDOR SEALED', 'danger');
         showMsg('<span style="color:#ff4444">HOTEL LOCKDOWN</span><br>FIND ANOTHER ROUTE', 1200);
-    } else if (hotelElevator) {
-        hotelElevatorOpenTimer = 360;
-        playSound('alarm');
-        notify(hotelObjectiveComplete() ? 'ELEVATOR ARRIVAL · MOVE NOW' : 'AN ELEVATOR ARRIVED TOO EARLY', 'warning');
     }
 }
 
@@ -1345,67 +1381,140 @@ function isOpenObjectSpot(x, y, distance = TS * 1.5) {
     return true;
 }
 
-function hotelObjectiveComplete() {
-    return currentMapId !== 'hotel' || (activeGens >= totalGens && employeeTasksCompleted >= hotelEmployeesRequired);
+function activeHotelTasks() { return [...employees.map(employee => employee.task), bassamFakeTask].filter(task => task && ['accepted', 'readyToReport'].includes(task.status)); }
+function reportedHotelEmployees() { return employees.filter(employee => employee.task?.status === 'reported'); }
+function evacuatedHotelEmployees() { return employees.filter(employee => employee.evacuated); }
+function hotelElevatorReady() { return activeGens >= totalGens && reportedHotelEmployees().length >= hotelEmployeesRequired; }
+function hotelObjectiveComplete() { return currentMapId !== 'hotel' || (activeGens >= totalGens && evacuatedHotelEmployees().length >= hotelEmployeesRequired); }
+
+function chooseHotelTaskTarget(employee) {
+    const targets = rooms.filter(room => !['lobby', 'elevator', employee.homeRoom.type].includes(room.type));
+    const room = targets[Math.floor(Math.random() * Math.max(1, targets.length))] || employee.homeRoom;
+    const taskByDepartment = {
+        'FRONT DESK': ['Recover the reservation ledger', 'Check the guest register'],
+        'MAINTENANCE': ['Reset the service panel', 'Inspect the maintenance relay'],
+        'HOUSEKEEPING': ['Collect the lost room key', 'Check the linen delivery'],
+        'KITCHEN': ['Recover the banquet inventory', 'Inspect the dining supply cart']
+    };
+    const label = (taskByDepartment[employee.department] || ['Inspect the hotel wing'])[Math.floor(Math.random() * 2)];
+    return { id: ++hotelTaskSerial, label, room, x: room.x, y: room.y, status: 'offered', fake: false };
 }
 
-function helpEmployee(employee) {
-    if (!employee || employee.completed) return;
-    employee.completed = true;
-    employeeTasksCompleted = Math.min(employees.length, employeeTasksCompleted + 1);
-    playSound('success');
-    notify(`${employee.department}: TASK COMPLETE`, 'info');
-    showMsg(`<span style="color:#d4c09a">${employee.department}</span><br>${employee.task}<br><span style="color:#0f0">HELPED ${employeeTasksCompleted}/${hotelEmployeesRequired}</span>`, 1500);
-    if (employeeTasksCompleted >= hotelEmployeesRequired && activeGens >= totalGens) {
-        hotelElevatorOpenTimer = Math.max(hotelElevatorOpenTimer, 720);
-        notify('THE HOTEL ELEVATOR IS READY', 'unlock');
+function renderHotelTasks() {
+    const panel = document.getElementById('hotelTaskHUD'), list = document.getElementById('hotelTaskList'), count = document.getElementById('hotelTaskCount');
+    if (!panel || !list || currentMapId !== 'hotel' || state === 0 || state === 4) return;
+    const tasks = [...employees.map(employee => ({ employee, task: employee.task })), ...(bassamFakeTask ? [{ employee: null, task: bassamFakeTask }] : [])].filter(entry => entry.task && ['accepted','readyToReport'].includes(entry.task.status));
+    panel.style.display = 'block'; count.textContent = `${tasks.length}/2`;
+    list.innerHTML = tasks.length ? tasks.map(({ employee, task }) => `<div class="hotel-task ${task.fake ? 'fake' : ''} ${task.status === 'readyToReport' ? 'ready' : ''}"><b>${task.fake ? 'STAFF REQUEST' : employee.department}</b><br>${task.label}<small>${task.status === 'readyToReport' ? `Return to ${employee.department}` : `Go to ${task.room.type.toUpperCase()}`}</small></div>`).join('') : '<div class="hotel-task"><small>Speak with hotel staff to accept an assignment.</small></div>';
+}
+
+function openHotelDialogue(name, text, choices = []) {
+    const dialogue = document.getElementById('hotelDialogue');
+    if (!dialogue) return;
+    hotelDialogueOpen = true; clearMovementKeys();
+    document.getElementById('hotelDialogueName').textContent = name;
+    document.getElementById('hotelDialogueText').textContent = text;
+    const holder = document.getElementById('hotelDialogueChoices'); holder.innerHTML = '';
+    choices.forEach(choice => { const button = document.createElement('button'); button.textContent = choice.label; button.onclick = choice.action; holder.appendChild(button); });
+    dialogue.style.display = 'flex';
+}
+
+function closeHotelDialogue() { hotelDialogueOpen = false; const dialogue = document.getElementById('hotelDialogue'); if (dialogue) dialogue.style.display = 'none'; }
+
+function acceptEmployeeTask(index) {
+    const employee = employees[index]; if (!employee || employee.evacuated || activeHotelTasks().length >= 2) return;
+    employee.task ||= chooseHotelTaskTarget(employee); employee.task.status = 'accepted';
+    closeHotelDialogue(); renderHotelTasks(); updateHUD(); notify(`${employee.department} ASSIGNMENT ACCEPTED`, 'info');
+}
+
+function reportEmployeeTask(index) {
+    const employee = employees[index]; if (!employee?.task || employee.task.status !== 'readyToReport') return;
+    employee.task.status = 'reported';
+    closeHotelDialogue(); renderHotelTasks(); updateHUD(); playSound('success');
+    notify(`${employee.department}: TASK REPORTED`, 'unlock');
+    checkPhase();
+}
+
+function completeHotelTaskAtTarget() {
+    const { employee, task } = nearHotelTask || {}; if (!task || task.status !== 'accepted') return false;
+    if (task.fake) {
+        task.status = 'failed'; bassamTrapTaskId = task.id; bassamRevealPending = true; bassamFakeTask = null;
+        closeHotelDialogue(); renderHotelTasks(); notify('THE ASSIGNMENT WAS A LIE', 'danger');
+        showMsg('<span style="color:#ff5555">NO ONE IS WAITING HERE</span>', 1100); return true;
     }
-    updateHUD();
+    task.status = 'readyToReport'; renderHotelTasks(); updateHUD(); playSound('success');
+    notify('ASSIGNMENT COMPLETE · REPORT BACK', 'unlock'); return true;
 }
 
 function interactWithEmployee() {
     if (!nearEmployee) return false;
     if (nearEmployee.isBassam) {
-        bassamState = 'revealed';
-        bassamDisguiseIndex = -1;
-        monster.path = [];
-        triggerBloodHunt();
-        playSound('fail');
-        showMsg('<span style="color:#ff4444">THAT IS NOT AN EMPLOYEE</span><br>BASSAM FOUND YOU', 1600);
-        notify('BASSAM DROPPED THE DISGUISE', 'danger');
-        updateHUD();
+        if (!bassamFakeTask) {
+            const targetRooms = rooms.filter(room => ['guest','bathroom','storage','service'].includes(room.type));
+            const room = targetRooms[Math.floor(Math.random() * Math.max(1, targetRooms.length))] || rooms.at(-1);
+            bassamFakeTask = { id: ++hotelTaskSerial, label: 'Check a private guest request', room, x: room.x, y: room.y, status: 'offered', fake: true };
+        }
+        const fakeTask = bassamFakeTask;
+        if (activeHotelTasks().length >= 2) { openHotelDialogue('HOTEL STAFF', 'You are already carrying two assignments. Return when you have room.'); return true; }
+        openHotelDialogue('HOTEL STAFF', 'The concierge needs help in a private wing. Can you take this request?', [{ label: 'ACCEPT REQUEST', action: () => { fakeTask.status = 'accepted'; bassamTrapTaskId = fakeTask.id; closeHotelDialogue(); renderHotelTasks(); notify('STAFF REQUEST ACCEPTED', 'warning'); } }]);
         return true;
     }
-    helpEmployee(nearEmployee);
+    if (nearEmployee.evacuated) return false;
+    const employee = nearEmployee;
+    if (employee.task?.status === 'readyToReport') {
+        openHotelDialogue(employee.department, 'You finished it? Thank you. I am ready to evacuate once the elevator has power.', [{ label: 'REPORT COMPLETION', action: () => reportEmployeeTask(employee.index) }]);
+    } else if (employee.task?.status === 'reported') {
+        openHotelDialogue(employee.department, hotelElevatorReady() ? 'The elevator has power. Please send us through when you reach it.' : 'I will wait near the lobby. The elevator still needs generator power.');
+    } else if (employee.task?.status === 'accepted') {
+        openHotelDialogue(employee.department, `Your assignment is still active. Go to the ${employee.task.room.type.toUpperCase()} and finish it, then come back.`);
+    } else if (activeHotelTasks().length >= 2) {
+        openHotelDialogue(employee.department, 'You are already carrying two assignments. Finish one and return to me.');
+    } else {
+        employee.task = chooseHotelTaskTarget(employee);
+        openHotelDialogue(employee.department, `I need you to ${employee.task.label.toLowerCase()} in the ${employee.task.room.type.toUpperCase()}. Will you take it?`, [{ label: 'ACCEPT ASSIGNMENT', action: () => acceptEmployeeTask(employee.index) }]);
+    }
     return true;
+}
+
+function evacuateEmployee(index) {
+    const employee = employees[index]; if (!employee || employee.evacuated || employee.task?.status !== 'reported') return;
+    employee.evacuated = true; employee.x = -100; employee.y = -100; employee.path = [];
+    closeHotelDialogue(); renderHotelTasks(); updateHUD(); playSound('success');
+    notify(`${employee.department} EVACUATED`, 'unlock'); checkPhase();
 }
 
 function useHotelElevator() {
     if (!hotelElevator || !nearElevator) return false;
-    if (!hotelObjectiveComplete()) {
-        showMsg('<span style="color:#ffcc66">ELEVATOR LOCKED</span><br>REPAIR THE GENERATORS AND HELP THE EMPLOYEES', 1300);
-        return true;
-    }
-    if (hotelElevatorOpenTimer <= 0) {
-        showMsg('<span style="color:#ffcc66">THE ELEVATOR DOORS ARE CLOSED</span><br>WAIT FOR THE NEXT ARRIVAL', 1200);
-        return true;
-    }
-    elevatorUsed = true;
-    hotelElevatorOpenTimer = 0;
-    beginFinalChase();
+    if (activeGens < totalGens) { showMsg('<span style="color:#ffcc66">ELEVATOR HAS NO POWER</span><br>REPAIR THE GENERATORS', 1200); return true; }
+    const waiting = reportedHotelEmployees().filter(employee => !employee.evacuated);
+    if (!waiting.length) { showMsg('<span style="color:#ffcc66">NO STAFF ARE READY</span><br>REPORT COMPLETED ASSIGNMENTS', 1200); return true; }
+    openHotelDialogue('ELEVATOR CONTROL', 'Choose a staff member to send to safety.', waiting.map(employee => ({ label: `EVACUATE ${employee.department}`, action: () => evacuateEmployee(employee.index) })));
     return true;
 }
 
 function moveBassamToEmployee() {
-    if (currentMapId !== 'hotel' || employees.length === 0) return;
-    const choices = employees.filter(employee => !employee.completed);
-    const employee = choices[Math.floor(Math.random() * Math.max(1, choices.length))] || employees[0];
-    bassamDisguiseIndex = employees.indexOf(employee);
-    monster.x = employee.x;
-    monster.y = employee.y;
-    monster.path = [];
-    bassamState = 'disguised';
-    stateTimer = 720;
+    if (currentMapId !== 'hotel' || bassamState !== 'disguised') return;
+    const room = rooms.filter(candidate => candidate.type !== 'elevator')[Math.floor(Math.random() * Math.max(1, rooms.length - 1))] || rooms[0];
+    monster.x = room.x; monster.y = room.y; monster.path = []; stateTimer = 540;
+}
+
+function isOnPlayerScreen(entity) {
+    return Math.abs(entity.x - player.x) < canvas.width / (2 * camera.zoom) + 45 && Math.abs(entity.y - player.y) < canvas.height / (2 * camera.zoom) + 45;
+}
+
+function updateHotelEmployees() {
+    if (currentMapId !== 'hotel' || state !== 1) return;
+    for (const employee of employees) {
+        if (employee.evacuated) continue;
+        employee.roamTimer--;
+        if (employee.roamTimer <= 0 || employee.path.length === 0) {
+            const options = rooms.filter(room => !['elevator', 'security'].includes(room.type));
+            const destination = options[Math.floor(Math.random() * Math.max(1, options.length))] || employee.homeRoom;
+            employee.path = findPath(Math.floor(employee.x / TS), Math.floor(employee.y / TS), destination.c, destination.r);
+            employee.roamTimer = 300 + Math.floor(Math.random() * 300);
+        }
+        moveMonsterAlongPath(1.05, employee);
+    }
 }
 
 function modeMonsterCount() {
@@ -1458,7 +1567,7 @@ function startGame(diffLevel) {
     hud.style.display = 'block';
     
     if (currentMapId === 'boilerworks') { COLS = 65; ROWS = 49; }
-    else if (currentMapId === 'hotel') { COLS = 73; ROWS = 57; }
+    else if (currentMapId === 'hotel') { COLS = 91; ROWS = 69; }
     else { COLS = 41; ROWS = 33; }
     if (currentMapId === 'boilerworks') generateBoilerworks();
     else if (currentMapId === 'hotel') generateHotel();
@@ -1475,8 +1584,9 @@ function startGame(diffLevel) {
     camera.targetZoom = 1.0; camera.zoom = 1.0;
     nearGen = null; nearValve = null; nearBoiler = false; flashAlpha = 0;
     boilerShutdown = false; boilerReadyShown = false; heatZones = []; heatEventCooldown = currentMapId === 'boilerworks' ? 360 : 0;
-    hotelElevatorOpenTimer = 0; hotelLockdownTimer = 0; hotelEventCooldown = currentMapId === 'hotel' ? 480 : 0; hotelLockdownActive = false; hotelBlockedDoor = null;
-    employeeTasksCompleted = 0; elevatorUsed = false; bassamState = 'roaming'; bassamDisguiseIndex = -1;
+    hotelLockdownTimer = 0; hotelEventCooldown = currentMapId === 'hotel' ? 480 : 0; hotelLockdownActive = false; hotelBlockedDoor = null;
+    bassamState = 'roaming'; bassamRevealPending = false; bassamTrapTaskId = null; bassamFakeTask = null; hotelTaskSerial = 0; closeHotelDialogue();
+    document.getElementById('hotelTaskHUD').style.display = currentMapId === 'hotel' ? 'block' : 'none';
     
     const roundScale = gameMode === 'endless' ? endlessRound - 1 : 0;
     eventsEnabled = gameMode !== 'survival' || survivalConfig?.events !== false;
@@ -1506,10 +1616,7 @@ function startGame(diffLevel) {
     let rand = Math.random();
     let monsterName = 'CALEB';
     if (currentMapId === 'hotel' && gameMode !== 'survival') {
-        if (rand < 0.58) monsterName = 'BASSAM';
-        else if (rand < 0.78) monsterName = 'JORDAN';
-        else if (rand < 0.91) monsterName = 'CALEB';
-        else monsterName = 'MALAKAI';
+        monsterName = 'BASSAM';
     } else if (currentMapId === 'boilerworks' && gameMode !== 'survival') {
         if (rand < 0.58) monsterName = 'AESON';
         else if (rand < 0.78) monsterName = 'JORDAN';
@@ -1676,7 +1783,7 @@ function startGame(diffLevel) {
         } else if (!multiGeneratorAssigned && roll < 0.30) {
             generator.type = 'multi';
             multiGeneratorAssigned = true;
-        } else if (roll < 0.50 && generators.filter(other => !other.isFalse).length > 1) {
+        } else if (roll < 0.50 && generators.filter(other => !other.isFalse).length > 1 && generators.filter(other => other.isFalse).length < 1) {
             generator.isFalse = true;
         }
     }
@@ -1690,7 +1797,7 @@ function startGame(diffLevel) {
     stats.encounters[monster.name] = (stats.encounters[monster.name] || 0) + 1;
     stats.favoriteMonster = Object.entries(stats.encounters).sort((a,b) => b[1] - a[1])[0]?.[0] || 'None';
     canvas.classList.remove('shake');
-    state = 1; updateHUD();
+    state = 1; updateHUD(); renderHotelTasks();
 }
 
 function unlockCosmetic(id) {
@@ -1718,6 +1825,7 @@ function endGame(isWin, sourceMonster = monster) {
     state = 4;
     document.querySelectorAll('.menu-panel').forEach(p => p.style.display = 'none');
     hud.style.display = 'none';
+    closeHotelDialogue(); document.getElementById('hotelTaskHUD').style.display = 'none';
     document.getElementById('endMenu').style.display = 'flex';
     document.getElementById('endTitle').innerText = isWin ? "YOU WIN!" : "CAUGHT!";
     document.getElementById('endTitle').style.color = isWin ? "#0f0" : "#f00";
@@ -1768,6 +1876,7 @@ function returnToMainMenu() {
     state = 0;
     mobileMenuPaused = false;
     document.getElementById('mobileActionMenu').style.display = 'none';
+    closeHotelDialogue(); document.getElementById('hotelTaskHUD').style.display = 'none';
     showMenu('mainMenu');
 }
 
@@ -1784,13 +1893,9 @@ function checkPhase() {
             return;
         }
         if (currentMapId === 'hotel') {
-            if (employeeTasksCompleted < hotelEmployeesRequired) {
-                showMsg(`<span style="color:#d4c09a">GENERATORS ONLINE</span><br>HELP ${hotelEmployeesRequired - employeeTasksCompleted} EMPLOYEE(S)`, 1300);
-            } else if (!elevatorUsed) {
-                hotelElevatorOpenTimer = Math.max(hotelElevatorOpenTimer, 720);
-                notify('THE ELEVATOR IS READY', 'unlock');
-                showMsg('<span style="color:#d4c09a">EMPLOYEES CLEARED THE LOBBY</span><br>FIND THE ELEVATOR', 1500);
-            }
+            if (reportedHotelEmployees().length < hotelEmployeesRequired) showMsg(`<span style="color:#d4c09a">GENERATORS ONLINE</span><br>REPORT ${hotelEmployeesRequired - reportedHotelEmployees().length} EMPLOYEE(S)`, 1300);
+            else if (evacuatedHotelEmployees().length < hotelEmployeesRequired) { notify('THE ELEVATOR IS READY FOR STAFF', 'unlock'); showMsg(`<span style="color:#d4c09a">ELEVATOR POWERED</span><br>EVACUATE ${hotelEmployeesRequired - evacuatedHotelEmployees().length} EMPLOYEE(S)`, 1500); }
+            else beginFinalChase();
             return;
         }
         beginFinalChase();
@@ -1830,7 +1935,7 @@ function updateHUD() {
             : currentMapId === 'boilerworks'
                 ? `Cooling valves: ${coolingValves.filter(valve => valve.active).length}/${coolingValves.length || 3}${boilerReadyShown ? ' · FIND THE BOILER' : ''}`
                 : currentMapId === 'hotel'
-                    ? `Hotel: ${activeGens}/${totalGens} generators · Employees ${employeeTasksCompleted}/${hotelEmployeesRequired}${hotelObjectiveComplete() ? ' · USE THE ELEVATOR' : ''}`
+                    ? `Hotel: ${activeGens}/${totalGens} generators · Staff ${evacuatedHotelEmployees().length}/${hotelEmployeesRequired} evacuated${hotelObjectiveComplete() ? ' · CATCH BASSAM' : ''}`
                     : 'Find and repair every generator';
     }
     
@@ -2044,6 +2149,7 @@ function update() {
     updateHeat();
     updateAesonEvents();
     updateHotelEvents();
+    updateHotelEmployees();
     if (monsters.some(enemy => enemy.hasHallucinations) && state === 1 && Math.random() < 0.0025) {
         hallucinationHudTimer = 120;
         if (Math.random() < 0.3) showMsg('<span style="color:#77ffdd">POWER RESTORED</span>', 700);
@@ -2091,7 +2197,7 @@ function update() {
 
     if (player.stunTimer > 0) {
         player.stunTimer--;
-    } else if (!player.hidden) {
+    } else if (!player.hidden && !hotelDialogueOpen) {
         const heatPenalty = currentMapId === 'boilerworks'
             ? (player.inHeatZone ? 0.48 : 1 - Math.min(0.28, player.heat / 1070))
             : 1;
@@ -2110,7 +2216,7 @@ function update() {
         if (dx !== 0 || dy !== 0) moveEntity(player, dx, dy);
     }
 
-    nearGen = null; nearFuse = null; nearHide = null; nearValve = null; nearBoiler = false; nearEmployee = null; nearElevator = false;
+    nearGen = null; nearFuse = null; nearHide = null; nearValve = null; nearBoiler = false; nearEmployee = null; nearElevator = false; nearHotelTask = null;
     if (state === 1 && player.stunTimer <= 0) {
         for (let g of generators) {
             if (!g.active && Math.hypot(player.x - g.x, player.y - g.y) < player.r + g.r + 15) {
@@ -2122,10 +2228,12 @@ function update() {
         nearValve = currentMapId === 'boilerworks' ? coolingValves.find(valve => !valve.active && Math.hypot(player.x - valve.x, player.y - valve.y) < 32) || null : null;
         nearBoiler = currentMapId === 'boilerworks' && centralBoiler && Math.hypot(player.x - centralBoiler.x, player.y - centralBoiler.y) < 42;
         if (currentMapId === 'hotel') {
-            nearEmployee = employees.find(employee => Math.hypot(player.x - employee.x, player.y - employee.y) < 34 && !employee.completed) || null;
+            nearEmployee = employees.find(employee => !employee.evacuated && Math.hypot(player.x - employee.x, player.y - employee.y) < 34) || null;
             if (monster.name === 'BASSAM' && bassamState === 'disguised' && Math.hypot(player.x - monster.x, player.y - monster.y) < 34) {
-                nearEmployee = { x: monster.x, y: monster.y, department: 'HOTEL STAFF', task: 'Follow me.', completed: false, isBassam: true };
+                nearEmployee = { x: monster.x, y: monster.y, department: 'HOTEL STAFF', isBassam: true };
             }
+            const taskEntries = [...employees.map(employee => ({ employee, task: employee.task })), ...(bassamFakeTask ? [{ employee: null, task: bassamFakeTask }] : [])];
+            nearHotelTask = taskEntries.find(entry => entry.task?.status === 'accepted' && Math.hypot(player.x - entry.task.x, player.y - entry.task.y) < 34) || null;
             nearElevator = Boolean(hotelElevator && Math.hypot(player.x - hotelElevator.x, player.y - hotelElevator.y) < 44);
         }
     }
@@ -2167,27 +2275,17 @@ function update() {
             if (Math.hypot(player.x - monster.x, player.y - monster.y) < player.r + monster.r + 4) endGame(false);
         } else if (state === 1 && monster.name === 'BASSAM' && currentMapId === 'hotel') {
             if (bassamState === 'disguised') {
-                if (bassamDisguiseIndex < 0) moveBassamToEmployee();
                 stateTimer--;
-                if (stateTimer <= 0) {
-                    bassamState = 'roaming';
-                    bassamDisguiseIndex = -1;
-                    monster.path = [];
-                    notify('THE EMPLOYEE LEFT WITHOUT A SOUND', 'warning');
-                }
-                if (!player.hidden && !isSafeRoom(player.x, player.y) && Math.hypot(player.x - monster.x, player.y - monster.y) < player.r + monster.r + 4) {
-                    endGame(false, monster);
+                if (bassamRevealPending && !isOnPlayerScreen(monster)) {
+                    bassamState = 'revealed'; bassamRevealPending = false; monster.path = [];
+                    notify('BASSAM DROPPED THE DISGUISE', 'danger'); showMsg('<span style="color:#ff5555">BASSAM FOUND YOU</span>', 1250); updateHUD();
+                } else {
+                    if (monster.path.length === 0 || stateTimer <= 0) moveBassamToEmployee();
+                    moveMonsterAlongPath(1.15, monster);
                 }
             } else if (bassamState === 'roaming') {
-                if (monster.path.length === 0) {
-                    if (Math.random() < 0.018) moveBassamToEmployee();
-                    else {
-                        const tile = floors[Math.floor(Math.random() * floors.length)];
-                        monster.path = findPath(Math.floor(monster.x / TS), Math.floor(monster.y / TS), tile.c, tile.r);
-                    }
-                }
-                moveMonsterAlongPath(getMonsterSpeed());
-                if (!player.hidden && !isSafeRoom(player.x, player.y) && Math.hypot(player.x - monster.x, player.y - monster.y) < player.r + monster.r) endGame(false, monster);
+                if (monster.path.length === 0) { const tile = floors[Math.floor(Math.random() * floors.length)]; monster.path = findPath(Math.floor(monster.x / TS), Math.floor(monster.y / TS), tile.c, tile.r); }
+                moveMonsterAlongPath(getMonsterSpeed(monster));
             } else {
                 const pC = Math.floor(player.x / TS), pR = Math.floor(player.y / TS);
                 if (monster.lastTargetC !== pC || monster.lastTargetR !== pR || monster.path.length === 0) {
@@ -2389,32 +2487,46 @@ function draw() {
     }
 
     for (const employee of employees) {
-        if (employee.completed) continue;
-        const isBassam = monster.name === 'BASSAM' && bassamState === 'disguised' && employees[bassamDisguiseIndex] === employee;
-        const x = isBassam ? monster.x : employee.x, y = isBassam ? monster.y : employee.y;
-        ctx.fillStyle = isBassam ? '#a88b63' : '#d4c09a';
+        if (employee.evacuated) continue;
+        const x = employee.x, y = employee.y;
+        ctx.fillStyle = '#d4c09a';
         ctx.fillRect(x - 9, y - 14, 18, 28);
         ctx.fillStyle = '#f0d5b5'; ctx.beginPath(); ctx.arc(x, y - 19, 7, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = isBassam ? '#6b4a2f' : '#fff'; ctx.fillRect(x - 4, y - 6, 8, 6);
-        ctx.fillStyle = '#fff'; ctx.font = 'bold 8px Arial'; ctx.textAlign = 'center'; ctx.fillText(isBassam ? 'STAFF' : employee.department, x, y - 30);
-        if (nearEmployee && ((isBassam && nearEmployee.isBassam) || nearEmployee === employee) && state === 1) {
+        ctx.fillStyle = '#fff'; ctx.fillRect(x - 4, y - 6, 8, 6);
+        ctx.fillStyle = '#fff'; ctx.font = 'bold 8px Arial'; ctx.textAlign = 'center'; ctx.fillText(employee.department, x, y - 30);
+        if (nearEmployee === employee && state === 1) {
             ctx.fillStyle = '#fff'; ctx.font = 'bold 11px Arial'; ctx.fillText('[E] TALK', x, y + 28);
         }
     }
 
+    if (monster.name === 'BASSAM' && bassamState === 'disguised' && state !== 3) {
+        ctx.fillStyle = '#a88b63'; ctx.fillRect(monster.x - 9, monster.y - 14, 18, 28);
+        ctx.fillStyle = '#f0d5b5'; ctx.beginPath(); ctx.arc(monster.x, monster.y - 19, 7, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#6b4a2f'; ctx.fillRect(monster.x - 4, monster.y - 6, 8, 6);
+        ctx.fillStyle = '#fff'; ctx.font = 'bold 8px Arial'; ctx.textAlign = 'center'; ctx.fillText('STAFF', monster.x, monster.y - 30);
+        if (nearEmployee?.isBassam && state === 1) { ctx.font = 'bold 11px Arial'; ctx.fillText('[E] TALK', monster.x, monster.y + 28); }
+    }
+
+    const visibleHotelTasks = [...employees.map(employee => employee.task), bassamFakeTask].filter(task => task?.status === 'accepted');
+    for (const task of visibleHotelTasks) {
+        ctx.fillStyle = task.fake ? '#d98a8a' : '#8fffa1'; ctx.beginPath(); ctx.arc(task.x, task.y, 12, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#111'; ctx.font = 'bold 10px Arial'; ctx.textAlign = 'center'; ctx.fillText('E', task.x, task.y + 4);
+    }
+
     if (currentMapId === 'hotel' && hotelElevator) {
-        ctx.fillStyle = hotelElevatorOpenTimer > 0 ? '#e9e9ff' : '#666078';
+        ctx.fillStyle = hotelElevatorReady() ? '#e9e9ff' : '#666078';
         ctx.fillRect(hotelElevator.x - 20, hotelElevator.y - 25, 40, 50);
         ctx.strokeStyle = '#201a2a'; ctx.lineWidth = 3; ctx.strokeRect(hotelElevator.x - 20, hotelElevator.y - 25, 40, 50);
         ctx.fillStyle = '#201a2a'; ctx.fillRect(hotelElevator.x - 2, hotelElevator.y - 18, 4, 36);
         ctx.fillStyle = '#fff'; ctx.font = 'bold 9px Arial'; ctx.textAlign = 'center'; ctx.fillText('ELEVATOR', hotelElevator.x, hotelElevator.y - 32);
-        if (nearElevator && state === 1) ctx.fillText('[E] USE', hotelElevator.x, hotelElevator.y + 38);
+        if (nearElevator && state === 1) ctx.fillText('[E] EVACUATE', hotelElevator.x, hotelElevator.y + 38);
     }
 
-    if (hotelLockdownActive && hotelBlockedDoor) {
+    if (hotelLockdownActive && hotelBlockedDoor?.cells) {
         ctx.fillStyle = 'rgba(160,20,30,0.8)';
-        ctx.fillRect(hotelBlockedDoor.c * TS - 3, hotelBlockedDoor.r * TS - 3, TS + 6, TS + 6);
-        ctx.fillStyle = '#ffd0d0'; ctx.font = 'bold 9px Arial'; ctx.textAlign = 'center'; ctx.fillText('LOCKDOWN', hotelBlockedDoor.c * TS + TS / 2, hotelBlockedDoor.r * TS - 8);
+        for (const cell of hotelBlockedDoor.cells) ctx.fillRect(cell.c * TS - 2, cell.r * TS - 2, TS + 4, TS + 4);
+        const first = hotelBlockedDoor.cells[0];
+        ctx.fillStyle = '#ffd0d0'; ctx.font = 'bold 9px Arial'; ctx.textAlign = 'center'; ctx.fillText('LOCKDOWN', first.c * TS + TS / 2, first.r * TS - 8);
     }
 
     for (const fuse of fuses) {
@@ -2593,8 +2705,10 @@ function draw() {
         ctx.fillStyle = 'rgba(255,255,255,0.13)';
         ctx.beginPath(); ctx.arc(ax, ay, monster.drawRadius * 0.8, 0, Math.PI * 2); ctx.fill();
     }
-    ctx.fillStyle = 'rgba(0,0,0,0.35)';
-    ctx.beginPath(); ctx.ellipse(monster.x, monster.y + monster.drawRadius * 0.65, monster.drawRadius * 0.9, monster.drawRadius * 0.35, 0, 0, Math.PI * 2); ctx.fill();
+    if (!(monster.name === 'BASSAM' && bassamState === 'disguised' && state !== 3)) {
+        ctx.fillStyle = 'rgba(0,0,0,0.35)';
+        ctx.beginPath(); ctx.ellipse(monster.x, monster.y + monster.drawRadius * 0.65, monster.drawRadius * 0.9, monster.drawRadius * 0.35, 0, 0, Math.PI * 2); ctx.fill();
+    }
     if (monster.name === 'BASSAM' && bassamState === 'disguised' && state !== 3) {
         // The matching employee sprite was drawn above; the disguise must not
         // reveal Bassam until the player interacts with him.
