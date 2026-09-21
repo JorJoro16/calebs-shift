@@ -93,7 +93,7 @@ function playSound(type) {
 }
 
 // Versioned local progress with a backup copy and import/export support.
-const GAME_VERSION = '2.2.1';
+const GAME_VERSION = '2.2.2';
 const SAVE_SCHEMA_VERSION = 7;
 const SAVE_KEY = 'br_save_v2';
 const SAVE_BACKUP_KEY = 'br_save_backup_v2';
@@ -687,7 +687,8 @@ let puzzleSequence = [], circuitSequence = [], circuitStage = 0, circuitRequired
 let lastSingleMutation = null; 
 
 // AI & Item Variables
-let jordanState = 'saboteur', mimicTimer = 0, stateTimer = 0, jordanSabotageCooldown = 0, bassamState = 'roaming', bassamRevealPending = false, bassamTrapTaskId = null, bassamFakeTask = null, bassamStaffDepartment = 'FRONT DESK';
+let jordanState = 'saboteur', mimicTimer = 0, stateTimer = 0, jordanSabotageCooldown = 0, bassamState = 'roaming', bassamRevealPending = false, bassamTrapTaskId = null, bassamFakeTask = null, bassamStaffDepartment = 'FRONT DESK', bassamFakeLine = '', bassamAmbushActive = false, bassamLostTimer = 0, bassamAmbushCooldown = 0;
+let hotelTaskGame = null;
 let empTimer = 0, empWarning = 0, empActive = 0, flashAlpha = 0;
 let powerOutageTimer = 0, powerOutageCooldown = 0, flickerTimer = 0, flickerCooldown = 0, emergencyTimer = 0, emergencyCooldown = 0, outageFlickerTimer = 0;
 let noiseTarget = null, noiseTimer = 0, bearTraps = [], heatZones = [], heatEventCooldown = 0;
@@ -1418,9 +1419,10 @@ function chooseHotelTaskTarget(employee) {
         'KITCHEN': ['Recover the banquet inventory', 'Inspect the dining supply cart']
     };
     const label = (taskByDepartment[employee.department] || ['Inspect the hotel wing'])[Math.floor(Math.random() * 2)];
-    const itemNames = { 'FRONT DESK':'RESERVATION LEDGER', 'MAINTENANCE':'SERVICE FUSE', 'HOUSEKEEPING':'ROOM KEY', 'KITCHEN':'BANQUET CRATE' };
+    const taskKinds = { 'FRONT DESK':'ledger', 'MAINTENANCE':'panel', 'HOUSEKEEPING':'search', 'KITCHEN':'inventory' };
+    const itemNames = { 'FRONT DESK':'RESERVATION LEDGER', 'MAINTENANCE':'SERVICE PANEL', 'HOUSEKEEPING':'ROOM KEY', 'KITCHEN':'BANQUET CRATE' };
     const tile = chooseHotelItemTile(room);
-    return { id: ++hotelTaskSerial, label, itemName: itemNames[employee.department] || 'HOTEL SUPPLIES', room, x: tile.c * TS + TS / 2, y: tile.r * TS + TS / 2, status: 'offered', fake: false };
+    return { id: ++hotelTaskSerial, department: employee.department, kind: taskKinds[employee.department] || 'search', label, itemName: itemNames[employee.department] || 'HOTEL SUPPLIES', room, x: tile.c * TS + TS / 2, y: tile.r * TS + TS / 2, status: 'offered', fake: false };
 }
 
 function renderHotelTasks() {
@@ -1442,7 +1444,7 @@ function openHotelDialogue(name, text, choices = []) {
     dialogue.style.display = 'flex';
 }
 
-function closeHotelDialogue() { hotelDialogueOpen = false; const dialogue = document.getElementById('hotelDialogue'); if (dialogue) dialogue.style.display = 'none'; }
+function closeHotelDialogue() { hotelDialogueOpen = false; hotelTaskGame = null; const dialogue = document.getElementById('hotelDialogue'); if (dialogue) dialogue.style.display = 'none'; }
 
 function acceptEmployeeTask(index) {
     const employee = employees[index]; if (!employee || employee.evacuated || activeHotelTasks().length >= 2) return;
@@ -1458,6 +1460,39 @@ function reportEmployeeTask(index) {
     checkPhase();
 }
 
+function finishHotelTask(task) {
+    task.status = 'readyToReport'; hotelTaskGame = null; renderHotelTasks(); updateHUD(); playSound('success');
+    notify('ASSIGNMENT COMPLETE · REPORT BACK', 'unlock'); closeHotelDialogue();
+}
+
+function startHotelTaskMiniGame(task) {
+    const gameData = {
+        ledger: { title:'RESERVATION LEDGER', prompt:'Find the three stamped reservation pages.', options:['SUITE 204','SUITE 317','SUITE 118','SUITE 402'] },
+        panel: { title:'SERVICE PANEL', prompt:'Reconnect the service panel in the correct order.', options:['RED LINE','BLUE LINE','GREEN LINE','YELLOW LINE'] },
+        search: { title:'GUEST ROOM SEARCH', prompt:'Search the room furniture for the missing key.', options:['DESK','DRESSER','NIGHTSTAND','CLOSET'] },
+        inventory: { title:'BANQUET INVENTORY', prompt:'Match the stock labels on the banquet crate.', options:['LINENS','GLASSWARE','CUTLERY','PLATES'] }
+    }[task.kind] || { title:'HOTEL TASK', prompt:'Complete the assigned work.', options:['A','B','C','D'] };
+    const sequence = [...gameData.options].sort(() => Math.random() - .5).slice(0, 3);
+    hotelTaskGame = { task, ...gameData, sequence, step: 0 };
+    renderHotelTaskMiniGame();
+}
+
+function renderHotelTaskMiniGame() {
+    if (!hotelTaskGame) return;
+    const game = hotelTaskGame;
+    openHotelDialogue(game.title, `${game.prompt} (${game.step + 1}/${game.sequence.length})`, game.options.map(option => ({ label: option, action: () => hotelTaskMiniInput(option) })));
+}
+
+function hotelTaskMiniInput(option) {
+    const game = hotelTaskGame; if (!game) return;
+    if (option !== game.sequence[game.step]) {
+        game.step = 0; playSound('fail'); notify('WRONG STEP · START AGAIN', 'warning'); renderHotelTaskMiniGame(); return;
+    }
+    game.step++; playSound('tick');
+    if (game.step >= game.sequence.length) finishHotelTask(game.task);
+    else renderHotelTaskMiniGame();
+}
+
 function completeHotelTaskAtTarget() {
     const { employee, task } = nearHotelTask || {}; if (!task || task.status !== 'accepted') return false;
     if (task.fake) {
@@ -1465,23 +1500,23 @@ function completeHotelTaskAtTarget() {
         closeHotelDialogue(); renderHotelTasks(); notify('THE ASSIGNMENT WAS A LIE', 'danger');
         showMsg('<span style="color:#ff5555">NO ONE IS WAITING HERE</span>', 1100); return true;
     }
-    task.status = 'readyToReport'; renderHotelTasks(); updateHUD(); playSound('success');
-    notify('ASSIGNMENT COMPLETE · REPORT BACK', 'unlock'); return true;
+    startHotelTaskMiniGame(task); return true;
 }
 
 function interactWithEmployee() {
     if (!nearEmployee) return false;
     if (nearEmployee.isBassam) {
-        if (bassamFakeTask?.status === 'accepted') { openHotelDialogue('FRONT DESK', 'Please hurry. The guest is waiting in the room I marked.'); return true; }
+        if (bassamFakeTask?.status === 'accepted') { openHotelDialogue(bassamStaffDepartment, 'Please hurry. The guest is waiting in the room I marked.'); return true; }
         if (!bassamFakeTask) {
             const targetRooms = rooms.filter(room => ['guest','bathroom','storage','service'].includes(room.type));
             const room = targetRooms[Math.floor(Math.random() * Math.max(1, targetRooms.length))] || rooms.at(-1);
             const fakeTile = chooseHotelItemTile(room);
             bassamFakeTask = { id: ++hotelTaskSerial, department: bassamStaffDepartment, label: 'Deliver the room key', itemName: 'ROOM KEY', room, x: fakeTile.c * TS + TS / 2, y: fakeTile.r * TS + TS / 2, status: 'offered', fake: true };
+            bassamFakeLine = ['A room key was left in the wrong wing. Could you return it?', 'A guest requested their key at the service desk. Can you take it over?', 'The front desk is short-handed. Please deliver this key for me.'][Math.floor(Math.random() * 3)];
         }
         const fakeTask = bassamFakeTask;
         if (activeHotelTasks().length >= 2) { openHotelDialogue(bassamStaffDepartment, 'You are already carrying two assignments. Return when you have room.'); return true; }
-        openHotelDialogue(bassamStaffDepartment, 'A guest is waiting for their room key. Can you deliver it for me?', [{ label: 'ACCEPT ASSIGNMENT', action: () => { fakeTask.status = 'accepted'; bassamTrapTaskId = fakeTask.id; closeHotelDialogue(); renderHotelTasks(); notify(`${bassamStaffDepartment} ASSIGNMENT ACCEPTED`, 'info'); } }]);
+        openHotelDialogue(bassamStaffDepartment, bassamFakeLine, [{ label: 'ACCEPT ASSIGNMENT', action: () => { fakeTask.status = 'accepted'; bassamTrapTaskId = fakeTask.id; closeHotelDialogue(); renderHotelTasks(); notify(`${bassamStaffDepartment} ASSIGNMENT ACCEPTED`, 'info'); } }]);
         return true;
     }
     if (nearEmployee.evacuated) return false;
@@ -1612,7 +1647,7 @@ function startGame(diffLevel) {
     nearGen = null; nearValve = null; nearBoiler = false; flashAlpha = 0;
     boilerShutdown = false; boilerReadyShown = false; heatZones = []; heatEventCooldown = currentMapId === 'boilerworks' ? 360 : 0;
     hotelLockdownTimer = 0; hotelEventCooldown = currentMapId === 'hotel' ? 480 : 0; hotelLockdownActive = false; hotelBlockedDoor = null;
-    bassamState = 'roaming'; bassamRevealPending = false; bassamTrapTaskId = null; bassamFakeTask = null; bassamStaffDepartment = ['FRONT DESK','MAINTENANCE','HOUSEKEEPING','KITCHEN'][Math.floor(Math.random() * 4)]; closeHotelDialogue();
+    bassamState = 'roaming'; bassamRevealPending = false; bassamTrapTaskId = null; bassamFakeTask = null; bassamFakeLine = ''; bassamAmbushActive = false; bassamLostTimer = 0; bassamAmbushCooldown = 900; hotelTaskGame = null; bassamStaffDepartment = ['FRONT DESK','MAINTENANCE','HOUSEKEEPING','KITCHEN'][Math.floor(Math.random() * 4)]; closeHotelDialogue();
     document.getElementById('hotelTaskHUD').style.display = currentMapId === 'hotel' ? 'block' : 'none';
     
     const roundScale = gameMode === 'endless' ? endlessRound - 1 : 0;
@@ -2303,17 +2338,36 @@ function update() {
         } else if (state === 1 && monster.name === 'BASSAM' && currentMapId === 'hotel') {
             if (bassamState === 'disguised') {
                 stateTimer--;
+                if (bassamAmbushCooldown > 0) bassamAmbushCooldown--;
                 if (bassamRevealPending && !isOnPlayerScreen(monster)) {
-                    bassamState = 'revealed'; bassamRevealPending = false; monster.path = [];
+                    bassamState = 'revealed'; bassamRevealPending = false; bassamAmbushActive = false; monster.path = [];
                     notify('BASSAM DROPPED THE DISGUISE', 'danger'); showMsg('<span style="color:#ff5555">BASSAM FOUND YOU</span>', 1250); updateHUD();
+                } else if (bassamFakeTask?.status !== 'accepted' && bassamAmbushCooldown <= 0 && !player.hidden && !isSafeRoom(player.x, player.y) && Math.hypot(player.x - monster.x, player.y - monster.y) < 190 && Math.random() < 0.0012) {
+                    bassamState = 'revealed'; bassamAmbushActive = true; bassamLostTimer = 0; monster.path = [];
+                    notify('THE EMPLOYEE TURNS TOWARD YOU', 'danger'); showMsg('<span style="color:#ff5555">BASSAM REVEALS HIMSELF</span>', 1000); updateHUD();
                 } else {
                     if (stateTimer <= 0) moveBassamToEmployee();
                     moveMonsterAlongPath(1.15, monster);
+                }
+            } else if (bassamState === 'escaping') {
+                moveMonsterAlongPath(getMonsterSpeed(monster) * 1.45, monster);
+                if (!isOnPlayerScreen(monster)) {
+                    bassamState = 'disguised'; bassamAmbushActive = false; bassamAmbushCooldown = 900; bassamLostTimer = 0; monster.path = []; moveBassamToEmployee(); updateHUD();
                 }
             } else if (bassamState === 'roaming') {
                 if (monster.path.length === 0) { const tile = floors[Math.floor(Math.random() * floors.length)]; monster.path = findPath(Math.floor(monster.x / TS), Math.floor(monster.y / TS), tile.c, tile.r); }
                 moveMonsterAlongPath(getMonsterSpeed(monster));
             } else {
+                if (bassamAmbushActive && bassamFakeTask?.status !== 'accepted') {
+                    const lost = player.hidden || !monsterCanSeeUnhiddenPlayer(monster) || Math.hypot(player.x - monster.x, player.y - monster.y) > 340;
+                    bassamLostTimer = lost ? bassamLostTimer + 1 : 0;
+                    if (bassamLostTimer >= 210) {
+                        const escapeTiles = floors.filter(tile => Math.hypot(tile.c * TS + TS / 2 - player.x, tile.r * TS + TS / 2 - player.y) > 520);
+                        const escape = escapeTiles[Math.floor(Math.random() * Math.max(1, escapeTiles.length))] || floors.at(-1);
+                        monster.path = findPath(Math.floor(monster.x / TS), Math.floor(monster.y / TS), escape.c, escape.r);
+                        bassamState = 'escaping'; notify('BASSAM VANISHED INTO THE HOTEL', 'warning'); updateHUD(); return;
+                    }
+                }
                 const pC = Math.floor(player.x / TS), pR = Math.floor(player.y / TS);
                 if (monster.lastTargetC !== pC || monster.lastTargetR !== pR || monster.path.length === 0) {
                     monster.path = findPath(Math.floor(monster.x / TS), Math.floor(monster.y / TS), pC, pR);

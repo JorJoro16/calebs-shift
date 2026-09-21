@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.2.2
+
+- Replaced generic Hotel item collection with role-specific, tap/click-friendly three-step task mini-games: reservation ledger, service panel, room search, and banquet inventory.
+- Matched task props and instructions to their staff member, so Maintenance repairs a service panel instead of collecting a room key.
+- Added varied Bassam task dialogue and a rare nearby ambush. If he loses the player during that ambush, he runs out of view and returns in a new employee disguise; accepted Bassam tasks prevent this transformation.
+- Bumped the offline cache to `calebs-shift-v29`.
+
 ## 2.2.1
 
 - Fixed Hotel assignments so they place visible, named collectible objects on reserved interior room tiles, away from generators and doors.
