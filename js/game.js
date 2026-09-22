@@ -93,7 +93,7 @@ function playSound(type) {
 }
 
 // Versioned local progress with a backup copy and import/export support.
-const GAME_VERSION = '2.2.2';
+const GAME_VERSION = '2.3.0';
 const SAVE_SCHEMA_VERSION = 7;
 const SAVE_KEY = 'br_save_v2';
 const SAVE_BACKUP_KEY = 'br_save_backup_v2';
@@ -101,7 +101,8 @@ const SAVE_BACKUP_KEY = 'br_save_backup_v2';
 const MAP_DEFINITIONS = {
     level0: { id: 'level0', name: 'LEVEL 0 — THE MAZE', description: 'The original shifting maze.', campaignOrder: 0 },
     boilerworks: { id: 'boilerworks', name: 'LEVEL 3 — THE BOILERWORKS', description: 'Long industrial halls, hot machinery, and Aeson.', campaignOrder: 1 },
-    hotel: { id: 'hotel', name: 'THE ENDLESS HOTEL', description: 'Carpeted wings, guest rooms, employees, and Bassam.', campaignOrder: 2 }
+    hotel: { id: 'hotel', name: 'THE ENDLESS HOTEL', description: 'Carpeted wings, guest rooms, employees, and Bassam.', campaignOrder: 2 },
+    crimson: { id: 'crimson', name: 'THE CRIMSON CONTAINMENT', description: 'Break the seal route, survive Rhys, and trap him.', campaignOrder: 3 }
 };
 
 const LOADOUT_DEFINITIONS = {
@@ -131,8 +132,8 @@ function boundedInt(value, min, max, fallback = min) {
 
 function normalizeCosmetics(value) {
     const source = value && typeof value === 'object' ? value : {};
-    const colors = ['blue', 'crimson', 'violet', 'green', 'amber'];
-    const trails = ['none', 'spark', 'ghost'];
+    const colors = ['blue', 'crimson', 'violet', 'green', 'amber', 'gold'];
+    const trails = ['none', 'spark', 'ghost', 'ember'];
     const unlocked = Array.isArray(source.unlocked) ? source.unlocked.filter(id => colors.includes(id) || trails.includes(id)) : [];
     return {
         color: colors.includes(source.color) ? source.color : 'blue',
@@ -143,7 +144,7 @@ function normalizeCosmetics(value) {
 
 function normalizeStats(value) {
     const source = value && typeof value === 'object' ? value : {};
-    const names = ['CALEB', 'MALAKAI', 'JORDAN', 'AESON', 'BASSAM'];
+    const names = ['CALEB', 'MALAKAI', 'JORDAN', 'AESON', 'BASSAM', 'RHYS'];
     const encounters = {};
     names.forEach(name => encounters[name] = boundedInt(source.encounters?.[name], 0, 999999, 0));
     const encounteredNames = names.filter(name => encounters[name] > 0);
@@ -347,8 +348,8 @@ function renderRecords() {
     if (!content) return;
     const fastest = stats.fastestWin ? `${(stats.fastestWin / 1000).toFixed(1)}s` : '—';
     const readyDaily = daily.objectives.filter(objective => objective.progress >= objective.target && !objective.claimed).length;
-    const colorOptions = [{ id:'blue', label:'Default Blue' }, { id:'crimson', label:'Crimson' }, { id:'violet', label:'Violet' }, { id:'green', label:'Green' }, { id:'amber', label:'Amber' }];
-    const trailOptions = [{ id:'none', label:'No trail' }, { id:'spark', label:'Spark trail' }, { id:'ghost', label:'Ghost trail' }];
+    const colorOptions = [{ id:'blue', label:'Default Blue' }, { id:'crimson', label:'Crimson' }, { id:'violet', label:'Violet' }, { id:'green', label:'Green' }, { id:'amber', label:'Amber' }, { id:'gold', label:'Containment Gold' }];
+    const trailOptions = [{ id:'none', label:'No trail' }, { id:'spark', label:'Spark trail' }, { id:'ghost', label:'Ghost trail' }, { id:'ember', label:'Ember trail' }];
     const cosmeticControls = `<b>PLAYER COLOR</b><br>${colorOptions.map(item => `<button ${cosmetics.unlocked.includes(item.id) ? '' : 'disabled'} onclick="selectCosmetic('color','${item.id}'); renderRecords();">${cosmetics.color === item.id ? '✓ ' : ''}${item.label}</button>`).join('')}<br><b>TRAIL</b><br>${trailOptions.map(item => `<button ${cosmetics.unlocked.includes(item.id) ? '' : 'disabled'} onclick="selectCosmetic('trail','${item.id}'); renderRecords();">${cosmetics.trail === item.id ? '✓ ' : ''}${item.label}</button>`).join('')}`;
     content.innerHTML = `<details class="record-section" open><summary>RUN STATISTICS</summary><div>Games: <b>${stats.games}</b><br>Wins / Losses: <b>${stats.wins} / ${stats.losses}</b><br>Generators repaired: <b>${stats.generators}</b><br>Monsters caught: <b>${stats.caught}</b><br>Best Endless round: <b>${stats.bestEndless}</b><br>Fastest win: <b>${fastest}</b><br>Items used: <b>${stats.itemsUsed}</b><br>Favorite monster: <b>${stats.favoriteMonster}</b></div></details><details class="record-section"><summary>COSMETICS & COLLECTION</summary><div>${cosmetics.unlocked.length} cosmetic unlocks · ${unlockedMaps.length}/${Object.keys(MAP_DEFINITIONS).length} maps unlocked<br><br>${cosmeticControls}<br><br>${Object.values(MAP_DEFINITIONS).map(mapDef => `<div class="collection-row"><strong>${mapDef.name}</strong><span>${unlockedMaps.includes(mapDef.id) ? 'UNLOCKED' : 'LOCKED'}</span></div>`).join('')}</div></details><details class="record-section"><summary>DAILY OBJECTIVES ${readyDaily ? `· ${readyDaily} READY` : ''}</summary><div>${daily.objectives.map((objective, index) => `<div class="objective-row"><div><b>${objective.label}</b><br><span>${Math.min(objective.progress, objective.target)}/${objective.target}${objective.claimed ? ' · CLAIMED' : ''}</span></div>${objective.progress >= objective.target && !objective.claimed ? `<button onclick="claimDailyObjective(${index}); renderRecords();">CLAIM ${objective.reward} T</button>` : ''}</div>`).join('')}</div></details>`;
 }
@@ -522,16 +523,35 @@ function renderStats() {
     document.getElementById('statsContent').innerHTML = `Games: <b>${stats.games}</b><br>Wins / Losses: <b>${stats.wins} / ${stats.losses}</b><br>Generators repaired: <b>${stats.generators}</b><br>Monsters caught: <b>${stats.caught}</b><br>Times caught: <b>${stats.timesCaught}</b><br>Best Endless round: <b>${stats.bestEndless}</b><br>Fastest win: <b>${fastest}</b><br>Most generators in one run: <b>${stats.mostGenerators}</b><br>Items used: <b>${stats.itemsUsed}</b><br>Favorite monster: <b>${stats.favoriteMonster}</b>`;
 }
 
+let cosmeticTab = 'colors';
 function selectCosmetic(type, value) {
     cosmetics[type] = value;
     saveData(); renderCosmetics();
 }
 
+function setCosmeticTab(tab) { cosmeticTab = tab; renderCosmetics(); }
+
 function renderCosmetics() {
-    const colors = [{ id:'blue', label:'Default Blue' }, { id:'crimson', label:'Crimson — win Hard' }, { id:'violet', label:'Violet — catch Malakai' }, { id:'green', label:'Green — catch Jordan' }, { id:'amber', label:'Amber — fast win' }];
-    const trails = [{ id:'none', label:'No trail' }, { id:'spark', label:'Spark trail — clear Endless round 3' }, { id:'ghost', label:'Ghost trail — win with no items' }];
-    const locked = (item) => cosmetics.unlocked.includes(item.id);
-    document.getElementById('cosmeticsContent').innerHTML = `<b>PLAYER COLOR</b><br>${colors.map(item => `<button ${locked(item) ? '' : 'disabled'} onclick="selectCosmetic('color','${item.id}')">${cosmetics.color === item.id ? '✓ ' : ''}${item.label}${locked(item) ? '' : ' (locked)'}</button>`).join('')}<br><br><b>TRAIL</b><br>${trails.map(item => `<button ${locked(item) ? '' : 'disabled'} onclick="selectCosmetic('trail','${item.id}')">${cosmetics.trail === item.id ? '✓ ' : ''}${item.label}${locked(item) ? '' : ' (locked)'}</button>`).join('')}`;
+    const groups = {
+        colors: { type:'color', items:[
+            { id:'blue', label:'Default Blue', desc:'The original survivor color.', how:'Available from the start.', preview:'#00f' },
+            { id:'crimson', label:'Crimson', desc:'A deep red finish.', how:'Win a Hard run.', preview:'#d22' },
+            { id:'violet', label:'Violet', desc:'A hunter-purple finish.', how:'Catch Malakai.', preview:'#a64dff' },
+            { id:'green', label:'Green', desc:'A mimic-green finish.', how:'Catch Jordan.', preview:'#19c76b' },
+            { id:'amber', label:'Amber', desc:'A quick-escape gold.', how:'Win a run in under two minutes.', preview:'#e7a21a' },
+            { id:'gold', label:'Containment Gold', desc:'A yellow Rhys-themed finish.', how:'Catch Rhys in Crimson Containment.', preview:'#e9cf38' }
+        ]},
+        trails: { type:'trail', items:[
+            { id:'none', label:'No Trail', desc:'No motion effect.', how:'Available from the start.', preview:'#888' },
+            { id:'spark', label:'Spark Trail', desc:'A short fading line of sparks.', how:'Clear Endless round 3.', preview:'#ffd750' },
+            { id:'ghost', label:'Ghost Trail', desc:'A soft spectral after-trail.', how:'Win without items.', preview:'#b4d7ff' },
+            { id:'ember', label:'Ember Trail', desc:'A warm containment glow.', how:'Catch Rhys in Crimson Containment.', preview:'#ffb347' }
+        ]}
+    };
+    const content = document.getElementById('cosmeticsContent'); if (!content) return;
+    if (cosmeticTab === 'hats') { content.innerHTML = '<div class="cosmetic-book"><div class="coming-soon"><div><b>HATS</b><br><br>Coming soon — waiting for hat PNG designs.</div></div></div>'; return; }
+    const group = groups[cosmeticTab] || groups.colors;
+    content.innerHTML = `<div class="cosmetic-book"><div class="cosmetic-grid">${group.items.map(item => { const unlocked = cosmetics.unlocked.includes(item.id); const equipped = cosmetics[group.type] === item.id; return `<div class="cosmetic-card"><div class="cosmetic-preview" style="color:${item.preview}; text-shadow:0 0 14px ${item.preview};">● ${item.label.toUpperCase()}</div><b>${item.label}</b><small>${item.desc}<br><span style="color:#d4c09a">How: ${item.how}</span></small><button ${unlocked ? '' : 'disabled'} onclick="selectCosmetic('${group.type}','${item.id}')">${equipped ? 'EQUIPPED' : unlocked ? 'EQUIP' : 'LOCKED'}</button></div>`; }).join('')}</div></div>`;
 }
 
 function renderCollection() {
@@ -542,7 +562,8 @@ function renderCollection() {
         ['MALAKAI', 'The Blood Hunter', 'Tracks loud mistakes'],
         ['JORDAN', 'The Mimic', 'Generator impersonator'],
         ['AESON', 'The Firestarter', 'Ignites the Boilerworks'],
-        ['BASSAM', 'The Concierge', unlockedMaps.includes('hotel') ? 'Employee-disguise predator' : 'Unlock the Endless Hotel']
+        ['BASSAM', 'The Concierge', unlockedMaps.includes('hotel') ? 'Employee-disguise predator' : 'Unlock the Endless Hotel'],
+        ['RHYS', 'The Contained', unlockedMaps.includes('crimson') ? 'Goop-spitting dash predator' : 'Unlock Crimson Containment']
     ];
     const mutationRows = ['Speed Demon','Phantom','Frenzy','Camouflage','Giant','Gloom','Reinforced','Lethargy','Resilient','Scrambler','Hexed','Hallucinations','All-Seeing','Locked In','Echo','False Objective','Watcher','Panic','Heavy Footfall','Afterimage'];
     content.innerHTML = `<b>MONSTERS</b>${monsterRows.map(row => `<div class="collection-row"><strong>${row[0]}</strong><span>${row[1]} · ${row[2]}</span></div>`).join('')}<br><b>MAPS</b>${Object.values(MAP_DEFINITIONS).map(mapDef => `<div class="collection-row"><strong>${mapDef.name}</strong><span>${unlockedMaps.includes(mapDef.id) ? 'UNLOCKED' : 'LOCKED'}</span></div>`).join('')}<br><b>MUTATIONS</b><div class="collection-tags">${mutationRows.map(name => `<span>${name}</span>`).join('')}</div>`;
@@ -607,6 +628,7 @@ function startSurvival() {
     if (document.getElementById('survivalJordan').checked) names.push('JORDAN');
     if (document.getElementById('survivalAeson').checked) names.push('AESON');
     if (document.getElementById('survivalBassam')?.checked) names.push('BASSAM');
+    if (document.getElementById('survivalRhys')?.checked) names.push('RHYS');
     if (names.length === 0) { showMsg('SELECT AT LEAST ONE MONSTER', 1600); return; }
     gameMode = 'survival';
     endlessRound = 1;
@@ -674,8 +696,10 @@ let map = [], floors = [], rooms = [], fuses = [], hidingSpots = [], coolingValv
 let reservedObjectTiles = new Set(), hotelDoorTiles = [], hotelBlockedDoor = null, hotelCorridorSections = [];
 let centralBoiler = null, boilerShutdown = false, boilerReadyShown = false;
 let hotelElevator = null, hotelLockdownTimer = 0, hotelEventCooldown = 0, hotelLockdownActive = false;
+let rhysSeal = null, rhysChest = null, rhysChestKey = null, rhysBreakWall = null, rhysTrap = null, rhysRoute = 'search', rhysSealCollected = false, rhysTrapArmed = false;
+let playerTrail = [];
 let hotelEmployeesRequired = 3, hotelDialogueOpen = false, hotelTaskSerial = 0;
-let nearFuse = null, nearHide = null, nearValve = null, nearBoiler = false, nearEmployee = null, nearElevator = false, nearHotelTask = null;
+let nearFuse = null, nearHide = null, nearValve = null, nearBoiler = false, nearEmployee = null, nearElevator = false, nearHotelTask = null, nearRhysSeal = false, nearRhysKey = false, nearRhysChest = false, nearRhysTrap = false;
 let player = { x: 0, y: 0, r: 12, baseSpeed: 3.8, speed: 3.8, boostTimer: 0, stunTimer: 0, crouching: false, breathing: false, breathTimer: 0, breathCooldown: 0, heat: 0, inHeatZone: false, hidden: false, hideTimer: 0, hideCompromised: false };
 let monster = { name: '', x: 0, y: 0, r: 14, drawRadius: 14, speed: 2.2, baseSpeed: 2.2, color: '', textColor: '', activeMutations: [], isReinforced: false, hasGloom: false, isResilient: false, hasScrambler: false, hasHexed: false, hasHallucinations: false, hasLockedIn: false, hasEcho: false, hasFalseObjective: false, hasWatcher: false, hasPanic: false, hasHeavyFootfall: false, hasAfterimage: false, allSeeing: false, heatAlertTimer: 0, heatAlertX: 0, heatAlertY: 0, stunTimer: 0, lastTargetC: -1, lastTargetR: -1 };
 let monsters = [];
@@ -692,6 +716,7 @@ let hotelTaskGame = null;
 let empTimer = 0, empWarning = 0, empActive = 0, flashAlpha = 0;
 let powerOutageTimer = 0, powerOutageCooldown = 0, flickerTimer = 0, flickerCooldown = 0, emergencyTimer = 0, emergencyCooldown = 0, outageFlickerTimer = 0;
 let noiseTarget = null, noiseTimer = 0, bearTraps = [], heatZones = [], heatEventCooldown = 0;
+let goopZones = [], goopShots = [], rhysSpitCooldown = 0, rhysDashTimer = 0, rhysDashCooldown = 0, rhysDashTarget = null, rhysEventCooldown = 900, rhysSweepTimer = 0, rhysSweepRadius = 0, rhysPressureZones = [];
 let heatOverlay = null;
 let ambienceClock = 0;
 let runStartedAt = 0, runItemsUsed = 0, hallucinationHudTimer = 0;
@@ -817,7 +842,7 @@ function beginFinalChase() {
     for (const enemy of monsters) enemy.speed = Math.max(enemy.speed, 4.0 + (gameMode === 'endless' ? (endlessRound - 1) * 0.18 : 0));
     player.speed = player.baseSpeed + 1.0;
     const targetText = monsters.length === 1 ? monster.name : 'THE MONSTERS';
-    const objectiveCompleteText = currentMapId === 'boilerworks' ? 'CENTRAL BOILER SHUT DOWN' : currentMapId === 'hotel' ? 'EMPLOYEES EVACUATED' : 'POWER RESTORED';
+    const objectiveCompleteText = currentMapId === 'boilerworks' ? 'CENTRAL BOILER SHUT DOWN' : currentMapId === 'hotel' ? 'EMPLOYEES EVACUATED' : currentMapId === 'crimson' ? 'RHYS CONTAINED' : 'POWER RESTORED';
     showMsg(`<span style="color:#0f0">${objectiveCompleteText}</span><br>GO CATCH ${targetText}`, 3500);
     if (monster.isPhantom) {
         monster.isPhantom = false;
@@ -914,6 +939,12 @@ window.addEventListener('keydown', (e) => {
         }
         if (nearEmployee) { interactWithEmployee(); return; }
         if (nearHotelTask) { completeHotelTaskAtTarget(); return; }
+        if (currentMapId === 'crimson') {
+            if (nearRhysKey && rhysChestKey && !rhysChestKey.collected) { rhysChestKey.collected = true; notify('CHEST KEY FOUND', 'unlock'); updateHUD(); return; }
+            if (nearRhysChest && rhysChest && rhysChestKey?.collected && !rhysChest.opened) { rhysChest.opened = true; rhysSeal.accessible = true; notify('CRIMSON CHEST OPENED', 'unlock'); updateHUD(); return; }
+            if (nearRhysSeal && rhysSeal?.accessible && !rhysSeal.collected) { rhysSeal.collected = true; rhysSealCollected = true; notify('CRIMSON SEAL RECOVERED', 'unlock'); updateHUD(); return; }
+            if (nearRhysTrap && rhysSealCollected) { rhysTrapArmed = true; notify('CONTAINMENT TRAP ARMED · LURE RHYS INSIDE', 'warning'); updateHUD(); return; }
+        }
         if (nearValve) { activateCoolingValve(); return; }
         if (currentMapId === 'boilerworks' && nearBoiler) {
             if (!boilerObjectiveComplete()) {
@@ -1246,6 +1277,38 @@ function generateHotel() {
     hotelElevator = elevatorRoom ? { x: elevatorRoom.x, y: elevatorRoom.y, room: elevatorRoom } : null;
 }
 
+function generateCrimsonContainment() {
+    map = Array.from({length: ROWS}, () => Array(COLS).fill(1));
+    rooms = []; hidingSpots = []; coolingValves = []; fuses = []; employees = []; reservedObjectTiles = new Set();
+    const types = ['intake','archive','medical','storage','processing','security','maintenance','containment','vault','service','trap'];
+    const nodes = [];
+    for (let i = 0; i < types.length; i++) {
+        const c = 6 + i * 8 + Math.floor(Math.random() * 3), r = 7 + Math.floor(Math.random() * (ROWS - 14));
+        const width = types[i] === 'containment' || types[i] === 'trap' ? 9 : 6 + Math.floor(Math.random() * 3);
+        const height = types[i] === 'containment' || types[i] === 'trap' ? 8 : 5 + Math.floor(Math.random() * 3);
+        const node = { c, r, width, height, type: types[i], x: c * TS + TS / 2, y: r * TS + TS / 2 };
+        carveBoilerRect(c, r, width, height); rooms.push(node); nodes.push(node);
+        if (i > 0) carveBoilerCorridor(nodes[i - 1], node);
+        // Every room has a different internal footprint without turning into the Hotel grid.
+        if (['archive','medical','processing','security'].includes(node.type)) {
+            const wallC = c, gapR = r;
+            for (let rr = r - Math.floor(height / 2) + 1; rr <= r + Math.floor(height / 2) - 1; rr++) if (rr !== gapR) map[rr][wallC] = 1;
+        }
+    }
+    for (let i = 0; i < 3; i++) { const a = nodes[Math.floor(Math.random() * (nodes.length - 2))], b = nodes[Math.min(nodes.length - 1, nodes.indexOf(a) + 2)]; if (a && b) carveBoilerCorridor(a, b); }
+    rebuildFloors();
+    const intake = rooms[0], vault = rooms.find(room => room.type === 'vault'), trapRoom = rooms.find(room => room.type === 'trap');
+    rhysRoute = ['search','break','chest'][Math.floor(Math.random() * 3)];
+    rhysSeal = { x: vault.x, y: vault.y, collected:false, accessible: rhysRoute !== 'break' };
+    rhysChest = rhysRoute === 'chest' ? { x: vault.x, y: vault.y, opened:false } : null;
+    const keyRoom = rooms.find(room => room.type === 'security') || intake;
+    rhysChestKey = rhysRoute === 'chest' ? { x:keyRoom.x, y:keyRoom.y, collected:false } : null;
+    rhysBreakWall = rhysRoute === 'break' ? { x:vault.x - Math.floor(vault.width / 2) * TS, y:vault.y, broken:false, r:18 } : null;
+    rhysTrap = trapRoom ? { x:trapRoom.x, y:trapRoom.y, room:trapRoom } : null;
+    [rhysSeal, rhysChest, rhysChestKey, rhysBreakWall, rhysTrap].filter(Boolean).forEach(object => reserveObjectTile(Math.floor(object.x / TS), Math.floor(object.y / TS), 1));
+    if (intake) hidingSpots.push({ x:intake.x, y:intake.y, occupied:false });
+}
+
 function isInHeatZone(x, y) {
     return heatZones.some(zone => zone.life > 0 && Math.hypot(zone.x - x, zone.y - y) < zone.radius);
 }
@@ -1294,6 +1357,41 @@ function updateHotelEvents() {
         notify('HOTEL LOCKDOWN · CORRIDOR SEALED', 'danger');
         showMsg('<span style="color:#ff4444">HOTEL LOCKDOWN</span><br>FIND ANOTHER ROUTE', 1200);
     }
+}
+
+function updateRhysEvents() {
+    if (currentMapId !== 'crimson' || state !== 1 || !eventsEnabled) return;
+    if (rhysSweepTimer > 0) { rhysSweepTimer--; rhysSweepRadius += 16; }
+    if (rhysEventCooldown > 0) { rhysEventCooldown--; return; }
+    rhysEventCooldown = 1200 + Math.floor(Math.random() * 900);
+    const event = Math.floor(Math.random() * 4);
+    if (event === 0) { notify('CONTAINMENT ALARM · RHYS INVESTIGATING', 'danger'); noiseTarget = { x:player.x, y:player.y }; noiseTimer = 240; }
+    else if (event === 1) { const tile = floors[Math.floor(Math.random() * floors.length)]; if (tile) rhysPressureZones.push({ x:tile.c*TS+TS/2, y:tile.r*TS+TS/2, life:420, radius:52 }); notify('PRESSURE RELEASE · AVOID THE HISS', 'warning'); }
+    else if (event === 2) { rhysSweepTimer = 150; rhysSweepRadius = 0; emergencyTimer = Math.max(emergencyTimer, 150); notify('EMERGENCY LIGHT SWEEP', 'warning'); }
+    else if (!rhysSealCollected) { notify('SEAL RESONANCE · RHYS HEARD IT', 'warning'); noiseTarget = { x:rhysSeal.x, y:rhysSeal.y }; noiseTimer = 300; }
+}
+
+function updateRhysCombat(canSeePlayer) {
+    if (monster.name !== 'RHYS' || currentMapId !== 'crimson' || state !== 1) return false;
+    if (rhysSpitCooldown > 0) rhysSpitCooldown--;
+    if (rhysDashCooldown > 0) rhysDashCooldown--;
+    for (const shot of goopShots) { shot.x += shot.vx; shot.y += shot.vy; shot.life--; if (shot.life <= 0 || checkWall({ x:shot.x, y:shot.y, r:4 })) { goopZones.push({ x:shot.x, y:shot.y, life:540, radius:42 }); shot.life = 0; } }
+    goopShots = goopShots.filter(shot => shot.life > 0);
+    for (const zone of goopZones) zone.life--; goopZones = goopZones.filter(zone => zone.life > 0);
+    for (const zone of rhysPressureZones) zone.life--; rhysPressureZones = rhysPressureZones.filter(zone => zone.life > 0);
+    if (rhysDashTimer > 0) {
+        rhysDashTimer--; moveEntity(monster, Math.cos(rhysDashTarget.angle) * 7.8, Math.sin(rhysDashTarget.angle) * 7.8);
+        if (rhysBreakWall && !rhysBreakWall.broken && Math.hypot(monster.x-rhysBreakWall.x, monster.y-rhysBreakWall.y) < 32) { rhysBreakWall.broken = true; rhysSeal.accessible = true; monster.stunTimer = 90; notify('RHYS BROKE THE WALL', 'unlock'); updateHUD(); }
+        if (rhysDashTimer <= 0) monster.stunTimer = 45;
+        return true;
+    }
+    const dist = Math.hypot(player.x-monster.x, player.y-monster.y);
+    if (rhysSpitCooldown <= 0 && (canSeePlayer ? dist < 250 : Math.random() < 0.004)) {
+        const targetX = canSeePlayer ? player.x : monster.x + (Math.random()-.5)*180, targetY = canSeePlayer ? player.y : monster.y + (Math.random()-.5)*180;
+        const angle = Math.atan2(targetY-monster.y,targetX-monster.x); goopShots.push({ x:monster.x, y:monster.y, vx:Math.cos(angle)*4.4, vy:Math.sin(angle)*4.4, life:Math.max(18,Math.min(58,dist/4)) }); rhysSpitCooldown = canSeePlayer ? 210 : 330;
+    }
+    if (canSeePlayer && rhysDashCooldown <= 0 && dist > 120 && dist < 360 && Math.random() < 0.012) { rhysDashTarget = { angle:Math.atan2(player.y-monster.y,player.x-monster.x) }; rhysDashTimer = 38; rhysDashCooldown = 420; notify('RHYS IS CHARGING', 'danger'); }
+    return false;
 }
 
 function updateHeat() {
@@ -1603,6 +1701,7 @@ function createExtraMonster(name, diffData, index) {
     if (name === 'JORDAN') { enemy.baseSpeed += 0.18; enemy.speed = enemy.baseSpeed; enemy.color = '#050'; enemy.textColor = '#0f0'; }
     if (name === 'AESON') { enemy.baseSpeed += 0.12; enemy.speed = enemy.baseSpeed; enemy.color = '#d43b18'; enemy.textColor = '#ff9a66'; }
     if (name === 'BASSAM') { enemy.baseSpeed += 0.05; enemy.speed = enemy.baseSpeed; enemy.color = '#8d7654'; enemy.textColor = '#d4c09a'; }
+    if (name === 'RHYS') { enemy.baseSpeed += 0.16; enemy.speed = enemy.baseSpeed; enemy.color = '#d8bd32'; enemy.textColor = '#ffe878'; }
     const count = gameMode === 'survival' ? (survivalConfig?.mutations || 0) : Math.min(3, Math.floor((endlessRound - 1) / 2));
     const pool = ['Speed Demon', 'Giant', 'Reinforced', 'Resilient', 'All-Seeing'];
     for (let i = 0; i < count; i++) {
@@ -1626,26 +1725,31 @@ function startGame(diffLevel) {
     if (currentMapId === 'boilerworks') advanceDailyObjective('boilerworks');
     document.querySelectorAll('.menu-panel').forEach(p => p.style.display = 'none');
     hud.style.display = 'block';
+    hud.classList.toggle('rhys-objective-hud', currentMapId === 'crimson');
     
     if (currentMapId === 'boilerworks') { COLS = 65; ROWS = 49; }
     else if (currentMapId === 'hotel') { COLS = 91; ROWS = 69; }
+    else if (currentMapId === 'crimson') { COLS = 93; ROWS = 65; }
     else { COLS = 41; ROWS = 33; }
     hotelTaskSerial = 0;
     if (currentMapId === 'boilerworks') generateBoilerworks();
     else if (currentMapId === 'hotel') generateHotel();
+    else if (currentMapId === 'crimson') generateCrimsonContainment();
     else { generateMaze(); generateSpecialRooms(); }
     if (currentMapId !== 'hotel') hotelElevator = null;
     if (currentMapId !== 'boilerworks') { centralBoiler = null; coolingValves = []; }
     
-    const spawnRoom = (currentMapId === 'boilerworks' || currentMapId === 'hotel') ? rooms[0] : null;
+    const spawnRoom = (currentMapId === 'boilerworks' || currentMapId === 'hotel' || currentMapId === 'crimson') ? rooms[0] : null;
     player.x = spawnRoom?.x || (MAZE_LEFT + 1.5) * TS; player.y = spawnRoom?.y || (MAZE_TOP + 1.5) * TS;
     player.baseSpeed = 4.3 * (1 + (upgShoe * 0.05));
     player.speed = player.baseSpeed;
+    playerTrail = [];
     player.boostTimer = 0; player.stunTimer = 0; player.crouching = false; player.breathing = false; player.breathTimer = 0; player.breathCooldown = 0; player.heat = 0; player.inHeatZone = false; player.hidden = false; player.hideTimer = 0; player.hideCompromised = false;
     ambienceClock = 0;
     camera.targetZoom = 1.0; camera.zoom = 1.0;
     nearGen = null; nearValve = null; nearBoiler = false; flashAlpha = 0;
     boilerShutdown = false; boilerReadyShown = false; heatZones = []; heatEventCooldown = currentMapId === 'boilerworks' ? 360 : 0;
+    rhysSealCollected = false; rhysTrapArmed = false; goopZones = []; goopShots = []; rhysSpitCooldown = 180; rhysDashTimer = 0; rhysDashCooldown = 360; rhysEventCooldown = 900; rhysSweepTimer = 0; rhysSweepRadius = 0; rhysPressureZones = [];
     hotelLockdownTimer = 0; hotelEventCooldown = currentMapId === 'hotel' ? 480 : 0; hotelLockdownActive = false; hotelBlockedDoor = null;
     bassamState = 'roaming'; bassamRevealPending = false; bassamTrapTaskId = null; bassamFakeTask = null; bassamFakeLine = ''; bassamAmbushActive = false; bassamLostTimer = 0; bassamAmbushCooldown = 900; hotelTaskGame = null; bassamStaffDepartment = ['FRONT DESK','MAINTENANCE','HOUSEKEEPING','KITCHEN'][Math.floor(Math.random() * 4)]; closeHotelDialogue();
     document.getElementById('hotelTaskHUD').style.display = currentMapId === 'hotel' ? 'block' : 'none';
@@ -1677,7 +1781,9 @@ function startGame(diffLevel) {
 
     let rand = Math.random();
     let monsterName = 'CALEB';
-    if (currentMapId === 'hotel' && gameMode !== 'survival') {
+    if (currentMapId === 'crimson' && gameMode !== 'survival') {
+        monsterName = 'RHYS';
+    } else if (currentMapId === 'hotel' && gameMode !== 'survival') {
         monsterName = 'BASSAM';
     } else if (currentMapId === 'boilerworks' && gameMode !== 'survival') {
         if (rand < 0.58) monsterName = 'AESON';
@@ -1716,7 +1822,7 @@ function startGame(diffLevel) {
     empTimer = 0; empWarning = 0; empActive = 0;
     powerOutageTimer = 0; outageFlickerTimer = 0; powerOutageCooldown = Math.floor(Math.random() * 600) + 900;
     flickerTimer = 0; flickerCooldown = Math.floor(Math.random() * 600) + 600;
-    emergencyTimer = 0; emergencyCooldown = Math.floor(Math.random() * 1200) + 1200;
+    emergencyTimer = 0; emergencyCooldown = currentMapId === 'crimson' ? 999999 : Math.floor(Math.random() * 1200) + 1200;
     noiseTarget = null; noiseTimer = 0; fuses = [];
     jordanSabotageCooldown = 0;
 
@@ -1733,6 +1839,9 @@ function startGame(diffLevel) {
         monster.baseSpeed += 0.05; monster.speed = monster.baseSpeed;
         monster.color = '#8d7654'; monster.textColor = '#d4c09a';
         bassamState = 'disguised';
+    } else if (monsterName === 'RHYS') {
+        monster.baseSpeed += 0.16; monster.speed = monster.baseSpeed;
+        monster.color = '#d8bd32'; monster.textColor = '#ffe878';
     } else if (monsterName === 'CALEB') {
         empTimer = Math.floor(Math.random() * 600) + 600; 
     }
@@ -1802,6 +1911,7 @@ function startGame(diffLevel) {
     
     totalGens = Math.floor(Math.random() * (diffData.gMax - diffData.gMin + 1)) + diffData.gMin;
     if (currentMapId === 'hotel') totalGens = Math.max(4, Math.min(7, totalGens + 1));
+    if (currentMapId === 'crimson') totalGens = Math.max(5, Math.min(7, totalGens + 1));
     activeGens = 0; generators = [];
     
     let genPool = floors.filter(tile => !getRoomAt(tile.c * TS + TS / 2, tile.r * TS + TS / 2)).sort(() => Math.random() - 0.5);
@@ -1887,6 +1997,7 @@ function endGame(isWin, sourceMonster = monster) {
     state = 4;
     document.querySelectorAll('.menu-panel').forEach(p => p.style.display = 'none');
     hud.style.display = 'none';
+    hud.classList.remove('rhys-objective-hud');
     closeHotelDialogue(); document.getElementById('hotelTaskHUD').style.display = 'none';
     document.getElementById('endMenu').style.display = 'flex';
     document.getElementById('endTitle').innerText = isWin ? "YOU WIN!" : "CAUGHT!";
@@ -1906,6 +2017,7 @@ function endGame(isWin, sourceMonster = monster) {
         if (runItemsUsed === 0) unlockCosmetic('ghost');
         advanceDailyObjective('wins');
         if (sourceMonster.name === 'AESON') advanceDailyObjective('aeson');
+        if (sourceMonster.name === 'RHYS') { unlockCosmetic('gold'); unlockCosmetic('ember'); }
         if (runItemsUsed === 0) advanceDailyObjective('noItems');
         if (gameMode === 'campaign') {
             if (!campaignCleared.includes(currentMapId)) campaignCleared.push(currentMapId);
@@ -1939,6 +2051,7 @@ function returnToMainMenu() {
     mobileMenuPaused = false;
     document.getElementById('mobileActionMenu').style.display = 'none';
     closeHotelDialogue(); document.getElementById('hotelTaskHUD').style.display = 'none';
+    hud.classList.remove('rhys-objective-hud');
     showMenu('mainMenu');
 }
 
@@ -1960,6 +2073,7 @@ function checkPhase() {
             else beginFinalChase();
             return;
         }
+        if (currentMapId === 'crimson') { showMsg('<span style="color:#ffe878">GENERATORS ONLINE</span><br>LOCATE THE CRIMSON SEAL', 1400); return; }
         beginFinalChase();
     }
 }
@@ -1998,6 +2112,8 @@ function updateHUD() {
                 ? `Cooling valves: ${coolingValves.filter(valve => valve.active).length}/${coolingValves.length || 3}${boilerReadyShown ? ' · FIND THE BOILER' : ''}`
                 : currentMapId === 'hotel'
                     ? `Hotel: ${activeGens}/${totalGens} generators · Staff ${evacuatedHotelEmployees().length}/${hotelEmployeesRequired} evacuated${hotelObjectiveComplete() ? ' · CATCH BASSAM' : ''}`
+                    : currentMapId === 'crimson'
+                        ? `Containment: ${activeGens}/${totalGens} generators · ${activeGens < totalGens ? 'Restore facility power' : !rhysSealCollected ? rhysRoute === 'break' && !rhysBreakWall?.broken ? 'Bait Rhys into the cracked wall' : rhysRoute === 'chest' && !rhysChestKey?.collected ? 'Find the chest key' : rhysRoute === 'chest' && !rhysChest?.opened ? 'Open the Crimson Chest' : 'Recover the Crimson Seal' : !rhysTrapArmed ? 'Arm the containment trap' : 'Lure Rhys into containment'}`
                     : 'Find and repair every generator';
     }
     
@@ -2210,6 +2326,7 @@ function update() {
     heatZones = heatZones.filter(zone => zone.life > 0);
     updateHeat();
     updateAesonEvents();
+    updateRhysEvents();
     updateHotelEvents();
     updateHotelEmployees();
     if (monsters.some(enemy => enemy.hasHallucinations) && state === 1 && Math.random() < 0.0025) {
@@ -2220,18 +2337,18 @@ function update() {
     if (monsters.some(enemy => enemy.hasFalseObjective) && ambienceClock % 60 === 0) updateHUD();
 
     if ((state === 1 || state === 3) && eventsEnabled) {
-        if (powerOutageTimer > 0) {
+        if (currentMapId !== 'crimson' && powerOutageTimer > 0) {
             powerOutageTimer--;
             if (powerOutageTimer === 0) { powerOutageCooldown = gameMode === 'endless' ? Math.max(600, 1500 - endlessRound * 110) : 1500; showMsg('LIGHTS RESTORED', 800); }
-        } else if (powerOutageCooldown > 0) powerOutageCooldown--;
-        else { powerOutageTimer = 1080 + (gameMode === 'endless' ? (endlessRound - 1) * 90 : 0); outageFlickerTimer = 45; showMsg('<span style="color:#888">POWER OUTAGE</span>', 1000); playSound('emp'); }
+        } else if (currentMapId !== 'crimson' && powerOutageCooldown > 0) powerOutageCooldown--;
+        else if (currentMapId !== 'crimson') { powerOutageTimer = 1080 + (gameMode === 'endless' ? (endlessRound - 1) * 90 : 0); outageFlickerTimer = 45; showMsg('<span style="color:#888">POWER OUTAGE</span>', 1000); playSound('emp'); }
         if (outageFlickerTimer > 0) outageFlickerTimer--;
         if (flickerTimer > 0) flickerTimer--;
         else if (flickerCooldown > 0) flickerCooldown--;
         else { flickerTimer = 90 + (gameMode === 'endless' ? (endlessRound - 1) * 12 : 0); flickerCooldown = gameMode === 'endless' ? Math.max(500, 1500 - endlessRound * 100) : 1500; playSound('tick'); }
         if (emergencyTimer > 0) emergencyTimer--;
-        else if (emergencyCooldown > 0) emergencyCooldown--;
-        else { emergencyTimer = 420 + (gameMode === 'endless' ? (endlessRound - 1) * 30 : 0); emergencyCooldown = gameMode === 'endless' ? Math.max(900, 2100 - endlessRound * 120) : 2100; showMsg('<span style="color:#f44">EMERGENCY LIGHTS</span>', 1200); playSound('alarm'); }
+        else if (currentMapId !== 'crimson' && emergencyCooldown > 0) emergencyCooldown--;
+        else if (currentMapId !== 'crimson') { emergencyTimer = 420 + (gameMode === 'endless' ? (endlessRound - 1) * 30 : 0); emergencyCooldown = gameMode === 'endless' ? Math.max(900, 2100 - endlessRound * 120) : 2100; showMsg('<span style="color:#f44">EMERGENCY LIGHTS</span>', 1200); playSound('alarm'); }
         if (noiseTimer > 0) noiseTimer--;
         else noiseTarget = null;
     }
@@ -2263,7 +2380,8 @@ function update() {
         const heatPenalty = currentMapId === 'boilerworks'
             ? (player.inHeatZone ? 0.48 : 1 - Math.min(0.28, player.heat / 1070))
             : 1;
-        const normalSpeed = (player.crouching ? player.baseSpeed * 0.55 : player.baseSpeed) * heatPenalty;
+        const rhysSlow = currentMapId === 'crimson' && [...goopZones, ...rhysPressureZones].some(zone => Math.hypot(player.x - zone.x, player.y - zone.y) < zone.radius);
+        const normalSpeed = (player.crouching ? player.baseSpeed * 0.55 : player.baseSpeed) * heatPenalty * (rhysSlow ? 0.62 : 1);
         if (player.boostTimer > 0) {
             player.boostTimer--;
             player.speed = normalSpeed * 1.5;
@@ -2277,8 +2395,12 @@ function update() {
         if (dx !== 0 && dy !== 0) { dx *= 0.707; dy *= 0.707; }
         if (dx !== 0 || dy !== 0) moveEntity(player, dx, dy);
     }
+    if (state === 1 && !player.hidden && ambienceClock % 3 === 0) {
+        playerTrail.push({ x: player.x, y: player.y });
+        if (playerTrail.length > 22) playerTrail.shift();
+    }
 
-    nearGen = null; nearFuse = null; nearHide = null; nearValve = null; nearBoiler = false; nearEmployee = null; nearElevator = false; nearHotelTask = null;
+    nearGen = null; nearFuse = null; nearHide = null; nearValve = null; nearBoiler = false; nearEmployee = null; nearElevator = false; nearHotelTask = null; nearRhysSeal = false; nearRhysKey = false; nearRhysChest = false; nearRhysTrap = false;
     if (state === 1 && player.stunTimer <= 0) {
         for (let g of generators) {
             if (!g.active && Math.hypot(player.x - g.x, player.y - g.y) < player.r + g.r + 15) {
@@ -2289,6 +2411,12 @@ function update() {
         nearHide = hidingSpots.find(spot => Math.hypot(player.x - spot.x, player.y - spot.y) < 30) || null;
         nearValve = currentMapId === 'boilerworks' ? coolingValves.find(valve => !valve.active && Math.hypot(player.x - valve.x, player.y - valve.y) < 32) || null : null;
         nearBoiler = currentMapId === 'boilerworks' && centralBoiler && Math.hypot(player.x - centralBoiler.x, player.y - centralBoiler.y) < 42;
+        if (currentMapId === 'crimson') {
+            nearRhysSeal = Boolean(rhysSeal && Math.hypot(player.x-rhysSeal.x, player.y-rhysSeal.y) < 34);
+            nearRhysKey = Boolean(rhysChestKey && Math.hypot(player.x-rhysChestKey.x, player.y-rhysChestKey.y) < 34);
+            nearRhysChest = Boolean(rhysChest && Math.hypot(player.x-rhysChest.x, player.y-rhysChest.y) < 38);
+            nearRhysTrap = Boolean(rhysTrap && Math.hypot(player.x-rhysTrap.x, player.y-rhysTrap.y) < 44);
+        }
         if (currentMapId === 'hotel') {
             nearEmployee = employees.find(employee => !employee.evacuated && Math.hypot(player.x - employee.x, player.y - employee.y) < 34) || null;
             if (monster.name === 'BASSAM' && bassamState === 'disguised' && Math.hypot(player.x - monster.x, player.y - monster.y) < 34) {
@@ -2376,6 +2504,24 @@ function update() {
                 moveMonsterAlongPath(getMonsterSpeed(monster) * 1.08);
                 if (!player.hidden && !isSafeRoom(player.x, player.y) && Math.hypot(player.x - monster.x, player.y - monster.y) < player.r + monster.r) endGame(false, monster);
             }
+        } else if (state === 1 && monster.name === 'RHYS' && currentMapId === 'crimson') {
+            const dashing = updateRhysCombat(canSeePlayer);
+            if (!dashing) {
+                const target = canSeePlayer ? player : (noiseTarget && noiseTimer > 0 ? noiseTarget : null);
+                if (target) {
+                    const targetC = Math.floor(target.x / TS), targetR = Math.floor(target.y / TS);
+                    if (monster.lastTargetC !== targetC || monster.lastTargetR !== targetR || monster.path.length === 0) {
+                        monster.path = findPath(Math.floor(monster.x / TS), Math.floor(monster.y / TS), targetC, targetR);
+                        monster.lastTargetC = targetC; monster.lastTargetR = targetR;
+                    }
+                } else if (monster.path.length === 0) {
+                    const tile = floors[Math.floor(Math.random() * floors.length)];
+                    monster.path = findPath(Math.floor(monster.x / TS), Math.floor(monster.y / TS), tile.c, tile.r);
+                }
+                moveMonsterAlongPath(getMonsterSpeed(monster), monster);
+            }
+            if (rhysTrapArmed && rhysTrap && Math.hypot(monster.x - rhysTrap.x, monster.y - rhysTrap.y) < 26) endGame(true, monster);
+            else if (!player.hidden && !isSafeRoom(player.x, player.y) && Math.hypot(player.x - monster.x, player.y - monster.y) < player.r + monster.r) endGame(false, monster);
         } else if (state === 1 && monster.name === 'JORDAN') {
             if (jordanState === 'saboteur') {
                 mimicTimer--;
@@ -2538,10 +2684,10 @@ function draw() {
     for (let r = 0; r < ROWS; r++) {
         for (let c = 0; c < COLS; c++) {
             if (map[r][c] === 1) {
-                ctx.fillStyle = currentMapId === 'boilerworks' ? '#171a1d' : currentMapId === 'hotel' ? '#211a20' : '#2d2216'; ctx.fillRect(c * TS, r * TS, TS, TS);
-                if (!setOptimization) { ctx.strokeStyle = currentMapId === 'boilerworks' ? '#0b0d0f' : currentMapId === 'hotel' ? '#0e0a10' : '#181109'; ctx.strokeRect(c * TS, r * TS, TS, TS); }
+                ctx.fillStyle = currentMapId === 'boilerworks' ? '#171a1d' : currentMapId === 'hotel' ? '#211a20' : currentMapId === 'crimson' ? '#241012' : '#2d2216'; ctx.fillRect(c * TS, r * TS, TS, TS);
+                if (!setOptimization) { ctx.strokeStyle = currentMapId === 'boilerworks' ? '#0b0d0f' : currentMapId === 'hotel' ? '#0e0a10' : currentMapId === 'crimson' ? '#100506' : '#181109'; ctx.strokeRect(c * TS, r * TS, TS, TS); }
             } else {
-                ctx.fillStyle = currentMapId === 'boilerworks' ? '#4b4540' : currentMapId === 'hotel' ? ((r + c) % 2 ? '#5b4850' : '#65505a') : '#8b7355'; ctx.fillRect(c * TS, r * TS, TS, TS);
+                ctx.fillStyle = currentMapId === 'boilerworks' ? '#4b4540' : currentMapId === 'hotel' ? ((r + c) % 2 ? '#5b4850' : '#65505a') : currentMapId === 'crimson' ? ((r + c) % 2 ? '#6f2429' : '#7d2b30') : '#8b7355'; ctx.fillRect(c * TS, r * TS, TS, TS);
                 if (!setOptimization && currentMapId === 'boilerworks' && (r + c) % 7 === 0) {
                     ctx.fillStyle = 'rgba(180,120,55,0.2)'; ctx.fillRect(c * TS + 5, r * TS + 7, TS - 10, 3);
                 }
@@ -2555,6 +2701,8 @@ function draw() {
             ? (room.type === 'boiler' ? 'rgba(255,80,20,0.3)' : room.type === 'maintenance' ? 'rgba(80,180,220,0.22)' : room.type === 'cooling' ? 'rgba(40,190,220,0.2)' : room.type === 'control' ? 'rgba(160,100,220,0.2)' : room.type === 'storage' ? 'rgba(180,180,180,0.16)' : 'rgba(160,100,50,0.18)')
             : currentMapId === 'hotel'
                 ? ({ lobby:'rgba(190,150,90,0.34)', guest:'rgba(125,90,125,0.24)', laundry:'rgba(80,180,210,0.24)', conference:'rgba(180,140,60,0.25)', kitchen:'rgba(200,100,60,0.24)', service:'rgba(80,150,105,0.24)', office:'rgba(120,100,180,0.24)', elevator:'rgba(210,210,220,0.3)', storage:'rgba(140,140,140,0.2)' }[room.type] || 'rgba(90,70,90,0.22)')
+                : currentMapId === 'crimson'
+                    ? ({ intake:'rgba(180,80,55,.24)', archive:'rgba(140,35,48,.28)', medical:'rgba(170,95,95,.25)', storage:'rgba(110,80,65,.27)', processing:'rgba(215,145,48,.22)', security:'rgba(90,110,145,.26)', maintenance:'rgba(150,130,55,.25)', containment:'rgba(205,55,45,.31)', vault:'rgba(150,35,65,.32)', service:'rgba(105,65,70,.24)', trap:'rgba(240,200,70,.24)' }[room.type] || 'rgba(120,35,45,.22)')
                 : (room.type === 'safe' ? 'rgba(40,110,255,0.28)' : room.type === 'maintenance' ? 'rgba(255,190,40,0.22)' : room.type === 'storage' ? 'rgba(180,180,180,0.16)' : 'rgba(80,80,80,0.14)');
         ctx.fillStyle = roomColor;
         const roomWidth = room.width || 3, roomHeight = room.height || 3;
@@ -2562,7 +2710,7 @@ function draw() {
         ctx.strokeStyle = room.type === 'safe' ? '#5790ff' : currentMapId === 'boilerworks' && room.type === 'boiler' ? '#ff6622' : currentMapId === 'hotel' && room.type === 'elevator' ? '#e7e7ff' : 'rgba(255,255,255,0.2)';
         ctx.lineWidth = 2;
         ctx.strokeRect((room.c - Math.floor(roomWidth / 2)) * TS, (room.r - Math.floor(roomHeight / 2)) * TS, TS * roomWidth, TS * roomHeight);
-        ctx.fillStyle = room.type === 'safe' ? '#9fc0ff' : currentMapId === 'boilerworks' && room.type === 'boiler' ? '#ff9a66' : currentMapId === 'hotel' ? '#f1d9c4' : '#ddd';
+        ctx.fillStyle = room.type === 'safe' ? '#9fc0ff' : currentMapId === 'boilerworks' && room.type === 'boiler' ? '#ff9a66' : currentMapId === 'hotel' ? '#f1d9c4' : currentMapId === 'crimson' ? '#ffd0ad' : '#ddd';
         ctx.font = 'bold 9px Arial'; ctx.textAlign = 'center';
         ctx.fillText(room.type.toUpperCase(), room.x, room.y - 24);
     }
@@ -2647,6 +2795,32 @@ function draw() {
         }
     }
 
+    if (currentMapId === 'crimson') {
+        if (rhysBreakWall && !rhysBreakWall.broken) {
+            ctx.fillStyle = '#4b1215'; ctx.fillRect(rhysBreakWall.x - 20, rhysBreakWall.y - 20, 40, 40);
+            ctx.strokeStyle = '#f0c55e'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(rhysBreakWall.x - 12, rhysBreakWall.y - 14); ctx.lineTo(rhysBreakWall.x + 8, rhysBreakWall.y + 12); ctx.moveTo(rhysBreakWall.x + 10, rhysBreakWall.y - 12); ctx.lineTo(rhysBreakWall.x - 7, rhysBreakWall.y + 14); ctx.stroke();
+            ctx.fillStyle = '#ffe69a'; ctx.font = 'bold 9px Arial'; ctx.textAlign = 'center'; ctx.fillText('CRACKED WALL', rhysBreakWall.x, rhysBreakWall.y - 28);
+        }
+        if (rhysChestKey && !rhysChestKey.collected) {
+            ctx.fillStyle = '#f5db58'; ctx.fillRect(rhysChestKey.x - 10, rhysChestKey.y - 4, 16, 8); ctx.beginPath(); ctx.arc(rhysChestKey.x - 10, rhysChestKey.y, 6, 0, Math.PI * 2); ctx.strokeStyle = '#fff1a0'; ctx.lineWidth = 2; ctx.stroke();
+            if (nearRhysKey) { ctx.fillStyle = '#fff'; ctx.font = 'bold 11px Arial'; ctx.fillText('[E] TAKE KEY', rhysChestKey.x, rhysChestKey.y - 16); }
+        }
+        if (rhysChest && !rhysChest.opened) {
+            ctx.fillStyle = '#662b17'; ctx.fillRect(rhysChest.x - 15, rhysChest.y - 11, 30, 22); ctx.strokeStyle = '#e3b34f'; ctx.lineWidth = 3; ctx.strokeRect(rhysChest.x - 15, rhysChest.y - 11, 30, 22);
+            if (nearRhysChest) { ctx.fillStyle = rhysChestKey?.collected ? '#fff' : '#ffb3a3'; ctx.font = 'bold 11px Arial'; ctx.fillText(rhysChestKey?.collected ? '[E] OPEN CHEST' : 'KEY REQUIRED', rhysChest.x, rhysChest.y - 20); }
+        }
+        if (rhysSeal && !rhysSeal.collected) {
+            ctx.strokeStyle = rhysSeal.accessible ? '#ffe55c' : '#8c3339'; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(rhysSeal.x, rhysSeal.y, 15 + Math.sin(ambienceClock * .12) * 2, 0, Math.PI * 2); ctx.stroke();
+            ctx.fillStyle = rhysSeal.accessible ? '#fff5a8' : '#64252a'; ctx.beginPath(); ctx.arc(rhysSeal.x, rhysSeal.y, 7, 0, Math.PI * 2); ctx.fill();
+            if (nearRhysSeal) { ctx.fillStyle = rhysSeal.accessible ? '#fff' : '#ffb3a3'; ctx.font = 'bold 11px Arial'; ctx.fillText(rhysSeal.accessible ? '[E] RECOVER SEAL' : 'ROUTE LOCKED', rhysSeal.x, rhysSeal.y - 25); }
+        }
+        if (rhysTrap) {
+            ctx.strokeStyle = rhysTrapArmed ? '#84ff8b' : '#e7c86b'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(rhysTrap.x, rhysTrap.y, 18, 0, Math.PI * 2); ctx.stroke();
+            ctx.fillStyle = rhysTrapArmed ? 'rgba(80,255,120,.3)' : 'rgba(255,210,80,.18)'; ctx.beginPath(); ctx.arc(rhysTrap.x, rhysTrap.y, 12, 0, Math.PI * 2); ctx.fill();
+            if (nearRhysTrap) { ctx.fillStyle = rhysSealCollected && !rhysTrapArmed ? '#fff' : '#ffdb8a'; ctx.font = 'bold 11px Arial'; ctx.fillText(rhysTrapArmed ? 'TRAP ARMED' : rhysSealCollected ? '[E] ARM TRAP' : 'SEAL REQUIRED', rhysTrap.x, rhysTrap.y - 28); }
+        }
+    }
+
     for (const spot of hidingSpots) {
         ctx.fillStyle = spot.occupied ? '#552200' : '#8c4d20';
         ctx.fillRect(spot.x - 12, spot.y - 17, 24, 34);
@@ -2685,6 +2859,16 @@ function draw() {
         ctx.fillStyle = '#ffe0a0'; ctx.font = 'bold 10px Arial'; ctx.textAlign = 'center';
         ctx.fillText('BURNING', zone.x, zone.y - zone.radius - 7);
     }
+
+    for (const zone of rhysPressureZones) {
+        ctx.fillStyle = 'rgba(255,220,120,.14)'; ctx.beginPath(); ctx.arc(zone.x, zone.y, zone.radius, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = 'rgba(255,238,170,.7)'; ctx.lineWidth = 2; ctx.stroke();
+    }
+    for (const zone of goopZones) {
+        ctx.fillStyle = 'rgba(205,185,45,.34)'; ctx.beginPath(); ctx.arc(zone.x, zone.y, zone.radius, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = 'rgba(255,238,100,.8)'; ctx.lineWidth = 2; ctx.stroke();
+    }
+    for (const shot of goopShots) { ctx.fillStyle = '#e1cf37'; ctx.beginPath(); ctx.arc(shot.x, shot.y, 6, 0, Math.PI * 2); ctx.fill(); }
 
     if (empWarning > 0) {
         let maxRad = 400;
@@ -2833,11 +3017,14 @@ function draw() {
     }
 
     if (!player.hidden) {
-        const playerColors = { blue:'#00f', crimson:'#d22', violet:'#a64dff', green:'#19c76b', amber:'#e7a21a' };
+        const playerColors = { blue:'#00f', crimson:'#d22', violet:'#a64dff', green:'#19c76b', amber:'#e7a21a', gold:'#e9ca35' };
         if (cosmetics.trail !== 'none') {
-            const trailColor = cosmetics.trail === 'spark' ? 'rgba(255,215,80,0.42)' : 'rgba(180,210,255,0.3)';
-            ctx.fillStyle = trailColor;
-            ctx.beginPath(); ctx.arc(player.x - player.speed * 2, player.y - player.speed * 2, cosmetics.trail === 'spark' ? 7 : 10, 0, Math.PI * 2); ctx.fill();
+            const trailColor = cosmetics.trail === 'spark' ? 'rgba(255,215,80,.64)' : cosmetics.trail === 'ember' ? 'rgba(255,104,42,.62)' : 'rgba(180,210,255,.42)';
+            ctx.strokeStyle = trailColor; ctx.lineWidth = cosmetics.trail === 'ghost' ? 10 : 6; ctx.lineCap = 'round'; ctx.beginPath();
+            playerTrail.forEach((point, index) => { if (index === 0) ctx.moveTo(point.x, point.y); else ctx.lineTo(point.x, point.y); }); ctx.stroke();
+            const spacing = cosmetics.trail === 'spark' ? 3 : 5;
+            for (let index = 0; index < playerTrail.length; index += spacing) { const point = playerTrail[index]; ctx.globalAlpha = Math.max(.1, index / playerTrail.length); ctx.fillStyle = trailColor; ctx.beginPath(); ctx.arc(point.x, point.y, cosmetics.trail === 'ghost' ? 5 : 3, 0, Math.PI * 2); ctx.fill(); }
+            ctx.globalAlpha = 1;
         }
         ctx.fillStyle = 'rgba(0,0,0,0.35)';
         ctx.beginPath(); ctx.ellipse(player.x, player.y + player.r * 0.7, player.r * 0.9, player.r * 0.35, 0, 0, Math.PI * 2); ctx.fill();
@@ -2845,6 +3032,14 @@ function draw() {
         ctx.beginPath(); ctx.arc(player.x, player.y, player.r, 0, Math.PI * 2); ctx.fill();
     }
     ctx.restore();
+
+    if (currentMapId === 'crimson' && rhysSweepTimer > 0) {
+        const centerX = (COLS * TS) / 2, centerY = (ROWS * TS) / 2;
+        const screenX = canvas.width / 2 + (centerX - camera.x - canvas.width / 2) * camera.zoom;
+        const screenY = canvas.height / 2 + (centerY - camera.y - canvas.height / 2) * camera.zoom;
+        ctx.strokeStyle = `rgba(255,235,150,${Math.min(.9, rhysSweepTimer / 100)})`;
+        ctx.lineWidth = 7; ctx.beginPath(); ctx.arc(screenX, screenY, rhysSweepRadius * camera.zoom, 0, Math.PI * 2); ctx.stroke();
+    }
 
     if (state === 1 || state === 2 || state === 3 || state === 5 || state === 6) {
         if (empActive > 0) {

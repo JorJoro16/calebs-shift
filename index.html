@@ -67,7 +67,8 @@
     </div>
 
     <div id="cosmeticsMenu" class="menu-panel" style="max-height:80vh; overflow-y:auto;">
-        <h2>COSMETICS</h2>
+        <h2>COLLECTOR'S BOOK</h2>
+        <div class="cosmetic-tabs"><button onclick="setCosmeticTab('colors')">COLORS</button><button onclick="setCosmeticTab('trails')">TRAILS</button><button onclick="setCosmeticTab('hats')">HATS</button></div>
         <div id="cosmeticsContent" style="text-align:left; line-height:1.7;"></div>
         <button onclick="showMenu('mainMenu')">BACK</button>
     </div>
@@ -166,7 +167,8 @@
             <label><input id="survivalJordan" type="checkbox"> Jordan</label>
             <label><input id="survivalAeson" type="checkbox"> Aeson</label><br>
             <label><input id="survivalBassam" type="checkbox"> Bassam</label><br>
-            <label>Map: <select id="survivalMap"><option value="level0">Level 0 — The Maze</option><option value="boilerworks">Level 3 — The Boilerworks</option><option value="hotel">THE ENDLESS HOTEL</option></select></label><br>
+            <label><input id="survivalRhys" type="checkbox"> Rhys</label><br>
+            <label>Map: <select id="survivalMap"><option value="level0">Level 0 — The Maze</option><option value="boilerworks">Level 3 — The Boilerworks</option><option value="hotel">THE ENDLESS HOTEL</option><option value="crimson">THE CRIMSON CONTAINMENT</option></select></label><br>
             <label>How many: <select id="survivalCount"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option></select></label><br>
             <label>Difficulty: <select id="survivalDiff"><option value="0">Easy</option><option value="1" selected>Normal</option><option value="2">Hard</option></select></label><br>
             <label>Generators: <select id="survivalGens"><option value="3">3</option><option value="4" selected>4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option></select></label><br>
@@ -197,6 +199,7 @@
             <b>JORDAN — The Mimic</b><br>Can disguise himself as a generator. Interacting with him reveals the trick and eventually triggers an enraged chase.<br><span style="color:#aaa">Counter:</span> Watch for the suspicious visual offset and be ready to run after checking a generator.<br><br>
             <b>AESON — The Firestarter</b><br>Ignites sections of the Boilerworks and senses players who build up too much heat.<br><span style="color:#aaa">Counter:</span> Leave burning areas, cool down, and use the facility’s alternate routes.<br><br>
             <b>BASSAM — The Concierge</b><br>Disguises himself as a hotel employee and offers believable but dangerous directions. Genuine employees can help with small tasks and clues.<br><span style="color:#aaa">Counter:</span> Check badges, shadows, and directions before trusting an employee. A fake employee cannot provide a consistent department or safe route.<br></div></details>
+            <details class="info-section"><summary style="color:#ffe06b;">RHYS — THE CONTAINED</summary><div><b>Goop:</b> Leaves slowing puddles while roaming and spits short-range shots during a chase.<br><b>Dash:</b> Charges in a straight line; dodge sideways or bait him into marked breakable walls.<br><span style="color:#aaa">Counter:</span> Use rooms and corners to make him miss, then use his dash to open the seal route and trap him in containment.</div></details>
             
             <details class="info-section"><summary style="color:#ff4444;">MUTATIONS</summary><div>
             <b>Speed Demon:</b> Flat speed boost.<br>
@@ -250,6 +253,7 @@
             <b>Objective:</b> Repair the hotel generators, complete and report staff assignments, evacuate the employees through the elevator, then catch Bassam.<br>
             <b>Employees:</b> Speak to staff to accept up to two assignments. Complete the work, then return to the same staff member to report it.<br>
             <b>Events:</b> Hotel Lockdown seals a whole corridor section temporarily. Bassam can impersonate staff and place a false assignment among your real ones.<br></div></details>
+            <details class="info-section"><summary style="color:#ffe06b;">THE CRIMSON CONTAINMENT</summary><div><b>Objective:</b> Repair generators, locate the Crimson Seal through a changing route, then lure Rhys into the containment trap.<br><b>Events:</b> Containment alarms, pressure releases, a sweeping emergency-light circle, and seal resonance. This level does not use power outages.</div></details>
             <details class="info-section"><summary style="color:#0ff;">MOBILE CONTROLS</summary><div>
             <b>Joystick:</b> Move freely in any direction.<br>
             <b>E:</b> Interact with generators, fuses, rooms, and hiding spots.<br>

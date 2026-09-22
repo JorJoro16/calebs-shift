@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.3.0
+
+- Added The Crimson Containment: a large procedural red industrial facility with distinct room layouts, long connected routes, and reachability-safe objective placement.
+- Added Rhys, a yellow goop-spitter that roams, fires short-range slowing shots during chases, and performs dangerous straight-line dashes.
+- Added three randomized Crimson Seal routes: direct recovery, a key-and-chest route, or baiting Rhys into a cracked wall.
+- Added the containment-trap finale, plus Containment Alarm, Pressure Release, Seal Resonance, and a map-wide expanding Emergency Light Sweep. Power Outage is disabled for this map.
+- Moved Crimson objectives into a dedicated top-right HUD panel, with touch-friendly E interactions through the existing mobile Interact button.
+- Added Gold and Ember cosmetics for catching Rhys. Existing locally unlocked colors and trails remain untouched.
+- Reworked equipped trails into a true fading path behind the player instead of a single attached dot.
+- Bumped the offline cache to `calebs-shift-v30`.
+
 ## 2.2.2
 
 - Replaced generic Hotel item collection with role-specific, tap/click-friendly three-step task mini-games: reservation ledger, service panel, room search, and banquet inventory.
