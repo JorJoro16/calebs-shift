@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.3.1
+
+- Added the missing Cosmetics button to the main menu. It opens the Collector's Book directly, including the Colors, Trails, and Hats tabs.
+- Bumped the offline cache to `calebs-shift-v31`.
+
 ## 2.3.0
 
 - Added The Crimson Containment: a large procedural red industrial facility with distinct room layouts, long connected routes, and reachability-safe objective placement.
