@@ -93,8 +93,8 @@ function playSound(type) {
 }
 
 // Versioned local progress with a backup copy and import/export support.
-const GAME_VERSION = '2.3.3';
-const SAVE_SCHEMA_VERSION = 7;
+const GAME_VERSION = '2.4.0';
+const SAVE_SCHEMA_VERSION = 8;
 const SAVE_KEY = 'br_save_v2';
 const SAVE_BACKUP_KEY = 'br_save_backup_v2';
 
@@ -108,7 +108,7 @@ const MAP_DEFINITIONS = {
 const LOADOUT_DEFINITIONS = {
     free: { name: 'FREE CARRY', description: 'Use any items you own.', items: null },
     chase: { name: 'CHASE KIT', description: 'Adrenaline, Flashbangs, and Bear Traps.', items: ['adrenaline', 'flashbang', 'bearTrap'] },
-    utility: { name: 'UTILITY KIT', description: 'Noise Makers, Batteries, and Breath Filters.', items: ['noiseMaker', 'battery', 'breathFilter'] }
+    utility: { name: 'UTILITY KIT', description: 'Signals, repairs, and map-specific gear.', items: ['noiseMaker', 'battery', 'breathFilter', 'signalScrambler', 'neutralizer', 'repairKit', 'flare'] }
 };
 
 const DAILY_OBJECTIVE_POOL = [
@@ -191,6 +191,10 @@ function normalizeProgress(raw) {
         invBearTrap: boundedInt(source.invBearTrap, 0, 9999, 0),
         invBattery: boundedInt(source.invBattery, 0, 9999, 0),
         invBreathFilter: boundedInt(source.invBreathFilter, 0, 9999, 0),
+        invSignalScrambler: boundedInt(source.invSignalScrambler, 0, 9999, 0),
+        invNeutralizer: boundedInt(source.invNeutralizer, 0, 9999, 0),
+        invRepairKit: boundedInt(source.invRepairKit, 0, 9999, 0),
+        invFlare: boundedInt(source.invFlare, 0, 9999, 0),
         cosmetics: normalizeCosmetics(source.cosmetics),
         stats: normalizeStats(source.stats),
         unlockedMaps: Array.from(new Set(['level0', ...unlockedMaps])),
@@ -235,6 +239,10 @@ let invNoiseMaker = loadedProgress.invNoiseMaker;
 let invBearTrap = loadedProgress.invBearTrap || 0;
 let invBattery = loadedProgress.invBattery;
 let invBreathFilter = loadedProgress.invBreathFilter;
+let invSignalScrambler = loadedProgress.invSignalScrambler || 0;
+let invNeutralizer = loadedProgress.invNeutralizer || 0;
+let invRepairKit = loadedProgress.invRepairKit || 0;
+let invFlare = loadedProgress.invFlare || 0;
 let cosmetics = normalizeCosmetics(loadedProgress.cosmetics);
 let stats = normalizeStats(loadedProgress.stats);
 let unlockedMaps = loadedProgress.unlockedMaps || ['level0'];
@@ -250,7 +258,7 @@ let setVolM = localStorage.getItem('br_volM') || 100;
 let setVolS = localStorage.getItem('br_volS') || 100;
 
 function currentProgress() {
-    return { tokens, upgShoe, upgHack, upgQuick, upgCoin, invAdrenaline, invFlashbang, invNoiseMaker, invBearTrap, invBattery, invBreathFilter, cosmetics, stats, unlockedMaps, campaignCleared, selectedLoadout, daily };
+    return { tokens, upgShoe, upgHack, upgQuick, upgCoin, invAdrenaline, invFlashbang, invNoiseMaker, invBearTrap, invBattery, invBreathFilter, invSignalScrambler, invNeutralizer, invRepairKit, invFlare, cosmetics, stats, unlockedMaps, campaignCleared, selectedLoadout, daily };
 }
 
 function getDateKey(date = new Date()) {
@@ -419,6 +427,10 @@ function saveData() {
         localStorage.setItem('br_flashbang', invFlashbang);
         localStorage.setItem('br_noiseMaker', invNoiseMaker);
         localStorage.setItem('br_bearTrap', invBearTrap);
+        localStorage.setItem('br_signalScrambler', invSignalScrambler);
+        localStorage.setItem('br_neutralizer', invNeutralizer);
+        localStorage.setItem('br_repairKit', invRepairKit);
+        localStorage.setItem('br_flare', invFlare);
         setSaveStatus(`Progress saved · ${new Date().toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}`);
     } catch (error) {
         setSaveStatus('Save unavailable on this device', '#ff8888');
@@ -464,6 +476,10 @@ function importSave(event) {
             invBearTrap = imported.invBearTrap;
             invBattery = imported.invBattery;
             invBreathFilter = imported.invBreathFilter;
+            invSignalScrambler = imported.invSignalScrambler;
+            invNeutralizer = imported.invNeutralizer;
+            invRepairKit = imported.invRepairKit;
+            invFlare = imported.invFlare;
             cosmetics = normalizeCosmetics(imported.cosmetics);
             stats = normalizeStats(imported.stats);
             saveData();
@@ -479,7 +495,7 @@ function importSave(event) {
 
 function resetProgress() {
     if (!confirm('Reset all tokens, upgrades, and items? Your previous save will remain in the backup slot.')) return;
-    tokens = 0; upgShoe = 0; upgHack = 0; upgQuick = 0; upgCoin = 0; invAdrenaline = 0; invFlashbang = 0; invNoiseMaker = 0; invBearTrap = 0; invBattery = 0; invBreathFilter = 0;
+    tokens = 0; upgShoe = 0; upgHack = 0; upgQuick = 0; upgCoin = 0; invAdrenaline = 0; invFlashbang = 0; invNoiseMaker = 0; invBearTrap = 0; invBattery = 0; invBreathFilter = 0; invSignalScrambler = 0; invNeutralizer = 0; invRepairKit = 0; invFlare = 0;
     saveData();
     setSaveStatus('Progress reset; previous save kept as backup');
 }
@@ -577,6 +593,7 @@ function showMenu(menuId) {
     if (menuId === 'loadoutsMenu') renderLoadouts();
     if (menuId === 'collectionMenu') renderCollection();
     if (menuId === 'recordsMenu') renderRecords();
+    if (menuId === 'infoMenu') setInfoTab(infoTab);
     if (menuId === 'diffMenu') renderRunSetup();
     if (menuId === 'mapMenu') renderMapMenu();
 }
@@ -647,7 +664,24 @@ async function testSound() {
     playSound('success');
 }
 
-function openShop() { showMenu('shopMenu'); }
+let infoTab = 'start', shopTab = 'upgrades';
+function setInfoTab(tab) {
+    infoTab = tab;
+    document.querySelectorAll('[data-info-tab]').forEach(section => section.style.display = section.dataset.infoTab === tab ? '' : 'none');
+    document.querySelectorAll('.info-tabs button').forEach(button => button.classList.toggle('active-tab', button.textContent.toLowerCase() === tab));
+}
+function setShopTab(tab) {
+    shopTab = tab;
+    document.querySelectorAll('#shopMenu .shop-item').forEach(item => {
+        const text = item.textContent;
+        const upgrade = /Running Shoes|Hacker Gloves|Quick Hands|Lucky Coin/.test(text);
+        item.style.display = (tab === 'upgrades') === upgrade ? 'flex' : 'none';
+    });
+    const carried = invAdrenaline + invFlashbang + invNoiseMaker + invBearTrap + invBattery + invBreathFilter + invSignalScrambler + invNeutralizer + invRepairKit + invFlare;
+    const status = document.getElementById('shopCarryStatus'); if (status) status.textContent = `CARRIED SUPPLIES: ${carried}/5`;
+    document.querySelectorAll('.shop-tabs button').forEach(button => button.classList.toggle('active-tab', button.textContent.toLowerCase() === tab));
+}
+function openShop() { showMenu('shopMenu'); setShopTab(shopTab); }
 
 function buyUpgrade(type, baseCost) {
     let cost = baseCost;
@@ -665,7 +699,7 @@ function buyUpgrade(type, baseCost) {
     }
 }
 function buyConsumable(type, cost) {
-    const carried = invAdrenaline + invFlashbang + invNoiseMaker + invBearTrap + invBattery + invBreathFilter;
+    const carried = invAdrenaline + invFlashbang + invNoiseMaker + invBearTrap + invBattery + invBreathFilter + invSignalScrambler + invNeutralizer + invRepairKit + invFlare;
     if (carried >= 5) { setSaveStatus('Inventory full — carry at most 5 consumables', '#ffcc66'); return; }
     if (tokens >= cost) {
         tokens -= cost;
@@ -675,7 +709,12 @@ function buyConsumable(type, cost) {
         if (type === 'bearTrap') invBearTrap++;
         if (type === 'battery') invBattery++;
         if (type === 'breathFilter') invBreathFilter++;
+        if (type === 'signalScrambler') invSignalScrambler++;
+        if (type === 'neutralizer') invNeutralizer++;
+        if (type === 'repairKit') invRepairKit++;
+        if (type === 'flare') invFlare++;
         saveData();
+        updateMenuData(); setShopTab(shopTab);
     }
 }
 
@@ -710,7 +749,7 @@ let lastSingleMutation = null;
 // AI & Item Variables
 let jordanState = 'saboteur', mimicTimer = 0, stateTimer = 0, jordanSabotageCooldown = 0, bassamState = 'roaming', bassamRevealPending = false, bassamTrapTaskId = null, bassamFakeTask = null, bassamStaffDepartment = 'FRONT DESK', bassamFakeLine = '', bassamAmbushActive = false, bassamLostTimer = 0, bassamAmbushCooldown = 0;
 let hotelTaskGame = null;
-let empTimer = 0, empWarning = 0, empActive = 0, flashAlpha = 0;
+let empTimer = 0, empWarning = 0, empActive = 0, flashAlpha = 0, scramblerTimer = 0, repairAssist = 0, flareTimer = 0;
 let powerOutageTimer = 0, powerOutageCooldown = 0, flickerTimer = 0, flickerCooldown = 0, emergencyTimer = 0, emergencyCooldown = 0, outageFlickerTimer = 0;
 let noiseTarget = null, noiseTimer = 0, bearTraps = [], heatZones = [], heatEventCooldown = 0;
 let goopZones = [], goopShots = [], rhysSpitCooldown = 0, rhysDashTimer = 0, rhysChargeWindup = 0, rhysDashCooldown = 0, rhysDashTarget = null, rhysEventCooldown = 900, rhysSweepTimer = 0, rhysSweepRadius = 0, rhysPressureZones = [];
@@ -751,6 +790,35 @@ function useBattery() {
     showMsg('<span style="color:#b8eaff">EMERGENCY BATTERY USED</span>', 900);
 }
 
+function useSignalScrambler() {
+    if (!itemAllowed('signalScrambler') || (state !== 1 && state !== 3) || invSignalScrambler <= 0 || scramblerTimer > 0) return;
+    invSignalScrambler--; scramblerTimer = 480; runItemsUsed++; stats.itemsUsed++; advanceDailyObjective('items');
+    for (const enemy of monsters) { enemy.bloodHuntTimer = 0; enemy.heatAlertTimer = 0; enemy.path = []; }
+    noiseTarget = null; noiseTimer = 0; saveData(); updateHUD();
+    showMsg('<span style="color:#8ff">SIGNAL SCRAMBLER ACTIVE</span>', 900);
+}
+
+function useNeutralizer() {
+    if (!itemAllowed('neutralizer') || state !== 1 || currentMapId !== 'crimson' || invNeutralizer <= 0) return;
+    invNeutralizer--; runItemsUsed++; stats.itemsUsed++; advanceDailyObjective('items');
+    goopZones = goopZones.filter(zone => Math.hypot(zone.x - player.x, zone.y - player.y) > 180);
+    rhysPressureZones = rhysPressureZones.filter(zone => Math.hypot(zone.x - player.x, zone.y - player.y) > 180);
+    saveData(); updateHUD(); showMsg('<span style="color:#dfff70">GOOP NEUTRALIZED</span>', 850);
+}
+
+function useRepairKit() {
+    if (!itemAllowed('repairKit') || state !== 1 || invRepairKit <= 0 || repairAssist > 0) return;
+    invRepairKit--; repairAssist = 1; runItemsUsed++; stats.itemsUsed++; advanceDailyObjective('items');
+    saveData(); updateHUD(); showMsg('<span style="color:#bff">NEXT SKILL CHECK STABILIZED</span>', 850);
+}
+
+function useFlare() {
+    if (!itemAllowed('flare') || (state !== 1 && state !== 3) || invFlare <= 0 || flareTimer > 0) return;
+    invFlare--; flareTimer = 360; runItemsUsed++; stats.itemsUsed++; advanceDailyObjective('items');
+    noiseTarget = { x:player.x, y:player.y }; noiseTimer = 180;
+    saveData(); updateHUD(); showMsg('<span style="color:#ffbf70">EMERGENCY FLARE · THEY HEARD IT</span>', 900);
+}
+
 function toggleHide() {
     if (state !== 1 || !nearHide || player.stunTimer > 0) return;
     if (!player.hidden) {
@@ -789,6 +857,7 @@ function useNoiseMaker() {
 }
 
 function triggerBloodHunt() {
+    if (scramblerTimer > 0) return;
     for (const enemy of monsters) {
         if (enemy.name !== 'MALAKAI' || player.hidden || isSafeRoom(player.x, player.y)) continue;
         enemy.bloodHuntTimer = 300;
@@ -877,6 +946,7 @@ function finishGeneratorInteraction() {
         return;
     }
     currentGen.active = true;
+    repairAssist = 0;
     currentGen.repairFlash = 45;
     noiseTarget = { x: currentGen.x, y: currentGen.y };
     noiseTimer = 300;
@@ -923,6 +993,10 @@ window.addEventListener('keydown', (e) => {
     if ((state === 1 || state === 3) && k === 'n') useNoiseMaker();
     if ((state === 1 || state === 3) && k === 't') placeBearTrap();
     if ((state === 1 || state === 3) && k === 'r') useBattery();
+    if ((state === 1 || state === 3) && k === 'q') useSignalScrambler();
+    if (state === 1 && k === 'g') useNeutralizer();
+    if (state === 1 && k === 'k') useRepairKit();
+    if ((state === 1 || state === 3) && k === 'l') useFlare();
 
     // Generator Interaction
     if (state === 1 && k === 'e' && player.stunTimer <= 0) {
@@ -990,6 +1064,7 @@ window.addEventListener('keydown', (e) => {
             scRequired = Math.max(1, 3 - upgHack + (monsters.some(enemy => enemy.isReinforced) ? 1 : 0));
             scSpeed = (currentDiff === 0 ? 0.0195 : currentDiff === 1 ? 0.0325 : 0.0455) * (1 - (upgQuick * 0.10));
             let zoneWidth = currentDiff === 0 ? Math.PI/2 : currentDiff === 1 ? Math.PI/3 : Math.PI/5;
+            if (repairAssist > 0) zoneWidth = Math.min(Math.PI * 0.78, zoneWidth * 1.7);
             if (monsters.some(enemy => enemy.hasPanic && Math.hypot(enemy.x - player.x, enemy.y - player.y) < 260)) zoneWidth *= 0.72;
             scZoneStart = Math.random() * (Math.PI*2 - zoneWidth);
             scZoneEnd = scZoneStart + zoneWidth;
@@ -1015,6 +1090,7 @@ window.addEventListener('keydown', (e) => {
             } else {
                 scZoneStart = Math.random() * (Math.PI*2 - (scZoneEnd - scZoneStart));
                 let nextZoneWidth = currentDiff === 0 ? Math.PI/2 : currentDiff === 1 ? Math.PI/3 : Math.PI/5;
+                if (repairAssist > 0) nextZoneWidth = Math.min(Math.PI * 0.78, nextZoneWidth * 1.7);
                 if (monsters.some(enemy => enemy.hasPanic && Math.hypot(enemy.x - player.x, enemy.y - player.y) < 260)) nextZoneWidth *= 0.72;
                 scZoneEnd = scZoneStart + nextZoneWidth;
                 scNeedle = 0;
@@ -1416,7 +1492,7 @@ function updateRhysCombat(canSeePlayer) {
         const targetX = canSeePlayer ? player.x : monster.x + (Math.random()-.5)*180, targetY = canSeePlayer ? player.y : monster.y + (Math.random()-.5)*180;
         const angle = Math.atan2(targetY-monster.y,targetX-monster.x); goopShots.push({ x:monster.x, y:monster.y, vx:Math.cos(angle)*4.4, vy:Math.sin(angle)*4.4, life:Math.max(18,Math.min(58,dist/4)) }); rhysSpitCooldown = canSeePlayer ? 210 : 330;
     }
-    if (canSeePlayer && rhysDashCooldown <= 0 && dist > 120 && dist < 360 && Math.random() < 0.012) { rhysDashTarget = { angle:Math.atan2(player.y-monster.y,player.x-monster.x) }; rhysChargeWindup = 42; rhysDashCooldown = 420; notify('RHYS IS BRACING', 'danger'); return true; }
+    if (canSeePlayer && rhysDashCooldown <= 0 && dist > 100 && dist < 420 && Math.random() < 0.020) { rhysDashTarget = { angle:Math.atan2(player.y-monster.y,player.x-monster.x) }; rhysChargeWindup = 28; rhysDashCooldown = 300; notify('RHYS IS BRACING', 'danger'); return true; }
     return false;
 }
 
@@ -1428,7 +1504,7 @@ function updateHeat() {
         return;
     }
     const hot = isInHeatZone(player.x, player.y);
-    if (hot && !player.inHeatZone) {
+    if (hot && !player.inHeatZone && scramblerTimer <= 0) {
         for (const enemy of monsters) {
             if (enemy.name !== 'AESON') continue;
             enemy.heatAlertTimer = 420;
@@ -1846,6 +1922,7 @@ function startGame(diffLevel) {
     monsters = [monster];
 
     empTimer = 0; empWarning = 0; empActive = 0;
+    scramblerTimer = 0; repairAssist = 0; flareTimer = 0;
     powerOutageTimer = 0; outageFlickerTimer = 0; powerOutageCooldown = Math.floor(Math.random() * 600) + 900;
     flickerTimer = 0; flickerCooldown = Math.floor(Math.random() * 600) + 600;
     emergencyTimer = 0; emergencyCooldown = currentMapId === 'crimson' ? 999999 : Math.floor(Math.random() * 1200) + 1200;
@@ -2150,6 +2227,10 @@ function updateHUD() {
     if (itemAllowed('bearTrap') && invBearTrap > 0) invText.push(`Trap: ${invBearTrap} (T)`);
     if (itemAllowed('battery') && invBattery > 0) invText.push(`Battery: ${invBattery} (R)`);
     if (itemAllowed('breathFilter') && invBreathFilter > 0) invText.push(`Filter: ${invBreathFilter}`);
+    if (itemAllowed('signalScrambler') && invSignalScrambler > 0) invText.push(`Scrambler: ${invSignalScrambler} (Q)${scramblerTimer > 0 ? ' ACTIVE' : ''}`);
+    if (itemAllowed('neutralizer') && invNeutralizer > 0) invText.push(`Neutralizer: ${invNeutralizer} (G)`);
+    if (itemAllowed('repairKit') && invRepairKit > 0) invText.push(`Repair Kit: ${invRepairKit} (K)${repairAssist ? ' READY' : ''}`);
+    if (itemAllowed('flare') && invFlare > 0) invText.push(`Flare: ${invFlare} (L)${flareTimer > 0 ? ' LIT' : ''}`);
     if (currentMapId === 'boilerworks' && player.heat > 0) invText.push(`HEAT: ${Math.round(player.heat / 3)}/100`);
     if (player.crouching) invText.push('CROUCHING');
     if (player.breathing) invText.push(`BREATH: ${Math.ceil(player.breathTimer / 60)}s`);
@@ -2321,6 +2402,8 @@ function update() {
 
     if (flashAlpha > 0) flashAlpha -= 0.02;
     ambienceClock++;
+    if (scramblerTimer > 0) scramblerTimer--;
+    if (flareTimer > 0) flareTimer--;
     if (jordanSabotageCooldown > 0) jordanSabotageCooldown--;
 
     for (const generator of generators) {
@@ -3078,6 +3161,7 @@ function draw() {
             ctx.fillStyle = grad; ctx.fillRect(0, 0, canvas.width, canvas.height);
         } else {
             let darkness = monster.hasGloom ? 0.85 : 0.55;
+            if (flareTimer > 0) darkness = Math.max(0.18, darkness - 0.28);
             if (powerOutageTimer > 0) darkness = Math.min(0.92, darkness + 0.25);
             if (outageFlickerTimer > 0 && ambienceClock % 6 < 3) darkness = Math.max(0.05, darkness - 0.42);
             if (flickerTimer > 0 && ambienceClock % 8 < 4) darkness = Math.max(0, darkness - 0.25);
@@ -3209,7 +3293,7 @@ function openMobileActionMenu(kind) {
     } else if (kind === 'items') {
         title.textContent = 'ITEMS';
         const usable = (type, count) => itemAllowed(type) && count > 0 ? '' : 'disabled';
-        content.innerHTML = `<button ${usable('adrenaline', invAdrenaline)} onclick="mobileKey(' '); closeMobileActionMenu()">ADRENALINE (${invAdrenaline})</button><button ${usable('flashbang', invFlashbang)} onclick="mobileKey('f'); closeMobileActionMenu()">FLASHBANG (${invFlashbang})</button><button ${usable('noiseMaker', invNoiseMaker)} onclick="mobileKey('n'); closeMobileActionMenu()">NOISE MAKER (${invNoiseMaker})</button><button ${usable('bearTrap', invBearTrap)} onclick="mobileKey('t'); closeMobileActionMenu()">BEAR TRAP (${invBearTrap})</button><button ${usable('battery', invBattery)} onclick="mobileKey('r'); closeMobileActionMenu()">EMERGENCY BATTERY (${invBattery})</button>`;
+        content.innerHTML = `<button ${usable('adrenaline', invAdrenaline)} onclick="mobileKey(' '); closeMobileActionMenu()">ADRENALINE (${invAdrenaline})</button><button ${usable('flashbang', invFlashbang)} onclick="mobileKey('f'); closeMobileActionMenu()">FLASHBANG (${invFlashbang})</button><button ${usable('noiseMaker', invNoiseMaker)} onclick="mobileKey('n'); closeMobileActionMenu()">NOISE MAKER (${invNoiseMaker})</button><button ${usable('bearTrap', invBearTrap)} onclick="mobileKey('t'); closeMobileActionMenu()">BEAR TRAP (${invBearTrap})</button><button ${usable('battery', invBattery)} onclick="mobileKey('r'); closeMobileActionMenu()">EMERGENCY BATTERY (${invBattery})</button><button ${usable('signalScrambler', invSignalScrambler)} onclick="mobileKey('q'); closeMobileActionMenu()">SIGNAL SCRAMBLER (${invSignalScrambler})</button><button ${usable('neutralizer', invNeutralizer)} onclick="mobileKey('g'); closeMobileActionMenu()">GOOP NEUTRALIZER (${invNeutralizer})</button><button ${usable('repairKit', invRepairKit)} onclick="mobileKey('k'); closeMobileActionMenu()">REPAIR KIT (${invRepairKit})</button><button ${usable('flare', invFlare)} onclick="mobileKey('l'); closeMobileActionMenu()">EMERGENCY FLARE (${invFlare})</button>`;
     }
 }
 

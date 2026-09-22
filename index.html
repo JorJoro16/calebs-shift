@@ -183,26 +183,27 @@
     <!-- Info/Database Menu -->
     <div id="infoMenu" class="menu-panel" style="max-height: 80vh; overflow-y: auto;">
         <h2>DATABASE & TIPS</h2>
+        <div class="info-tabs" role="tablist"><button onclick="setInfoTab('start')">START</button><button onclick="setInfoTab('maps')">MAPS</button><button onclick="setInfoTab('monsters')">MONSTERS</button><button onclick="setInfoTab('systems')">SYSTEMS</button></div>
         <div class="info-sections">
-            <details class="info-section" open><summary style="color:#0ff;">HOW TO PLAY</summary><div>
+            <details class="info-section" data-info-tab="start" open><summary style="color:#0ff;">HOW TO PLAY</summary><div>
             <b>Desktop:</b> WASD moves · E interacts · SPACE uses Adrenaline / hits skill checks · F uses Flashbang · hold SHIFT to crouch · hold B to hold breath · H hides near a cabinet · N throws a Noise Maker.<br>
             <b>Phone:</b> Joystick moves · E interacts · ◎ Abilities · ▣ Items · HIT Skill Check when repairing. Install from the Home Screen for the cleanest fullscreen experience.<br>
             <b>Goal:</b> Repair every generator, then catch the fleeing monster.<br></div></details>
 
-            <details class="info-section"><summary style="color:#b8aaff;">GAME MODES</summary><div>
+            <details class="info-section" data-info-tab="start"><summary style="color:#b8aaff;">GAME MODES</summary><div>
             <b>Normal:</b> The original one-round game. Choose difficulty, repair generators, then catch the monster.<br>
             <b>Endless:</b> Each win immediately begins the next round. Generators, speed, mutations, outages, false generators, and monster count increase; round 4 introduces a second monster.<br>
             <b>Survival:</b> Choose Caleb, Malakai, Jordan, Aeson, and/or Bassam, how many appear, difficulty, generator count, mutations per monster, and whether map events are active.<br></div></details>
 
-            <details class="info-section"><summary style="color:#ff4444;">MONSTERS</summary><div>
+            <details class="info-section" data-info-tab="monsters"><summary style="color:#ff4444;">MONSTERS</summary><div>
             <b>CALEB — The Disruptor</b><br>Patrols normally and periodically releases an EMP that makes the map difficult to read.<br><span style="color:#aaa">Counter:</span> Keep moving after the warning and use landmarks to reorient yourself.<br><br>
             <b>MALAKAI — The Blood Hunter</b><br>Fast and aggressive. Repairs, failed skill checks, false generators, and other mistakes can give him your last known trail for a short time.<br><span style="color:#aaa">Counter:</span> Crouch, break line of sight, use a Noise Maker, or let a trap slow him down.<br><br>
             <b>JORDAN — The Mimic</b><br>Can disguise himself as a generator. Interacting with him reveals the trick and eventually triggers an enraged chase.<br><span style="color:#aaa">Counter:</span> Watch for the suspicious visual offset and be ready to run after checking a generator.<br><br>
             <b>AESON — The Firestarter</b><br>Ignites sections of the Boilerworks and senses players who build up too much heat.<br><span style="color:#aaa">Counter:</span> Leave burning areas, cool down, and use the facility’s alternate routes.<br><br>
             <b>BASSAM — The Concierge</b><br>Disguises himself as a hotel employee and offers believable but dangerous directions. Genuine employees can help with small tasks and clues.<br><span style="color:#aaa">Counter:</span> Check badges, shadows, and directions before trusting an employee. A fake employee cannot provide a consistent department or safe route.<br></div></details>
-            <details class="info-section"><summary style="color:#ffe06b;">RHYS — THE CONTAINED</summary><div><b>Goop:</b> Leaves slowing puddles while roaming and spits short-range shots during a chase.<br><b>Dash:</b> Charges in a straight line; dodge sideways or bait him into marked breakable walls.<br><span style="color:#aaa">Counter:</span> Use rooms and corners to make him miss, then use his dash to open the seal route and trap him in containment.</div></details>
+            <details class="info-section" data-info-tab="monsters"><summary style="color:#ffe06b;">RHYS — THE CONTAINED</summary><div><b>Goop:</b> Leaves slowing puddles while roaming and spits short-range shots during a chase.<br><b>Dash:</b> Charges in a straight line; dodge sideways or bait him into marked breakable walls.<br><span style="color:#aaa">Counter:</span> Use rooms and corners to make him miss, then use his dash to open the seal route and trap him in containment.</div></details>
             
-            <details class="info-section"><summary style="color:#ff4444;">MUTATIONS</summary><div>
+            <details class="info-section" data-info-tab="monsters"><summary style="color:#ff4444;">MUTATIONS</summary><div>
             <b>Speed Demon:</b> Flat speed boost.<br>
             <b>Frenzy:</b> Gains a speed boost with every repaired generator.<br>
             <b>Giant:</b> Massive visual size.<br>
@@ -225,16 +226,17 @@
             <b>Afterimage:</b> Leaves a harmless delayed silhouette when it changes direction.<br>
             <span style="color:#aaa">They can also fake generator markers, alerts, and HUD progress. They never deal damage.</span><br></div></details>
 
-            <details class="info-section"><summary style="color:#d8b4ff;">PROGRESSION</summary><div>
+            <details class="info-section" data-info-tab="systems"><summary style="color:#d8b4ff;">PROGRESSION</summary><div>
             <b>Cosmetics:</b> Colors and trails are cosmetic-only rewards for Hard wins, monster catches, Endless progress, and item-free wins.<br>
             <b>Statistics:</b> The Statistics screen records wins, losses, generators, catches, Endless best, fastest win, item use, and favorite monster.<br>
-            <b>Inventory:</b> You can carry up to five consumables. Batteries restore lights with R; Breath Filters extend your next breath hold.<br></div></details>
+            <b>Inventory:</b> You can carry up to five consumables. Batteries restore lights with R; Breath Filters extend your next breath hold.<br>
+            <b>Specialist Gear:</b> Signal Scramblers block tracking alerts, Goop Neutralizers clear Rhys hazards, Repair Kits widen the next skill-check zone, and Flares brighten the area but reveal your location.<br></div></details>
             
-            <details class="info-section"><summary style="color:#0f0;">TIPS</summary><div>
+            <details class="info-section" data-info-tab="start"><summary style="color:#0f0;">TIPS</summary><div>
             - Use <b>'E'</b> to repair generators.<br>
             - Skill check needles now loop endlessly! Take your time to hit the green zone.<br>
             - Jordan has a 30-second cooldown before he can sabotage multiple generators.<br></div></details>
-            <details class="info-section"><summary style="color:#ffcc00;">MAP EVENTS & GENERATORS</summary><div>
+            <details class="info-section" data-info-tab="maps"><summary style="color:#ffcc00;">MAP EVENTS & GENERATORS</summary><div>
             <b>Power Outage:</b> The map darkens for a short time. Maintenance rooms can restore the lights early.<br>
             <b>Emergency Lights:</b> Red alarms reveal both locations and let the monster track you through the maze too.<br>
             <b>False Generators:</b> Look closely for their small offset amber status light. Do not repair them.<br>
@@ -246,22 +248,22 @@
             <b>Hold Breath:</b> Hold your breath briefly to avoid the All-Seeing mutation. It has a cooldown.<br>
             <b>Noise Maker:</b> Throw a sound somewhere else to pull the monster away. Completed generators also make noise.<br>
             <b>Bear Trap:</b> Press T or use Items to place one at your feet. It briefly stuns a monster, then disappears. Only two can be active.<br></div></details>
-            <details class="info-section"><summary style="color:#ff6b2b;">THE BOILERWORKS</summary><div>
+            <details class="info-section" data-info-tab="maps"><summary style="color:#ff6b2b;">THE BOILERWORKS</summary><div>
             <b>Objective:</b> Repair every generator, activate all three cooling valves, then find and shut down the central boiler.<br>
             <b>Heat:</b> Burning sections build heat and slightly slow you. Leave the area to cool down. The Boilerworks uses long procedural halls and rooms, so routes change every run.<br>
             <b>Monsters:</b> Aeson is most likely here, but Jordan, Caleb, Malakai, and rare two-monster runs are possible.<br></div></details>
-            <details class="info-section"><summary style="color:#d4c09a;">THE ENDLESS HOTEL</summary><div>
+            <details class="info-section" data-info-tab="maps"><summary style="color:#d4c09a;">THE ENDLESS HOTEL</summary><div>
             <b>Objective:</b> Repair the hotel generators, complete and report staff assignments, evacuate the employees through the elevator, then catch Bassam.<br>
             <b>Employees:</b> Speak to staff to accept up to two assignments. Complete the work, then return to the same staff member to report it.<br>
             <b>Events:</b> Hotel Lockdown seals a whole corridor section temporarily. Bassam can impersonate staff and place a false assignment among your real ones.<br></div></details>
-            <details class="info-section"><summary style="color:#ffe06b;">THE CRIMSON CONTAINMENT</summary><div><b>Objective:</b> Repair generators, locate the Crimson Seal through a changing route, then lure Rhys into the containment trap.<br><b>Events:</b> Containment alarms, pressure releases, a sweeping emergency-light circle, and seal resonance. This level does not use power outages.</div></details>
-            <details class="info-section"><summary style="color:#0ff;">MOBILE CONTROLS</summary><div>
+            <details class="info-section" data-info-tab="maps"><summary style="color:#ffe06b;">THE CRIMSON CONTAINMENT</summary><div><b>Objective:</b> Repair generators, locate the Crimson Seal through a changing route, then lure Rhys into the containment trap.<br><b>Events:</b> Containment alarms, pressure releases, a sweeping emergency-light circle, and seal resonance. This level does not use power outages.</div></details>
+            <details class="info-section" data-info-tab="start"><summary style="color:#0ff;">MOBILE CONTROLS</summary><div>
             <b>Joystick:</b> Move freely in any direction.<br>
             <b>E:</b> Interact with generators, fuses, rooms, and hiding spots.<br>
             <b>◎ Abilities:</b> Pauses the game and opens Crouch, Hold Breath, and Hide. Crouch is a toggle on phone.<br>
-            <b>▣ Items:</b> Pauses the game and opens Adrenaline, Flashbang, Noise Maker, Bear Trap, and Battery.<br>
+            <b>▣ Items:</b> Pauses the game and opens every carried supply, including Specialist Gear.<br>
             <b>Skill Check:</b> Appears during timing-based repairs. Tap it when the needle is inside the green zone.<br></div></details>
-            <details class="info-section"><summary style="color:#d8b4ff;">OBJECTIVES & LOADOUTS</summary><div>
+            <details class="info-section" data-info-tab="systems"><summary style="color:#d8b4ff;">OBJECTIVES & LOADOUTS</summary><div>
             <b>Daily Objectives:</b> Complete rotating local objectives for bonus tokens from the main menu.<br>
             <b>Loadouts:</b> Choose which owned item types are available during your next run. Items are still consumed normally when used.<br></div></details>
             <br><span style="color:#888;">Version <span id="infoVersion">1.0.0</span> · Created for local play with friends.</span>
@@ -273,6 +275,8 @@
     <div id="shopMenu" class="menu-panel" style="max-height: 80vh; overflow-y: auto;">
         <h2>BLACK MARKET</h2>
         <div class="token-display" id="tokenDisplayShop">Tokens: 0</div>
+        <div id="shopCarryStatus" class="shop-carry-status"></div>
+        <div class="shop-tabs"><button onclick="setShopTab('upgrades')">UPGRADES</button><button onclick="setShopTab('supplies')">SUPPLIES</button></div>
         
         <div class="shop-item">
             <div>
@@ -332,6 +336,10 @@
             </div>
             <button onclick="buyConsumable('bearTrap', 24)">24 T</button>
         </div>
+        <div class="shop-item"><div><div>Signal Scrambler</div><div class="shop-desc">Q / Items: blocks tracking alerts briefly. Physical sight still works.</div></div><button onclick="buyConsumable('signalScrambler', 26)">26 T</button></div>
+        <div class="shop-item"><div><div>Goop Neutralizer</div><div class="shop-desc">G / Items: clears nearby goop and pressure hazards in Crimson Containment.</div></div><button onclick="buyConsumable('neutralizer', 14)">14 T</button></div>
+        <div class="shop-item"><div><div>Repair Kit</div><div class="shop-desc">K / Items: makes your next generator skill check easier.</div></div><button onclick="buyConsumable('repairKit', 19)">19 T</button></div>
+        <div class="shop-item"><div><div>Emergency Flare</div><div class="shop-desc">L / Items: brightens the area, but alerts nearby monsters.</div></div><button onclick="buyConsumable('flare', 12)">12 T</button></div>
         <button onclick="showMenu('mainMenu')" style="margin-top: 15px; border-color: #ff4444; color: #ff4444;">BACK</button>
     </div>
 

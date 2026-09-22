@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.4.0
+
+- Rebuilt the crowded Info screen into Start, Maps, Monsters, and Systems tabs, while retaining the existing expandable detail sections.
+- Reworked the Black Market into Upgrades and Supplies tabs with a visible five-slot carry count.
+- Added Signal Scrambler, Goop Neutralizer, Repair Kit, and Emergency Flare. Each is saved, imported/exported, constrained by the carry limit, shown in the HUD, usable from desktop keys and the mobile Items panel, and documented in Info.
+- Made ordinary Rhys charges more aggressive: wider engagement range, more frequent attempts, shorter brace, and shorter cooldown. The special cracked-wall charge keeps its longer warning.
+- Bumped the save schema to 8 without removing older progress fields, and bumped the offline cache to `calebs-shift-v34`.
+
 ## 2.3.3
 
 - Removed cosmetics and collection controls from Records; cosmetics are now only in the dedicated Cosmetics Book.
