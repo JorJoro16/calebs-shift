@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.3.2
+
+- Fixed the main menu clipping its final entries on shorter screens. It now scrolls when needed, and the dedicated entry is labeled **COSMETICS BOOK**.
+- Bumped the offline cache to `calebs-shift-v32`.
+
 ## 2.3.1
 
 - Added the missing Cosmetics button to the main menu. It opens the Collector's Book directly, including the Colors, Trails, and Hats tabs.
