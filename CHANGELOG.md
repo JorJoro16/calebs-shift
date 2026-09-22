@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.3.3
+
+- Removed cosmetics and collection controls from Records; cosmetics are now only in the dedicated Cosmetics Book.
+- Kept player trail history updating during the monster-catching phase, so trails remain behind the player while catching Bassam or any other monster.
+- Added a short, visible Rhys charge wind-up. His post-charge stun is longer, especially after smashing the cracked wall.
+- Rebuilt the cracked wall as a multi-tile sealed vault gate. It blocks players and pathfinding until Rhys destroys it; early generators cannot appear beyond it.
+- When the player reaches the cracked gate, Rhys routes to it, stops to brace, then charges into the wall—giving the player time to dodge safely.
+- Bumped the offline cache to `calebs-shift-v33`.
+
 ## 2.3.2
 
 - Fixed the main menu clipping its final entries on shorter screens. It now scrolls when needed, and the dedicated entry is labeled **COSMETICS BOOK**.

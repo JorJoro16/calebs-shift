@@ -93,7 +93,7 @@ function playSound(type) {
 }
 
 // Versioned local progress with a backup copy and import/export support.
-const GAME_VERSION = '2.3.2';
+const GAME_VERSION = '2.3.3';
 const SAVE_SCHEMA_VERSION = 7;
 const SAVE_KEY = 'br_save_v2';
 const SAVE_BACKUP_KEY = 'br_save_backup_v2';
@@ -348,10 +348,7 @@ function renderRecords() {
     if (!content) return;
     const fastest = stats.fastestWin ? `${(stats.fastestWin / 1000).toFixed(1)}s` : '—';
     const readyDaily = daily.objectives.filter(objective => objective.progress >= objective.target && !objective.claimed).length;
-    const colorOptions = [{ id:'blue', label:'Default Blue' }, { id:'crimson', label:'Crimson' }, { id:'violet', label:'Violet' }, { id:'green', label:'Green' }, { id:'amber', label:'Amber' }, { id:'gold', label:'Containment Gold' }];
-    const trailOptions = [{ id:'none', label:'No trail' }, { id:'spark', label:'Spark trail' }, { id:'ghost', label:'Ghost trail' }, { id:'ember', label:'Ember trail' }];
-    const cosmeticControls = `<b>PLAYER COLOR</b><br>${colorOptions.map(item => `<button ${cosmetics.unlocked.includes(item.id) ? '' : 'disabled'} onclick="selectCosmetic('color','${item.id}'); renderRecords();">${cosmetics.color === item.id ? '✓ ' : ''}${item.label}</button>`).join('')}<br><b>TRAIL</b><br>${trailOptions.map(item => `<button ${cosmetics.unlocked.includes(item.id) ? '' : 'disabled'} onclick="selectCosmetic('trail','${item.id}'); renderRecords();">${cosmetics.trail === item.id ? '✓ ' : ''}${item.label}</button>`).join('')}`;
-    content.innerHTML = `<details class="record-section" open><summary>RUN STATISTICS</summary><div>Games: <b>${stats.games}</b><br>Wins / Losses: <b>${stats.wins} / ${stats.losses}</b><br>Generators repaired: <b>${stats.generators}</b><br>Monsters caught: <b>${stats.caught}</b><br>Best Endless round: <b>${stats.bestEndless}</b><br>Fastest win: <b>${fastest}</b><br>Items used: <b>${stats.itemsUsed}</b><br>Favorite monster: <b>${stats.favoriteMonster}</b></div></details><details class="record-section"><summary>COSMETICS & COLLECTION</summary><div>${cosmetics.unlocked.length} cosmetic unlocks · ${unlockedMaps.length}/${Object.keys(MAP_DEFINITIONS).length} maps unlocked<br><br>${cosmeticControls}<br><br>${Object.values(MAP_DEFINITIONS).map(mapDef => `<div class="collection-row"><strong>${mapDef.name}</strong><span>${unlockedMaps.includes(mapDef.id) ? 'UNLOCKED' : 'LOCKED'}</span></div>`).join('')}</div></details><details class="record-section"><summary>DAILY OBJECTIVES ${readyDaily ? `· ${readyDaily} READY` : ''}</summary><div>${daily.objectives.map((objective, index) => `<div class="objective-row"><div><b>${objective.label}</b><br><span>${Math.min(objective.progress, objective.target)}/${objective.target}${objective.claimed ? ' · CLAIMED' : ''}</span></div>${objective.progress >= objective.target && !objective.claimed ? `<button onclick="claimDailyObjective(${index}); renderRecords();">CLAIM ${objective.reward} T</button>` : ''}</div>`).join('')}</div></details>`;
+    content.innerHTML = `<details class="record-section" open><summary>RUN STATISTICS</summary><div>Games: <b>${stats.games}</b><br>Wins / Losses: <b>${stats.wins} / ${stats.losses}</b><br>Generators repaired: <b>${stats.generators}</b><br>Monsters caught: <b>${stats.caught}</b><br>Best Endless round: <b>${stats.bestEndless}</b><br>Fastest win: <b>${fastest}</b><br>Items used: <b>${stats.itemsUsed}</b><br>Favorite monster: <b>${stats.favoriteMonster}</b></div></details><details class="record-section"><summary>DAILY OBJECTIVES ${readyDaily ? `· ${readyDaily} READY` : ''}</summary><div>${daily.objectives.map((objective, index) => `<div class="objective-row"><div><b>${objective.label}</b><br><span>${Math.min(objective.progress, objective.target)}/${objective.target}${objective.claimed ? ' · CLAIMED' : ''}</span></div>${objective.progress >= objective.target && !objective.claimed ? `<button onclick="claimDailyObjective(${index}); renderRecords();">CLAIM ${objective.reward} T</button>` : ''}</div>`).join('')}</div></details>`;
 }
 
 function selectLoadout(id) {
@@ -716,7 +713,7 @@ let hotelTaskGame = null;
 let empTimer = 0, empWarning = 0, empActive = 0, flashAlpha = 0;
 let powerOutageTimer = 0, powerOutageCooldown = 0, flickerTimer = 0, flickerCooldown = 0, emergencyTimer = 0, emergencyCooldown = 0, outageFlickerTimer = 0;
 let noiseTarget = null, noiseTimer = 0, bearTraps = [], heatZones = [], heatEventCooldown = 0;
-let goopZones = [], goopShots = [], rhysSpitCooldown = 0, rhysDashTimer = 0, rhysDashCooldown = 0, rhysDashTarget = null, rhysEventCooldown = 900, rhysSweepTimer = 0, rhysSweepRadius = 0, rhysPressureZones = [];
+let goopZones = [], goopShots = [], rhysSpitCooldown = 0, rhysDashTimer = 0, rhysChargeWindup = 0, rhysDashCooldown = 0, rhysDashTarget = null, rhysEventCooldown = 900, rhysSweepTimer = 0, rhysSweepRadius = 0, rhysPressureZones = [];
 let heatOverlay = null;
 let ambienceClock = 0;
 let runStartedAt = 0, runItemsUsed = 0, hallucinationHudTimer = 0;
@@ -1281,6 +1278,7 @@ function generateCrimsonContainment() {
     map = Array.from({length: ROWS}, () => Array(COLS).fill(1));
     rooms = []; hidingSpots = []; coolingValves = []; fuses = []; employees = []; reservedObjectTiles = new Set();
     const types = ['intake','archive','medical','storage','processing','security','maintenance','containment','vault','service','trap'];
+    rhysRoute = ['search','break','chest'][Math.floor(Math.random() * 3)];
     const nodes = [];
     for (let i = 0; i < types.length; i++) {
         const c = 6 + i * 8 + Math.floor(Math.random() * 3), r = 7 + Math.floor(Math.random() * (ROWS - 14));
@@ -1295,15 +1293,25 @@ function generateCrimsonContainment() {
             for (let rr = r - Math.floor(height / 2) + 1; rr <= r + Math.floor(height / 2) - 1; rr++) if (rr !== gapR) map[rr][wallC] = 1;
         }
     }
-    for (let i = 0; i < 3; i++) { const a = nodes[Math.floor(Math.random() * (nodes.length - 2))], b = nodes[Math.min(nodes.length - 1, nodes.indexOf(a) + 2)]; if (a && b) carveBoilerCorridor(a, b); }
+    for (let i = 0; i < 3; i++) {
+        const maxStart = rhysRoute === 'break' ? 6 : nodes.length - 2;
+        const a = nodes[Math.floor(Math.random() * maxStart)], b = nodes[Math.min(nodes.length - 1, nodes.indexOf(a) + 2)];
+        if (a && b) carveBoilerCorridor(a, b);
+    }
     rebuildFloors();
     const intake = rooms[0], vault = rooms.find(room => room.type === 'vault'), trapRoom = rooms.find(room => room.type === 'trap');
-    rhysRoute = ['search','break','chest'][Math.floor(Math.random() * 3)];
     rhysSeal = { x: vault.x, y: vault.y, collected:false, accessible: rhysRoute !== 'break' };
     rhysChest = rhysRoute === 'chest' ? { x: vault.x, y: vault.y, opened:false } : null;
     const keyRoom = rooms.find(room => room.type === 'security') || intake;
     rhysChestKey = rhysRoute === 'chest' ? { x:keyRoom.x, y:keyRoom.y, collected:false } : null;
-    rhysBreakWall = rhysRoute === 'break' ? { x:vault.x - Math.floor(vault.width / 2) * TS, y:vault.y, broken:false, r:18 } : null;
+    if (rhysRoute === 'break') {
+        const left = vault.c - Math.floor(vault.width / 2), right = vault.c + Math.floor(vault.width / 2);
+        const top = vault.r - Math.floor(vault.height / 2), bottom = vault.r + Math.floor(vault.height / 2);
+        const cells = [];
+        for (let c = left; c <= right; c++) { cells.push({ c, r:top }, { c, r:bottom }); }
+        for (let r = top + 1; r < bottom; r++) { cells.push({ c:left, r }, { c:right, r }); }
+        rhysBreakWall = { c:left, r:vault.r, x:left * TS + TS / 2, y:vault.y, cells, broken:false, r:18, baitX:(left - 2) * TS + TS / 2, baitY:vault.y };
+    } else rhysBreakWall = null;
     rhysTrap = trapRoom ? { x:trapRoom.x, y:trapRoom.y, room:trapRoom } : null;
     [rhysSeal, rhysChest, rhysChestKey, rhysBreakWall, rhysTrap].filter(Boolean).forEach(object => reserveObjectTile(Math.floor(object.x / TS), Math.floor(object.y / TS), 1));
     if (intake) hidingSpots.push({ x:intake.x, y:intake.y, occupied:false });
@@ -1325,7 +1333,12 @@ function updateAesonEvents() {
 }
 
 function isDynamicBlockedCell(c, r) {
-    return currentMapId === 'hotel' && hotelLockdownActive && hotelBlockedDoor?.cells?.some(cell => cell.c === c && cell.r === r);
+    return (currentMapId === 'hotel' && hotelLockdownActive && hotelBlockedDoor?.cells?.some(cell => cell.c === c && cell.r === r))
+        || (currentMapId === 'crimson' && rhysBreakWall && !rhysBreakWall.broken && rhysBreakWall.cells?.some(cell => cell.c === c && cell.r === r));
+}
+
+function isRhysEarlyLockedTile(tile) {
+    return currentMapId === 'crimson' && rhysRoute === 'break' && rhysBreakWall && !rhysBreakWall.broken && tile.c >= rhysBreakWall.c;
 }
 
 function updateHotelEvents() {
@@ -1379,18 +1392,31 @@ function updateRhysCombat(canSeePlayer) {
     goopShots = goopShots.filter(shot => shot.life > 0);
     for (const zone of goopZones) zone.life--; goopZones = goopZones.filter(zone => zone.life > 0);
     for (const zone of rhysPressureZones) zone.life--; rhysPressureZones = rhysPressureZones.filter(zone => zone.life > 0);
+    if (rhysChargeWindup > 0) {
+        rhysChargeWindup--;
+        if (rhysChargeWindup <= 0) { rhysDashTimer = 44; notify('RHYS CHARGES', 'danger'); }
+        return true;
+    }
     if (rhysDashTimer > 0) {
         rhysDashTimer--; moveEntity(monster, Math.cos(rhysDashTarget.angle) * 7.8, Math.sin(rhysDashTarget.angle) * 7.8);
-        if (rhysBreakWall && !rhysBreakWall.broken && Math.hypot(monster.x-rhysBreakWall.x, monster.y-rhysBreakWall.y) < 32) { rhysBreakWall.broken = true; rhysSeal.accessible = true; monster.stunTimer = 90; notify('RHYS BROKE THE WALL', 'unlock'); updateHUD(); }
-        if (rhysDashTimer <= 0) monster.stunTimer = 45;
+        if (rhysBreakWall && !rhysBreakWall.broken && Math.hypot(monster.x-rhysBreakWall.x, monster.y-rhysBreakWall.y) < TS * 1.15) { rhysBreakWall.broken = true; rhysSeal.accessible = true; monster.stunTimer = 180; notify('RHYS BROKE THE WALL · HE IS STUNNED', 'unlock'); updateHUD(); }
+        if (rhysDashTimer <= 0 && monster.stunTimer <= 0) monster.stunTimer = 75;
         return true;
     }
     const dist = Math.hypot(player.x-monster.x, player.y-monster.y);
+    const playerAtCrackedWall = rhysBreakWall && !rhysBreakWall.broken && Math.hypot(player.x-rhysBreakWall.x, player.y-rhysBreakWall.y) < 105;
+    const rhysNearCrackedWall = rhysBreakWall && !rhysBreakWall.broken && Math.hypot(monster.x-rhysBreakWall.x, monster.y-rhysBreakWall.y) < 235;
+    if (playerAtCrackedWall && rhysNearCrackedWall) {
+        rhysDashTarget = { angle:Math.atan2(rhysBreakWall.y-monster.y, rhysBreakWall.x-monster.x), wall:true };
+        rhysChargeWindup = 48; rhysDashCooldown = 480;
+        notify('RHYS BRACES TO SMASH THE WALL', 'danger');
+        return true;
+    }
     if (rhysSpitCooldown <= 0 && (canSeePlayer ? dist < 250 : Math.random() < 0.004)) {
         const targetX = canSeePlayer ? player.x : monster.x + (Math.random()-.5)*180, targetY = canSeePlayer ? player.y : monster.y + (Math.random()-.5)*180;
         const angle = Math.atan2(targetY-monster.y,targetX-monster.x); goopShots.push({ x:monster.x, y:monster.y, vx:Math.cos(angle)*4.4, vy:Math.sin(angle)*4.4, life:Math.max(18,Math.min(58,dist/4)) }); rhysSpitCooldown = canSeePlayer ? 210 : 330;
     }
-    if (canSeePlayer && rhysDashCooldown <= 0 && dist > 120 && dist < 360 && Math.random() < 0.012) { rhysDashTarget = { angle:Math.atan2(player.y-monster.y,player.x-monster.x) }; rhysDashTimer = 38; rhysDashCooldown = 420; notify('RHYS IS CHARGING', 'danger'); }
+    if (canSeePlayer && rhysDashCooldown <= 0 && dist > 120 && dist < 360 && Math.random() < 0.012) { rhysDashTarget = { angle:Math.atan2(player.y-monster.y,player.x-monster.x) }; rhysChargeWindup = 42; rhysDashCooldown = 420; notify('RHYS IS BRACING', 'danger'); return true; }
     return false;
 }
 
@@ -1749,7 +1775,7 @@ function startGame(diffLevel) {
     camera.targetZoom = 1.0; camera.zoom = 1.0;
     nearGen = null; nearValve = null; nearBoiler = false; flashAlpha = 0;
     boilerShutdown = false; boilerReadyShown = false; heatZones = []; heatEventCooldown = currentMapId === 'boilerworks' ? 360 : 0;
-    rhysSealCollected = false; rhysTrapArmed = false; goopZones = []; goopShots = []; rhysSpitCooldown = 180; rhysDashTimer = 0; rhysDashCooldown = 360; rhysEventCooldown = 900; rhysSweepTimer = 0; rhysSweepRadius = 0; rhysPressureZones = [];
+    rhysSealCollected = false; rhysTrapArmed = false; goopZones = []; goopShots = []; rhysSpitCooldown = 180; rhysDashTimer = 0; rhysChargeWindup = 0; rhysDashCooldown = 360; rhysEventCooldown = 900; rhysSweepTimer = 0; rhysSweepRadius = 0; rhysPressureZones = [];
     hotelLockdownTimer = 0; hotelEventCooldown = currentMapId === 'hotel' ? 480 : 0; hotelLockdownActive = false; hotelBlockedDoor = null;
     bassamState = 'roaming'; bassamRevealPending = false; bassamTrapTaskId = null; bassamFakeTask = null; bassamFakeLine = ''; bassamAmbushActive = false; bassamLostTimer = 0; bassamAmbushCooldown = 900; hotelTaskGame = null; bassamStaffDepartment = ['FRONT DESK','MAINTENANCE','HOUSEKEEPING','KITCHEN'][Math.floor(Math.random() * 4)]; closeHotelDialogue();
     document.getElementById('hotelTaskHUD').style.display = currentMapId === 'hotel' ? 'block' : 'none';
@@ -1914,7 +1940,7 @@ function startGame(diffLevel) {
     if (currentMapId === 'crimson') totalGens = Math.max(5, Math.min(7, totalGens + 1));
     activeGens = 0; generators = [];
     
-    let genPool = floors.filter(tile => !getRoomAt(tile.c * TS + TS / 2, tile.r * TS + TS / 2)).sort(() => Math.random() - 0.5);
+    let genPool = floors.filter(tile => !getRoomAt(tile.c * TS + TS / 2, tile.r * TS + TS / 2) && !(currentMapId === 'crimson' && rhysRoute === 'break' && tile.c >= rhysBreakWall.c) && !isDynamicBlockedCell(tile.c, tile.r)).sort(() => Math.random() - 0.5);
     for (let tile of genPool) {
         if (generators.length >= totalGens) break;
         let tx = tile.c * TS + TS / 2, ty = tile.r * TS + TS / 2;
@@ -1935,7 +1961,7 @@ function startGame(diffLevel) {
         for (const tile of floors) {
             if (generators.length >= totalGens) break;
             const tx = tile.c * TS + TS / 2, ty = tile.r * TS + TS / 2;
-            if (isOpenObjectSpot(tx, ty, TS)) generators.push({ x: tx, y: ty, r: 12, active: false, type: 'normal', isFalse: false, repairFlash: 0, stage: 0, requiredStages: 3, requiredFuses: 2, collectedFuses: 0 });
+            if (!isRhysEarlyLockedTile(tile) && isOpenObjectSpot(tx, ty, TS)) generators.push({ x: tx, y: ty, r: 12, active: false, type: 'normal', isFalse: false, repairFlash: 0, stage: 0, requiredStages: 3, requiredFuses: 2, collectedFuses: 0 });
         }
     }
 
@@ -2395,7 +2421,7 @@ function update() {
         if (dx !== 0 && dy !== 0) { dx *= 0.707; dy *= 0.707; }
         if (dx !== 0 || dy !== 0) moveEntity(player, dx, dy);
     }
-    if (state === 1 && !player.hidden && ambienceClock % 3 === 0) {
+    if ((state === 1 || state === 3) && !player.hidden && ambienceClock % 3 === 0) {
         playerTrail.push({ x: player.x, y: player.y });
         if (playerTrail.length > 22) playerTrail.shift();
     }
@@ -2507,7 +2533,8 @@ function update() {
         } else if (state === 1 && monster.name === 'RHYS' && currentMapId === 'crimson') {
             const dashing = updateRhysCombat(canSeePlayer);
             if (!dashing) {
-                const target = canSeePlayer ? player : (noiseTarget && noiseTimer > 0 ? noiseTarget : null);
+                const baitingWall = rhysBreakWall && !rhysBreakWall.broken && Math.hypot(player.x - rhysBreakWall.x, player.y - rhysBreakWall.y) < 170;
+                const target = baitingWall ? { x:rhysBreakWall.baitX, y:rhysBreakWall.baitY } : (canSeePlayer ? player : (noiseTarget && noiseTimer > 0 ? noiseTarget : null));
                 if (target) {
                     const targetC = Math.floor(target.x / TS), targetR = Math.floor(target.y / TS);
                     if (monster.lastTargetC !== targetC || monster.lastTargetR !== targetR || monster.path.length === 0) {
@@ -2797,8 +2824,11 @@ function draw() {
 
     if (currentMapId === 'crimson') {
         if (rhysBreakWall && !rhysBreakWall.broken) {
-            ctx.fillStyle = '#4b1215'; ctx.fillRect(rhysBreakWall.x - 20, rhysBreakWall.y - 20, 40, 40);
-            ctx.strokeStyle = '#f0c55e'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(rhysBreakWall.x - 12, rhysBreakWall.y - 14); ctx.lineTo(rhysBreakWall.x + 8, rhysBreakWall.y + 12); ctx.moveTo(rhysBreakWall.x + 10, rhysBreakWall.y - 12); ctx.lineTo(rhysBreakWall.x - 7, rhysBreakWall.y + 14); ctx.stroke();
+            for (const cell of rhysBreakWall.cells) {
+                const x = cell.c * TS, y = cell.r * TS;
+                ctx.fillStyle = '#4b1215'; ctx.fillRect(x, y, TS, TS);
+                ctx.strokeStyle = '#f0c55e'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x + 8, y + 7); ctx.lineTo(x + 30, y + 33); ctx.moveTo(x + 31, y + 8); ctx.lineTo(x + 10, y + 32); ctx.stroke();
+            }
             ctx.fillStyle = '#ffe69a'; ctx.font = 'bold 9px Arial'; ctx.textAlign = 'center'; ctx.fillText('CRACKED WALL', rhysBreakWall.x, rhysBreakWall.y - 28);
         }
         if (rhysChestKey && !rhysChestKey.collected) {
