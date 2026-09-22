@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.4.2
+
+- Prevented Crimson Containment from ending until every generator is repaired, the seal is recovered, and the containment trap is armed.
+- Updated the service-worker cache to `calebs-shift-v36`.
+
 ## 2.4.1
 
 - Fixed shop card text alignment so item names and descriptions stay in a readable left-aligned column beside the purchase button.

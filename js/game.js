@@ -93,7 +93,7 @@ function playSound(type) {
 }
 
 // Versioned local progress with a backup copy and import/export support.
-const GAME_VERSION = '2.4.1';
+const GAME_VERSION = '2.4.2';
 const SAVE_SCHEMA_VERSION = 8;
 const SAVE_KEY = 'br_save_v2';
 const SAVE_BACKUP_KEY = 'br_save_backup_v2';
@@ -901,6 +901,10 @@ function beginCircuitPuzzle() {
 
 function boilerObjectiveComplete() {
     return currentMapId !== 'boilerworks' || (activeGens >= totalGens && coolingValves.length === 3 && coolingValves.every(valve => valve.active));
+}
+
+function crimsonObjectiveComplete() {
+    return currentMapId !== 'crimson' || (activeGens >= totalGens && rhysSealCollected && rhysTrapArmed);
 }
 
 function beginFinalChase() {
@@ -2097,6 +2101,10 @@ function unlockCosmetic(id) {
 
 function endGame(isWin, sourceMonster = monster) {
     if (state === 4 || (gameMode === 'endless' && state === 0)) return;
+    if (isWin && !crimsonObjectiveComplete()) {
+        showMsg('RESTORE ALL GENERATORS, RECOVER THE SEAL, AND ARM THE TRAP', 1400);
+        return;
+    }
     if (isWin && gameMode === 'endless') {
         const earned = Math.floor(rewardTokens * (upgCoin > 0 ? 1.5 : 1));
         tokens += earned;
@@ -2643,7 +2651,7 @@ function update() {
                 }
                 moveMonsterAlongPath(getMonsterSpeed(monster), monster);
             }
-            if (rhysTrapArmed && rhysTrap && Math.hypot(monster.x - rhysTrap.x, monster.y - rhysTrap.y) < 26) endGame(true, monster);
+            if (rhysTrapArmed && crimsonObjectiveComplete() && rhysTrap && Math.hypot(monster.x - rhysTrap.x, monster.y - rhysTrap.y) < 26) endGame(true, monster);
             else if (!player.hidden && !isSafeRoom(player.x, player.y) && Math.hypot(player.x - monster.x, player.y - monster.y) < player.r + monster.r) endGame(false, monster);
         } else if (state === 1 && monster.name === 'JORDAN') {
             if (jordanState === 'saboteur') {
