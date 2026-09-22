@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.4.1
+
+- Fixed shop card text alignment so item names and descriptions stay in a readable left-aligned column beside the purchase button.
+- Merged Rhys into the main Monsters Info section instead of showing him as a separate monster section.
+- Crimson Seal, chest key, chest opening, and containment-trap interactions now require all generators to be online first, preventing the objective sequence from being skipped.
+- Bumped the offline cache to `calebs-shift-v35`.
+
 ## 2.4.0
 
 - Rebuilt the crowded Info screen into Start, Maps, Monsters, and Systems tabs, while retaining the existing expandable detail sections.

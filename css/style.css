@@ -138,6 +138,8 @@
             background: rgba(0,0,0,0.4); border-radius: 8px;
             padding: 12px 15px; border: 1px solid rgba(255,255,255,0.1);
         }
+        .shop-item > div:first-child { flex: 1 1 auto; min-width: 0; text-align: left; }
+        .shop-item > button { flex: 0 0 auto; margin-left: 16px; white-space: nowrap; }
         .shop-desc { text-align: left; font-size: 13px; color: #aaa; margin-top: 5px; }
         .token-display { color: #0f0; font-weight: bold; font-size: 22px; margin-bottom: 20px; text-shadow: 1px 1px 0 #000; }
         .menu-status-row { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; margin: 2px 0 3px; color: #d4c09a; font-size: 11px; letter-spacing: .4px; }

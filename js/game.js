@@ -93,7 +93,7 @@ function playSound(type) {
 }
 
 // Versioned local progress with a backup copy and import/export support.
-const GAME_VERSION = '2.4.0';
+const GAME_VERSION = '2.4.1';
 const SAVE_SCHEMA_VERSION = 8;
 const SAVE_KEY = 'br_save_v2';
 const SAVE_BACKUP_KEY = 'br_save_backup_v2';
@@ -1011,10 +1011,23 @@ window.addEventListener('keydown', (e) => {
         if (nearEmployee) { interactWithEmployee(); return; }
         if (nearHotelTask) { completeHotelTaskAtTarget(); return; }
         if (currentMapId === 'crimson') {
-            if (nearRhysKey && rhysChestKey && !rhysChestKey.collected) { rhysChestKey.collected = true; notify('CHEST KEY FOUND', 'unlock'); updateHUD(); return; }
-            if (nearRhysChest && rhysChest && rhysChestKey?.collected && !rhysChest.opened) { rhysChest.opened = true; rhysSeal.accessible = true; notify('CRIMSON CHEST OPENED', 'unlock'); updateHUD(); return; }
-            if (nearRhysSeal && rhysSeal?.accessible && !rhysSeal.collected) { rhysSeal.collected = true; rhysSealCollected = true; notify('CRIMSON SEAL RECOVERED', 'unlock'); updateHUD(); return; }
-            if (nearRhysTrap && rhysSealCollected) { rhysTrapArmed = true; notify('CONTAINMENT TRAP ARMED · LURE RHYS INSIDE', 'warning'); updateHUD(); return; }
+            const crimsonGeneratorsReady = activeGens >= totalGens;
+            if (nearRhysKey && rhysChestKey && !rhysChestKey.collected) {
+                if (!crimsonGeneratorsReady) { showMsg('RESTORE ALL GENERATORS FIRST', 950); return; }
+                rhysChestKey.collected = true; notify('CHEST KEY FOUND', 'unlock'); updateHUD(); return;
+            }
+            if (nearRhysChest && rhysChest && rhysChestKey?.collected && !rhysChest.opened) {
+                if (!crimsonGeneratorsReady) { showMsg('RESTORE ALL GENERATORS FIRST', 950); return; }
+                rhysChest.opened = true; rhysSeal.accessible = true; notify('CRIMSON CHEST OPENED', 'unlock'); updateHUD(); return;
+            }
+            if (nearRhysSeal && rhysSeal?.accessible && !rhysSeal.collected) {
+                if (!crimsonGeneratorsReady) { showMsg('RESTORE ALL GENERATORS FIRST', 950); return; }
+                rhysSeal.collected = true; rhysSealCollected = true; notify('CRIMSON SEAL RECOVERED', 'unlock'); updateHUD(); return;
+            }
+            if (nearRhysTrap && rhysSealCollected) {
+                if (!crimsonGeneratorsReady) { showMsg('RESTORE ALL GENERATORS FIRST', 950); return; }
+                rhysTrapArmed = true; notify('CONTAINMENT TRAP ARMED · LURE RHYS INSIDE', 'warning'); updateHUD(); return;
+            }
         }
         if (nearValve) { activateCoolingValve(); return; }
         if (currentMapId === 'boilerworks' && nearBoiler) {
