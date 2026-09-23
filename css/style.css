@@ -100,6 +100,8 @@
         #monsterRosterToggle { margin-top:8px; padding:4px 7px; background:rgba(0,0,0,.45); color:#ffb0b0; border:1px solid #a44; border-radius:5px; font: bold 11px inherit; }
 #monsterRoster { margin-top:6px; padding-top:6px; border-top:1px solid rgba(255,255,255,.16); font-size:11px; line-height:1.4; color:#ffb0b0; }
 #hotelTaskHUD { position:fixed; top:15px; right:15px; z-index:110; width:min(280px,34vw); padding:12px; border:1px solid rgba(212,192,154,.5); border-radius:9px; background:rgba(20,16,20,.78); box-shadow:0 4px 15px rgba(0,0,0,.55); font:12px/1.35 'Courier New',monospace; pointer-events:none; }
+#storyLine { display:none; position:fixed; left:50%; bottom:7vh; transform:translateX(-50%); z-index:160; max-width:min(86vw,650px); padding:10px 18px; color:#ffe8b5; text-align:center; text-shadow:0 2px 4px #000; background:rgba(0,0,0,.65); border:1px solid rgba(255,220,160,.4); border-radius:7px; font:italic 17px/1.35 'Courier New',monospace; pointer-events:none; }
+#diffMenu { max-height:88vh; overflow-y:auto; }
 .hotel-task-title { color:#eadbbd; font-weight:bold; letter-spacing:.3px; margin-bottom:7px; }
 .hotel-task { margin:6px 0 0; padding:7px; border-left:3px solid #b9a37e; background:rgba(0,0,0,.25); }
 .hotel-task.fake { border-color:#a96f6f; color:#e7b4b4; }
@@ -377,6 +379,7 @@ canvas {
     #mapTaskHUD { top:max(8px, env(safe-area-inset-top)); right:max(8px, env(safe-area-inset-right)); width:min(42vw,300px); padding:8px; font-size:10px; }
     #mapButton { display:block; right:max(10px, env(safe-area-inset-right)); bottom:150px; }
     #hotelTaskHUD { top:max(8px, env(safe-area-inset-top)); right:max(8px, env(safe-area-inset-right)); width:min(38vw,250px); padding:8px; font-size:10px; }
+    #storyLine { bottom:17vh; font-size:13px; }
     .hotel-task { padding:5px; }
     #hotelDialogue { padding:10px; padding-bottom:max(16px, env(safe-area-inset-bottom)); }
     .hotel-dialogue-card { padding:14px; }
