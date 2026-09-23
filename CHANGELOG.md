@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.5.2
+
+- Moved all live objectives into a separate right-side panel so collapsing the left HUD never hides them.
+- Prevented Rhys from spawning behind an intact cracked-wall route and stopped Scrambler from leaking generator counts through map objectives.
+- Rebuilt Forest cabins as enterable walled buildings with doors and light safety, added denser collidable tree cover that blocks sightlines, and darkened the forest.
+- Reduced Noah's chase pressure and made him retreat instead of entering a lit cabin.
+- Challenge contracts now reroll each time the Challenge Board opens while keeping the displayed selection stable until chosen.
+- Updated the offline cache to `calebs-shift-v39`.
+
 ## 2.5.1
 
 - Moved Challenge and Survival records into Records while removing the duplicate daily-task block.

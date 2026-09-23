@@ -25,12 +25,12 @@
     <div id="gameHUD">
         <button id="hudCollapse" onclick="toggleHUDCollapsed()" aria-label="Hide HUD">‹</button>
         Generators: <span id="genCount">0/0</span>
-        <div id="mapObjective"></div>
         <div id="inventory"></div>
         <div id="mutations"></div>
         <button id="monsterRosterToggle" onclick="toggleMonsterRoster()" style="display:none;">MONSTERS ▾</button>
         <div id="monsterRoster" style="display:none;"></div>
     </div>
+    <aside id="mapTaskHUD" aria-live="polite" style="display:none;"><div id="mapObjective"></div></aside>
     <button id="mapButton" onclick="toggleMapOverlay()" aria-label="Open map">MAP</button>
     <div id="mapOverlay" role="dialog" aria-label="Map" style="display:none;"><div class="map-card"><button onclick="toggleMapOverlay()">CLOSE MAP</button><canvas id="mapCanvas" width="640" height="440"></canvas><p>Viewing the map does not pause the hunt.</p></div></div>
     <aside id="hotelTaskHUD" aria-live="polite" style="display:none;">

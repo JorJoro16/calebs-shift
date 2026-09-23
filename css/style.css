@@ -93,9 +93,10 @@
         }
         #mutations { font-size: 14px; color: #ff4444; margin-top: 8px; }
 #inventory { font-size: 14px; color: #00ffff; margin-top: 4px; }
-#mapObjective { font-size: 12px; color: #ffcc66; margin-top: 5px; }
+#mapTaskHUD { position:fixed; top:15px; right:15px; z-index:110; width:min(300px,34vw); padding:12px; box-sizing:border-box; color:#ffcc66; background:rgba(18,15,18,.82); border:1px solid rgba(255,255,255,.18); border-radius:9px; box-shadow:0 4px 15px rgba(0,0,0,.55); font:12px/1.4 'Courier New',monospace; pointer-events:none; }
+#mapObjective { min-height:18px; }
 #gameHUD.rhys-objective-hud { left:15px; right:auto; width:min(310px,35vw); border-color:rgba(255,190,90,.48); }
-#gameHUD.rhys-objective-hud #mapObjective { position:fixed; top:15px; right:15px; width:min(300px,34vw); padding:12px; box-sizing:border-box; color:#ffe878; background:rgba(28,12,14,.84); border:1px solid rgba(255,190,90,.48); border-radius:9px; box-shadow:0 4px 15px rgba(0,0,0,.55); font:12px/1.4 'Courier New',monospace; text-align:left; }
+#gameHUD.rhys-objective-hud + #mapTaskHUD { color:#ffe878; background:rgba(28,12,14,.84); border-color:rgba(255,190,90,.48); }
         #monsterRosterToggle { margin-top:8px; padding:4px 7px; background:rgba(0,0,0,.45); color:#ffb0b0; border:1px solid #a44; border-radius:5px; font: bold 11px inherit; }
 #monsterRoster { margin-top:6px; padding-top:6px; border-top:1px solid rgba(255,255,255,.16); font-size:11px; line-height:1.4; color:#ffb0b0; }
 #hotelTaskHUD { position:fixed; top:15px; right:15px; z-index:110; width:min(280px,34vw); padding:12px; border:1px solid rgba(212,192,154,.5); border-radius:9px; background:rgba(20,16,20,.78); box-shadow:0 4px 15px rgba(0,0,0,.55); font:12px/1.35 'Courier New',monospace; pointer-events:none; }
@@ -365,7 +366,7 @@ canvas {
         max-width: 58vw;
     }
     #gameHUD.rhys-objective-hud { left:max(8px, env(safe-area-inset-left)); right:auto; width:min(48vw,300px); }
-    #gameHUD.rhys-objective-hud #mapObjective { top:max(8px, env(safe-area-inset-top)); right:max(8px, env(safe-area-inset-right)); width:min(42vw,300px); padding:8px; font-size:10px; }
+    #mapTaskHUD { top:max(8px, env(safe-area-inset-top)); right:max(8px, env(safe-area-inset-right)); width:min(42vw,300px); padding:8px; font-size:10px; }
     #mapButton { display:block; right:max(10px, env(safe-area-inset-right)); bottom:150px; }
     #hotelTaskHUD { top:max(8px, env(safe-area-inset-top)); right:max(8px, env(safe-area-inset-right)); width:min(38vw,250px); padding:8px; font-size:10px; }
     .hotel-task { padding:5px; }

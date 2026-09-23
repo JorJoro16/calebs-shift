@@ -93,7 +93,7 @@ function playSound(type) {
 }
 
 // Versioned local progress with a backup copy and import/export support.
-const GAME_VERSION = '2.5.1';
+const GAME_VERSION = '2.5.2';
 const SAVE_SCHEMA_VERSION = 9;
 const SAVE_KEY = 'br_save_v2';
 const SAVE_BACKUP_KEY = 'br_save_backup_v2';
@@ -642,6 +642,7 @@ function showMenu(menuId) {
 
 function showInstallHelp() { showMenu('installMenu'); }
 
+let challengeBoard = [];
 function getChallengeBoard() {
     const maps = unlockedMaps.length ? unlockedMaps : ['level0'];
     const templates = [
@@ -651,12 +652,12 @@ function getChallengeBoard() {
         { id:'double', title:'TWO HUNTERS', detail:'Two monsters coordinate their search.', reward:65, diff:2 },
         { id:'relay', title:'RELAY RUN', detail:'Extra generator stages, extra token reward.', reward:50, diff:1 }
     ];
-    const seed = getDateKey().split('-').reduce((sum, part) => sum * 31 + Number(part), 7);
-    return [0, 1, 2].map(index => ({ ...templates[(seed + index * 3) % templates.length], mapId:maps[(seed + index * 5) % maps.length] }));
+    const shuffledTemplates = [...templates].sort(() => Math.random() - .5);
+    return [0, 1, 2].map(index => ({ ...shuffledTemplates[index], mapId:maps[Math.floor(Math.random() * maps.length)] }));
 }
-function openChallengeMode() { gameMode = 'challenge'; challengeConfig = null; showMenu('challengeMenu'); renderChallenges(); }
-function renderChallenges() { const content = document.getElementById('challengeContent'); if (content) content.innerHTML = getChallengeBoard().map((challenge, index) => `<button class="loadout-option" onclick="startChallenge(${index})"><b>${challenge.title}</b><br><span>${MAP_DEFINITIONS[challenge.mapId].name} · ${challenge.detail}</span><br><span style="color:#ffe06b">REWARD: ${challenge.reward} TOKENS</span></button>`).join(''); }
-function startChallenge(index) { const challenge = getChallengeBoard()[index]; if (!challenge) return; gameMode = 'challenge'; challengeConfig = challenge; currentMapId = challenge.mapId; if (challenge.id === 'lean') selectedLoadout = 'custom1'; startGame(challenge.diff); }
+function openChallengeMode() { gameMode = 'challenge'; challengeConfig = null; challengeBoard = getChallengeBoard(); showMenu('challengeMenu'); renderChallenges(); }
+function renderChallenges() { const content = document.getElementById('challengeContent'); if (content) content.innerHTML = challengeBoard.map((challenge, index) => `<button class="loadout-option" onclick="startChallenge(${index})"><b>${challenge.title}</b><br><span>${MAP_DEFINITIONS[challenge.mapId].name} · ${challenge.detail}</span><br><span style="color:#ffe06b">REWARD: ${challenge.reward} TOKENS</span></button>`).join(''); }
+function startChallenge(index) { const challenge = challengeBoard[index]; if (!challenge) return; gameMode = 'challenge'; challengeConfig = challenge; currentMapId = challenge.mapId; if (challenge.id === 'lean') selectedLoadout = 'custom1'; startGame(challenge.diff); }
 
 function chooseMode(mode) {
     gameMode = mode;
@@ -1524,13 +1525,18 @@ function generateForest() {
         do { c = 8 + Math.floor(Math.random() * (COLS - 16)); r = 8 + Math.floor(Math.random() * (ROWS - 16)); tries++; } while (tries < 80 && used.some(other => Math.hypot(other.c - c, other.r - r) < 16));
         used.push({ c, r });
         const lit = index < 3, breaker = !lit && forestBreakers.length < 2;
-        const cabin = { type: lit ? 'safe' : 'cabin', c, r, width:5, height:4, x:c * TS + TS / 2, y:r * TS + TS / 2, lit, breaker };
+        const cabin = { type: lit ? 'safe' : 'cabin', c, r, width:7, height:5, x:c * TS + TS / 2, y:r * TS + TS / 2, lit, breaker };
+        const left = c - 3, right = c + 3, top = r - 2, bottom = r + 2, doorC = c;
+        for (let rr = top; rr <= bottom; rr++) for (let cc = left; cc <= right; cc++) {
+            if (rr === top || rr === bottom || cc === left || cc === right) map[rr][cc] = 1;
+        }
+        map[bottom][doorC] = 0;
         rooms.push(cabin); forestCabins.push(cabin); reserveObjectTile(c, r, 2);
         if (breaker) forestBreakers.push({ x:cabin.x, y:cabin.y, active:false, cabin });
     }
     for (let index = 0; index < 125; index++) {
         const c = 2 + Math.floor(Math.random() * (COLS - 4)), r = 2 + Math.floor(Math.random() * (ROWS - 4));
-        if (!used.some(cabin => Math.abs(cabin.c - c) < 5 && Math.abs(cabin.r - r) < 5)) forestTrees.push({ x:c * TS + TS / 2, y:r * TS + TS / 2, radius:10 + Math.floor(Math.random() * 8) });
+        if (!used.some(cabin => Math.abs(cabin.c - c) < 5 && Math.abs(cabin.r - r) < 5)) { map[r][c] = 1; forestTrees.push({ x:c * TS + TS / 2, y:r * TS + TS / 2, radius:16 + Math.floor(Math.random() * 8) }); }
     }
     rebuildFloors();
 }
@@ -2000,6 +2006,7 @@ function startGame(diffLevel) {
     if (currentMapId === 'boilerworks') advanceDailyObjective('boilerworks');
     document.querySelectorAll('.menu-panel').forEach(p => p.style.display = 'none');
     hud.style.display = 'block';
+    document.getElementById('mapTaskHUD').style.display = 'block';
     hud.classList.toggle('rhys-objective-hud', currentMapId === 'crimson');
     
     if (currentMapId === 'boilerworks') { COLS = 65; ROWS = 49; }
@@ -2087,7 +2094,7 @@ function startGame(diffLevel) {
 
     const monsterTiles = floors.filter(tile => {
         const x = tile.c * TS + TS / 2, y = tile.r * TS + TS / 2;
-        return !isSafeRoom(x, y) && !isReservedObjectSpot(x, y, TS * 2) && (currentMapId === 'level0' || !getRoomAt(x, y)) && Math.hypot(player.x - x, player.y - y) > TS * 8;
+        return !isSafeRoom(x, y) && !isReservedObjectSpot(x, y, TS * 2) && !isRhysEarlyLockedTile(tile) && (currentMapId === 'level0' || !getRoomAt(x, y)) && Math.hypot(player.x - x, player.y - y) > TS * 8;
     });
     let startTile = monsterTiles.at(-1) || floors.at(-1);
     
@@ -2291,7 +2298,9 @@ function endGame(isWin, sourceMonster = monster) {
     state = 4;
     document.querySelectorAll('.menu-panel').forEach(p => p.style.display = 'none');
     hud.style.display = 'none';
+    document.getElementById('mapTaskHUD').style.display = 'none';
     hud.classList.remove('rhys-objective-hud');
+    document.getElementById('mapTaskHUD').style.display = 'none';
     closeHotelDialogue(); document.getElementById('hotelTaskHUD').style.display = 'none';
     document.getElementById('endMenu').style.display = 'flex';
     document.getElementById('endTitle').innerText = isWin ? "YOU WIN!" : "CAUGHT!";
@@ -2424,17 +2433,18 @@ function updateHUD() {
     document.getElementById('genCount').innerText = monsters.some(enemy => enemy.hasScrambler) ? "?/?" : shownGens;
     const objective = document.getElementById('mapObjective');
     if (objective) {
+        const objectiveGens = monsters.some(enemy => enemy.hasScrambler) ? '?/?' : `${activeGens}/${totalGens}`;
         const falseObjective = monster.hasFalseObjective && Math.floor(ambienceClock / 180) % 2 === 1;
         objective.textContent = falseObjective
             ? 'Objective signal corrupted · CHECK THE LANDMARKS'
             : currentMapId === 'boilerworks'
                 ? `Cooling valves: ${coolingValves.filter(valve => valve.active).length}/${coolingValves.length || 3}${boilerReadyShown ? ' · FIND THE BOILER' : ''}`
                 : currentMapId === 'hotel'
-                    ? `Hotel: ${activeGens}/${totalGens} generators · Staff ${evacuatedHotelEmployees().length}/${hotelEmployeesRequired} evacuated${hotelObjectiveComplete() ? ' · CATCH BASSAM' : ''}`
+                    ? `Hotel: ${objectiveGens} generators · Staff ${evacuatedHotelEmployees().length}/${hotelEmployeesRequired} evacuated${hotelObjectiveComplete() ? ' · CATCH BASSAM' : ''}`
                     : currentMapId === 'crimson'
-                        ? `Containment: ${activeGens}/${totalGens} generators · ${activeGens < totalGens ? 'Restore facility power' : !rhysSealCollected ? rhysRoute === 'break' && !rhysBreakWall?.broken ? 'Bait Rhys into the cracked wall' : rhysRoute === 'chest' && !rhysChestKey?.collected ? 'Find the chest key' : rhysRoute === 'chest' && !rhysChest?.opened ? 'Open the Crimson Chest' : 'Recover the Crimson Seal' : !rhysTrapArmed ? 'Arm the containment trap' : 'Lure Rhys into containment'}`
+                        ? `Containment: ${objectiveGens} generators · ${activeGens < totalGens ? 'Restore facility power' : !rhysSealCollected ? rhysRoute === 'break' && !rhysBreakWall?.broken ? 'Bait Rhys into the cracked wall' : rhysRoute === 'chest' && !rhysChestKey?.collected ? 'Find the chest key' : rhysRoute === 'chest' && !rhysChest?.opened ? 'Open the Crimson Chest' : 'Recover the Crimson Seal' : !rhysTrapArmed ? 'Arm the containment trap' : 'Lure Rhys into containment'}`
                     : currentMapId === 'forest'
-                        ? `Forest: ${activeGens}/${totalGens} generators · ${forestBreakers.filter(breaker => breaker.active).length}/${forestBreakers.length} cabin breakers${forestObjectiveComplete() ? ' · CATCH NOAH' : activeGens >= totalGens ? ' · RESTORE DARK CABINS' : ' · REPAIR GENERATORS FIRST'}`
+                        ? `Forest: ${objectiveGens} generators · ${forestBreakers.filter(breaker => breaker.active).length}/${forestBreakers.length} cabin breakers${forestObjectiveComplete() ? ' · CATCH NOAH' : activeGens >= totalGens ? ' · RESTORE DARK CABINS' : ' · REPAIR GENERATORS FIRST'}`
                     : 'Find and repair every generator';
     }
     
@@ -3407,7 +3417,7 @@ function draw() {
             grad.addColorStop(0, 'rgba(0,0,0,0)'); grad.addColorStop(1, 'rgba(0,0,0,0.98)');
             ctx.fillStyle = grad; ctx.fillRect(0, 0, canvas.width, canvas.height);
         } else {
-            let darkness = monster.hasGloom ? 0.85 : 0.55;
+            let darkness = monster.hasGloom ? 0.85 : (currentMapId === 'forest' ? 0.72 : 0.55);
             if (flareTimer > 0) darkness = Math.max(0.18, darkness - 0.28);
             if (powerOutageTimer > 0) darkness = Math.min(0.92, darkness + 0.25);
             if (outageFlickerTimer > 0 && ambienceClock % 6 < 3) darkness = Math.max(0.05, darkness - 0.42);
