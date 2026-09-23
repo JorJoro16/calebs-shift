@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.5.1
+
+- Moved Challenge and Survival records into Records while removing the duplicate daily-task block.
+- Fixed custom kit selection/editing from both Loadouts and Run Setup.
+- Restored the Crimson HUD split: status/items/monster on the left and containment objectives on the right.
+- Rebuilt Blackwood Forest as open green woodland with edge borders, round trees, cabin shapes, explicit generator-plus-breaker objectives, slower Noah pursuit, and light avoidance.
+- Made Spark, Ember, Ghost, and Static trails visibly distinct.
+- Updated the offline cache to `calebs-shift-v38`.
+
 ## 2.5.0
 
 - Added Noah, The Stalker, and the procedurally generated Blackwood Forest with lit and dark cabins, breaker objectives, Flashbang scatter counterplay, and silent hooks reserved for custom audio.

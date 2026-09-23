@@ -93,7 +93,7 @@ function playSound(type) {
 }
 
 // Versioned local progress with a backup copy and import/export support.
-const GAME_VERSION = '2.5.0';
+const GAME_VERSION = '2.5.1';
 const SAVE_SCHEMA_VERSION = 9;
 const SAVE_KEY = 'br_save_v2';
 const SAVE_BACKUP_KEY = 'br_save_backup_v2';
@@ -381,7 +381,11 @@ function renderRunSetup() {
     const heading = document.querySelector('#diffMenu h2');
     if (heading) heading.textContent = isSurvival ? 'RUN SETUP' : 'SELECT DIFFICULTY';
     const loadoutTarget = document.getElementById('runLoadoutOptions');
-    if (loadoutTarget) loadoutTarget.innerHTML = Object.entries(LOADOUT_DEFINITIONS).map(([id, loadout]) => `<button class="loadout-option" ${selectedLoadout === id ? 'style="border-color:#0f0;color:#0f0"' : ''} onclick="selectLoadout('${id}')"><b>${loadout.name}</b><br><span>${loadout.description}</span></button>`).join('');
+    if (loadoutTarget) {
+        const presets = Object.entries(LOADOUT_DEFINITIONS).map(([id, loadout]) => `<button class="loadout-option" ${selectedLoadout === id ? 'style="border-color:#0f0;color:#0f0"' : ''} onclick="selectLoadout('${id}')"><b>${loadout.name}</b><br><span>${loadout.description}</span></button>`).join('');
+        const customs = customLoadouts.map((items, index) => `<button class="loadout-option" ${selectedLoadout === `custom${index + 1}` ? 'style="border-color:#0f0;color:#0f0"' : ''} onclick="selectLoadout('custom${index + 1}')"><b>CUSTOM KIT ${index + 1}</b><br><span>${items.length ? items.map(item => ITEM_DEFINITIONS[item]).join(', ') : 'Edit this kit from Loadouts on the main menu.'}</span></button>`).join('');
+        loadoutTarget.innerHTML = `${presets}<h3>CUSTOM KITS</h3>${customs}`;
+    }
 }
 
 function renderRecords() {
@@ -389,12 +393,11 @@ function renderRecords() {
     const content = document.getElementById('recordsContent');
     if (!content) return;
     const fastest = stats.fastestWin ? `${(stats.fastestWin / 1000).toFixed(1)}s` : '—';
-    const readyDaily = daily.objectives.filter(objective => objective.progress >= objective.target && !objective.claimed).length;
-    content.innerHTML = `<details class="record-section" open><summary>RUN STATISTICS</summary><div>Games: <b>${stats.games}</b><br>Wins / Losses: <b>${stats.wins} / ${stats.losses}</b><br>Generators repaired: <b>${stats.generators}</b><br>Monsters caught: <b>${stats.caught}</b><br>Best Endless round: <b>${stats.bestEndless}</b><br>Fastest win: <b>${fastest}</b><br>Items used: <b>${stats.itemsUsed}</b><br>Favorite monster: <b>${stats.favoriteMonster}</b></div></details><details class="record-section"><summary>DAILY OBJECTIVES ${readyDaily ? `· ${readyDaily} READY` : ''}</summary><div>${daily.objectives.map((objective, index) => `<div class="objective-row"><div><b>${objective.label}</b><br><span>${Math.min(objective.progress, objective.target)}/${objective.target}${objective.claimed ? ' · CLAIMED' : ''}</span></div>${objective.progress >= objective.target && !objective.claimed ? `<button onclick="claimDailyObjective(${index}); renderRecords();">CLAIM ${objective.reward} T</button>` : ''}</div>`).join('')}</div></details>`;
+    content.innerHTML = `<details class="record-section" open><summary>RUN STATISTICS</summary><div>Games: <b>${stats.games}</b><br>Wins / Losses: <b>${stats.wins} / ${stats.losses}</b><br>Generators repaired: <b>${stats.generators}</b><br>Monsters caught: <b>${stats.caught}</b><br>Best Endless round: <b>${stats.bestEndless}</b><br>Survival runs: <b>${stats.survivalRuns}</b><br>Challenges cleared: <b>${stats.challengesCleared}</b><br>Fastest win: <b>${fastest}</b><br>Items used: <b>${stats.itemsUsed}</b><br>Favorite monster: <b>${stats.favoriteMonster}</b></div></details>`;
 }
 
 function selectLoadout(id) {
-    if (!LOADOUT_DEFINITIONS[id]) return;
+    if (!LOADOUT_DEFINITIONS[id] && !/^custom[123]$/.test(id)) return;
     selectedLoadout = id;
     saveData();
     renderLoadouts();
@@ -801,7 +804,7 @@ let reservedObjectTiles = new Set(), hotelDoorTiles = [], hotelBlockedDoor = nul
 let centralBoiler = null, boilerShutdown = false, boilerReadyShown = false;
 let hotelElevator = null, hotelLockdownTimer = 0, hotelEventCooldown = 0, hotelLockdownActive = false;
 let rhysSeal = null, rhysChest = null, rhysChestKey = null, rhysBreakWall = null, rhysTrap = null, rhysRoute = 'search', rhysSealCollected = false, rhysTrapArmed = false;
-let forestCabins = [], forestBreakers = [], noahState = 'hidden', noahTimer = 0, noahMarkCooldown = 0, noahMarkedTimer = 0;
+let forestCabins = [], forestBreakers = [], forestTrees = [], noahState = 'hidden', noahTimer = 0, noahMarkCooldown = 0, noahMarkedTimer = 0;
 let playerTrail = [];
 let hotelEmployeesRequired = 3, hotelDialogueOpen = false, hotelTaskSerial = 0;
 let nearFuse = null, nearHide = null, nearValve = null, nearBoiler = false, nearEmployee = null, nearElevator = false, nearHotelTask = null, nearRhysSeal = false, nearRhysKey = false, nearRhysChest = false, nearRhysTrap = false;
@@ -1513,21 +1516,22 @@ function generateCrimsonContainment() {
 }
 
 function generateForest() {
-    map = Array.from({length: ROWS}, () => Array(COLS).fill(1));
-    rooms = []; hidingSpots = []; coolingValves = []; fuses = []; employees = []; reservedObjectTiles = new Set(); forestCabins = []; forestBreakers = [];
-    const clearings = [];
-    for (let i = 0; i < 11; i++) {
-        const node = { c: 5 + (i % 4) * 22 + Math.floor(Math.random() * 7), r: 6 + Math.floor(i / 4) * 18 + Math.floor(Math.random() * 7), width: 5 + Math.floor(Math.random() * 4), height: 5 + Math.floor(Math.random() * 3) };
-        carveBoilerRect(node.c, node.r, node.width, node.height); clearings.push(node);
-        if (i) carveBoilerCorridor(clearings[i - 1], node);
+    map = Array.from({length: ROWS}, (_, row) => Array.from({length: COLS}, (_, col) => row === 0 || col === 0 || row === ROWS - 1 || col === COLS - 1 ? 1 : 0));
+    rooms = []; hidingSpots = []; coolingValves = []; fuses = []; employees = []; reservedObjectTiles = new Set(); forestCabins = []; forestBreakers = []; forestTrees = [];
+    const used = [];
+    for (let index = 0; index < 8; index++) {
+        let c = 8, r = 8, tries = 0;
+        do { c = 8 + Math.floor(Math.random() * (COLS - 16)); r = 8 + Math.floor(Math.random() * (ROWS - 16)); tries++; } while (tries < 80 && used.some(other => Math.hypot(other.c - c, other.r - r) < 16));
+        used.push({ c, r });
+        const lit = index < 3, breaker = !lit && forestBreakers.length < 2;
+        const cabin = { type: lit ? 'safe' : 'cabin', c, r, width:5, height:4, x:c * TS + TS / 2, y:r * TS + TS / 2, lit, breaker };
+        rooms.push(cabin); forestCabins.push(cabin); reserveObjectTile(c, r, 2);
+        if (breaker) forestBreakers.push({ x:cabin.x, y:cabin.y, active:false, cabin });
     }
-    for (let i = 0; i < 4; i++) carveBoilerCorridor(clearings[i], clearings[i + 4] || clearings[i + 1]);
-    clearings.slice(0, 7).forEach((node, index) => {
-        const lit = index < 3;
-        const cabin = { type: lit ? 'safe' : 'cabin', c:node.c, r:node.r, width:node.width, height:node.height, x:node.c * TS + TS / 2, y:node.r * TS + TS / 2, lit, breaker: !lit && forestBreakers.length < 2 };
-        rooms.push(cabin); forestCabins.push(cabin); reserveObjectTile(node.c, node.r, 1);
-        if (cabin.breaker) forestBreakers.push({ x:cabin.x, y:cabin.y, active:false, cabin });
-    });
+    for (let index = 0; index < 125; index++) {
+        const c = 2 + Math.floor(Math.random() * (COLS - 4)), r = 2 + Math.floor(Math.random() * (ROWS - 4));
+        if (!used.some(cabin => Math.abs(cabin.c - c) < 5 && Math.abs(cabin.r - r) < 5)) forestTrees.push({ x:c * TS + TS / 2, y:r * TS + TS / 2, radius:10 + Math.floor(Math.random() * 8) });
+    }
     rebuildFloors();
 }
 
@@ -1543,12 +1547,14 @@ function updateNoah() {
         const target = noahMarkedTimer > 0 ? player : (noiseTarget && noiseTimer > 0 ? noiseTarget : null);
         if (target) monster.path = findPath(Math.floor(monster.x / TS), Math.floor(monster.y / TS), Math.floor(target.x / TS), Math.floor(target.y / TS));
         else if (!monster.path.length) { const tile = floors[Math.floor(Math.random() * floors.length)]; monster.path = findPath(Math.floor(monster.x / TS), Math.floor(monster.y / TS), tile.c, tile.r); }
-        moveMonsterAlongPath(getMonsterSpeed(monster) * .82, monster);
+        const oldX = monster.x, oldY = monster.y; moveMonsterAlongPath(getMonsterSpeed(monster) * .72, monster);
+        if (isSafeRoom(monster.x, monster.y)) { monster.x = oldX; monster.y = oldY; monster.path = []; }
         if (!lit && !player.hidden && Math.hypot(player.x-monster.x, player.y-monster.y) < 92) { noahState = 'reveal'; noahTimer = 55; monster.invisible = false; notify('NOAH REVEALS HIMSELF', 'danger'); }
     } else if (noahState === 'reveal') { monster.invisible = false; if (noahTimer <= 0) { noahState = 'burst'; noahTimer = 250; } }
     else {
-        const speed = noahState === 'burst' ? getMonsterSpeed(monster) * 1.55 : getMonsterSpeed(monster) * 1.06;
-        monster.path = findPath(Math.floor(monster.x / TS), Math.floor(monster.y / TS), Math.floor(player.x / TS), Math.floor(player.y / TS)); moveMonsterAlongPath(speed, monster);
+        const speed = noahState === 'burst' ? getMonsterSpeed(monster) * 1.18 : getMonsterSpeed(monster) * .94;
+        monster.path = findPath(Math.floor(monster.x / TS), Math.floor(monster.y / TS), Math.floor(player.x / TS), Math.floor(player.y / TS)); const oldX = monster.x, oldY = monster.y; moveMonsterAlongPath(speed, monster);
+        if (isSafeRoom(monster.x, monster.y)) { monster.x = oldX; monster.y = oldY; monster.path = []; noahState = 'hidden'; noahTimer = 0; monster.invisible = true; }
         if (noahState === 'burst' && noahTimer <= 0) { noahState = 'hunt'; noahTimer = 480; }
         if (noahState === 'hunt' && (noahTimer <= 0 || lit || player.hidden)) { noahState = 'hidden'; noahTimer = 0; monster.path = []; }
         if (!lit && !player.hidden && Math.hypot(player.x-monster.x, player.y-monster.y) < player.r + monster.r) endGame(false, monster);
@@ -2427,6 +2433,8 @@ function updateHUD() {
                     ? `Hotel: ${activeGens}/${totalGens} generators · Staff ${evacuatedHotelEmployees().length}/${hotelEmployeesRequired} evacuated${hotelObjectiveComplete() ? ' · CATCH BASSAM' : ''}`
                     : currentMapId === 'crimson'
                         ? `Containment: ${activeGens}/${totalGens} generators · ${activeGens < totalGens ? 'Restore facility power' : !rhysSealCollected ? rhysRoute === 'break' && !rhysBreakWall?.broken ? 'Bait Rhys into the cracked wall' : rhysRoute === 'chest' && !rhysChestKey?.collected ? 'Find the chest key' : rhysRoute === 'chest' && !rhysChest?.opened ? 'Open the Crimson Chest' : 'Recover the Crimson Seal' : !rhysTrapArmed ? 'Arm the containment trap' : 'Lure Rhys into containment'}`
+                    : currentMapId === 'forest'
+                        ? `Forest: ${activeGens}/${totalGens} generators · ${forestBreakers.filter(breaker => breaker.active).length}/${forestBreakers.length} cabin breakers${forestObjectiveComplete() ? ' · CATCH NOAH' : activeGens >= totalGens ? ' · RESTORE DARK CABINS' : ' · REPAIR GENERATORS FIRST'}`
                     : 'Find and repair every generator';
     }
     
@@ -3008,10 +3016,10 @@ function draw() {
     for (let r = 0; r < ROWS; r++) {
         for (let c = 0; c < COLS; c++) {
             if (map[r][c] === 1) {
-                ctx.fillStyle = currentMapId === 'boilerworks' ? '#171a1d' : currentMapId === 'hotel' ? '#211a20' : currentMapId === 'crimson' ? '#241012' : '#2d2216'; ctx.fillRect(c * TS, r * TS, TS, TS);
+                ctx.fillStyle = currentMapId === 'boilerworks' ? '#171a1d' : currentMapId === 'hotel' ? '#211a20' : currentMapId === 'crimson' ? '#241012' : currentMapId === 'forest' ? '#17351c' : '#2d2216'; ctx.fillRect(c * TS, r * TS, TS, TS);
                 if (!setOptimization) { ctx.strokeStyle = currentMapId === 'boilerworks' ? '#0b0d0f' : currentMapId === 'hotel' ? '#0e0a10' : currentMapId === 'crimson' ? '#100506' : '#181109'; ctx.strokeRect(c * TS, r * TS, TS, TS); }
             } else {
-                ctx.fillStyle = currentMapId === 'boilerworks' ? '#4b4540' : currentMapId === 'hotel' ? ((r + c) % 2 ? '#5b4850' : '#65505a') : currentMapId === 'crimson' ? ((r + c) % 2 ? '#6f2429' : '#7d2b30') : '#8b7355'; ctx.fillRect(c * TS, r * TS, TS, TS);
+                ctx.fillStyle = currentMapId === 'boilerworks' ? '#4b4540' : currentMapId === 'hotel' ? ((r + c) % 2 ? '#5b4850' : '#65505a') : currentMapId === 'crimson' ? ((r + c) % 2 ? '#6f2429' : '#7d2b30') : currentMapId === 'forest' ? ((r + c) % 2 ? '#326d36' : '#39793d') : '#8b7355'; ctx.fillRect(c * TS, r * TS, TS, TS);
                 if (!setOptimization && currentMapId === 'boilerworks' && (r + c) % 7 === 0) {
                     ctx.fillStyle = 'rgba(180,120,55,0.2)'; ctx.fillRect(c * TS + 5, r * TS + 7, TS - 10, 3);
                 }
@@ -3027,6 +3035,7 @@ function draw() {
                 ? ({ lobby:'rgba(190,150,90,0.34)', guest:'rgba(125,90,125,0.24)', laundry:'rgba(80,180,210,0.24)', conference:'rgba(180,140,60,0.25)', kitchen:'rgba(200,100,60,0.24)', service:'rgba(80,150,105,0.24)', office:'rgba(120,100,180,0.24)', elevator:'rgba(210,210,220,0.3)', storage:'rgba(140,140,140,0.2)' }[room.type] || 'rgba(90,70,90,0.22)')
                 : currentMapId === 'crimson'
                     ? ({ intake:'rgba(180,80,55,.24)', archive:'rgba(140,35,48,.28)', medical:'rgba(170,95,95,.25)', storage:'rgba(110,80,65,.27)', processing:'rgba(215,145,48,.22)', security:'rgba(90,110,145,.26)', maintenance:'rgba(150,130,55,.25)', containment:'rgba(205,55,45,.31)', vault:'rgba(150,35,65,.32)', service:'rgba(105,65,70,.24)', trap:'rgba(240,200,70,.24)' }[room.type] || 'rgba(120,35,45,.22)')
+                    : currentMapId === 'forest' ? (room.lit ? 'rgba(255,220,100,.28)' : 'rgba(42,28,20,.6)')
                 : (room.type === 'safe' ? 'rgba(40,110,255,0.28)' : room.type === 'maintenance' ? 'rgba(255,190,40,0.22)' : room.type === 'storage' ? 'rgba(180,180,180,0.16)' : 'rgba(80,80,80,0.14)');
         ctx.fillStyle = roomColor;
         const roomWidth = room.width || 3, roomHeight = room.height || 3;
@@ -3034,9 +3043,13 @@ function draw() {
         ctx.strokeStyle = room.type === 'safe' ? '#5790ff' : currentMapId === 'boilerworks' && room.type === 'boiler' ? '#ff6622' : currentMapId === 'hotel' && room.type === 'elevator' ? '#e7e7ff' : 'rgba(255,255,255,0.2)';
         ctx.lineWidth = 2;
         ctx.strokeRect((room.c - Math.floor(roomWidth / 2)) * TS, (room.r - Math.floor(roomHeight / 2)) * TS, TS * roomWidth, TS * roomHeight);
-        ctx.fillStyle = room.type === 'safe' ? '#9fc0ff' : currentMapId === 'boilerworks' && room.type === 'boiler' ? '#ff9a66' : currentMapId === 'hotel' ? '#f1d9c4' : currentMapId === 'crimson' ? '#ffd0ad' : '#ddd';
+        ctx.fillStyle = room.type === 'safe' ? '#fff0a0' : currentMapId === 'boilerworks' && room.type === 'boiler' ? '#ff9a66' : currentMapId === 'hotel' ? '#f1d9c4' : currentMapId === 'crimson' ? '#ffd0ad' : '#ddd';
         ctx.font = 'bold 9px Arial'; ctx.textAlign = 'center';
         ctx.fillText(room.type.toUpperCase(), room.x, room.y - 24);
+    }
+
+    if (currentMapId === 'forest') {
+        for (const tree of forestTrees) { ctx.fillStyle = '#1a4523'; ctx.beginPath(); ctx.arc(tree.x, tree.y, tree.radius, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = '#0b2511'; ctx.lineWidth = 3; ctx.stroke(); ctx.fillStyle = 'rgba(110,180,84,.26)'; ctx.beginPath(); ctx.arc(tree.x - tree.radius * .25, tree.y - tree.radius * .3, tree.radius * .48, 0, Math.PI * 2); ctx.fill(); }
     }
 
     for (const employee of employees) {
@@ -3361,12 +3374,11 @@ function draw() {
     if (!player.hidden) {
         const playerColors = { blue:'#00f', crimson:'#d22', violet:'#a64dff', green:'#19c76b', amber:'#e7a21a', gold:'#e9ca35', sepia:'#b58a54' };
         if (cosmetics.trail !== 'none') {
-            const trailColor = cosmetics.trail === 'spark' ? 'rgba(255,215,80,.64)' : cosmetics.trail === 'ember' ? 'rgba(255,104,42,.62)' : 'rgba(180,210,255,.42)';
-            ctx.strokeStyle = trailColor; ctx.lineWidth = cosmetics.trail === 'ghost' ? 10 : 6; ctx.lineCap = 'round'; ctx.beginPath();
+            const trailColor = cosmetics.trail === 'spark' ? 'rgba(255,238,86,.82)' : cosmetics.trail === 'ember' ? 'rgba(255,70,24,.78)' : cosmetics.trail === 'static' ? 'rgba(185,245,255,.65)' : 'rgba(180,210,255,.42)';
+            ctx.strokeStyle = trailColor; ctx.lineWidth = cosmetics.trail === 'ghost' ? 10 : cosmetics.trail === 'ember' ? 4 : 6; ctx.lineCap = cosmetics.trail === 'static' ? 'butt' : 'round'; if (cosmetics.trail === 'static') ctx.setLineDash([8, 7]); ctx.beginPath();
             playerTrail.forEach((point, index) => { if (index === 0) ctx.moveTo(point.x, point.y); else ctx.lineTo(point.x, point.y); }); ctx.stroke();
-            const spacing = cosmetics.trail === 'spark' ? 3 : 5;
-            for (let index = 0; index < playerTrail.length; index += spacing) { const point = playerTrail[index]; ctx.globalAlpha = Math.max(.1, index / playerTrail.length); ctx.fillStyle = trailColor; ctx.beginPath(); ctx.arc(point.x, point.y, cosmetics.trail === 'ghost' ? 5 : 3, 0, Math.PI * 2); ctx.fill(); }
-            ctx.globalAlpha = 1;
+            ctx.setLineDash([]); const spacing = cosmetics.trail === 'spark' ? 2 : cosmetics.trail === 'ember' ? 4 : 5;
+            for (let index = 0; index < playerTrail.length; index += spacing) { const point = playerTrail[index]; ctx.globalAlpha = Math.max(.1, index / playerTrail.length); ctx.fillStyle = trailColor; ctx.beginPath(); if (cosmetics.trail === 'ember') ctx.rect(point.x - 2, point.y - 2, 4, 4); else ctx.arc(point.x, point.y, cosmetics.trail === 'ghost' ? 5 : cosmetics.trail === 'spark' ? 2 : 3, 0, Math.PI * 2); ctx.fill(); } ctx.globalAlpha = 1;
         }
         ctx.fillStyle = 'rgba(0,0,0,0.35)';
         ctx.beginPath(); ctx.ellipse(player.x, player.y + player.r * 0.7, player.r * 0.9, player.r * 0.35, 0, 0, Math.PI * 2); ctx.fill();
