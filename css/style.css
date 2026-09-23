@@ -80,7 +80,7 @@
             z-index: 100; display: none; text-shadow: 1px 1px 0 #000;
         }
 
-        #gameHUD {
+#gameHUD {
             position: absolute; top: 15px; left: 15px;
             background: rgba(20, 20, 20, 0.6);
             backdrop-filter: blur(8px);
@@ -175,6 +175,18 @@ html, body {
     -webkit-user-select: none;
     user-select: none;
 }
+#hudCollapse { float:right; margin:-5px -10px 4px 10px; padding:2px 7px; color:#fff; background:rgba(0,0,0,.35); border:1px solid #777; border-radius:4px; font:bold 17px monospace; }
+#gameHUD.collapsed { width:28px; height:28px; min-width:0; overflow:hidden; padding:8px; color:transparent; border-radius:18px; }
+#gameHUD.collapsed #hudCollapse { float:none; margin:0; color:#fff; }
+#mapButton { display:none; position:fixed; right:16px; bottom:16px; z-index:125; padding:8px; color:#d8efff; background:rgba(6,12,15,.85); border:1px solid #78bdd3; border-radius:6px; font:bold 12px 'Courier New',monospace; }
+#mapOverlay { position:fixed; inset:0; z-index:240; align-items:center; justify-content:center; background:rgba(0,0,0,.72); }
+.map-card { width:min(94vw,700px); padding:16px; background:rgba(10,13,12,.98); border:1px solid #8ca9a1; border-radius:10px; text-align:center; box-shadow:0 12px 35px #000; }
+.map-card canvas { width:100%; height:auto; background:#050605; margin-top:10px; }
+.map-card p { margin:7px 0 0; color:#aaa; font-size:12px; }
+.todays-shift-button { border-color:#d4c09a !important; color:#eadbbd !important; }
+.loadout-editor { margin:10px 0; padding:8px; border:1px solid rgba(255,255,255,.12); border-radius:8px; }
+.loadout-picks { display:flex; flex-wrap:wrap; gap:5px; margin-top:6px; }
+.loadout-picks button { padding:5px 6px !important; font-size:10px !important; }
 canvas {
     width: min(100vw, 800px);
     height: auto;
@@ -352,6 +364,7 @@ canvas {
         max-width: 58vw;
     }
     #gameHUD.rhys-objective-hud { left:auto; right:max(8px, env(safe-area-inset-right)); width:min(48vw,300px); }
+    #mapButton { display:block; right:max(10px, env(safe-area-inset-right)); bottom:150px; }
     #hotelTaskHUD { top:max(8px, env(safe-area-inset-top)); right:max(8px, env(safe-area-inset-right)); width:min(38vw,250px); padding:8px; font-size:10px; }
     .hotel-task { padding:5px; }
     #hotelDialogue { padding:10px; padding-bottom:max(16px, env(safe-area-inset-bottom)); }

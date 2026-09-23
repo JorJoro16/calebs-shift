@@ -93,8 +93,8 @@ function playSound(type) {
 }
 
 // Versioned local progress with a backup copy and import/export support.
-const GAME_VERSION = '2.4.2';
-const SAVE_SCHEMA_VERSION = 8;
+const GAME_VERSION = '2.5.0';
+const SAVE_SCHEMA_VERSION = 9;
 const SAVE_KEY = 'br_save_v2';
 const SAVE_BACKUP_KEY = 'br_save_backup_v2';
 
@@ -102,7 +102,8 @@ const MAP_DEFINITIONS = {
     level0: { id: 'level0', name: 'LEVEL 0 — THE MAZE', description: 'The original shifting maze.', campaignOrder: 0 },
     boilerworks: { id: 'boilerworks', name: 'LEVEL 3 — THE BOILERWORKS', description: 'Long industrial halls, hot machinery, and Aeson.', campaignOrder: 1 },
     hotel: { id: 'hotel', name: 'THE ENDLESS HOTEL', description: 'Carpeted wings, guest rooms, employees, and Bassam.', campaignOrder: 2 },
-    crimson: { id: 'crimson', name: 'THE CRIMSON CONTAINMENT', description: 'Break the seal route, survive Rhys, and trap him.', campaignOrder: 3 }
+    crimson: { id: 'crimson', name: 'THE CRIMSON CONTAINMENT', description: 'Break the seal route, survive Rhys, and trap him.', campaignOrder: 3 },
+    forest: { id: 'forest', name: 'THE BLACKWOOD FOREST', description: 'Dark trails, powered cabins, and Noah the Stalker.', campaignOrder: 4 }
 };
 
 const LOADOUT_DEFINITIONS = {
@@ -118,8 +119,16 @@ const DAILY_OBJECTIVE_POOL = [
     { id: 'valves-3', label: 'Activate 3 cooling valves', type: 'cooling', target: 3, reward: 16 },
     { id: 'items-2', label: 'Use 2 consumable items', type: 'items', target: 2, reward: 10 },
     { id: 'catch-aeson', label: 'Catch Aeson', type: 'aeson', target: 1, reward: 25 },
-    { id: 'no-items', label: 'Win without using items', type: 'noItems', target: 1, reward: 30 }
+    { id: 'no-items', label: 'Win without using items', type: 'noItems', target: 1, reward: 30 },
+    { id: 'catch-noah', label: 'Catch Noah', type: 'noah', target: 1, reward: 28 },
+    { id: 'forest-run', label: 'Complete a Forest run', type: 'forest', target: 1, reward: 20 },
+    { id: 'find-loot', label: 'Find 2 field supplies', type: 'loot', target: 2, reward: 14 },
+    { id: 'challenge-run', label: 'Clear 1 Challenge', type: 'challenge', target: 1, reward: 30 }
 ];
+
+const ITEM_DEFINITIONS = {
+    adrenaline:'Adrenaline', flashbang:'Flashbang', noiseMaker:'Noise Maker', bearTrap:'Bear Trap', battery:'Battery', breathFilter:'Breath Filter', signalScrambler:'Signal Scrambler', neutralizer:'Goop Neutralizer', repairKit:'Repair Kit', flare:'Emergency Flare'
+};
 
 function safeStorageGet(key) {
     try { return localStorage.getItem(key); } catch (error) { return null; }
@@ -132,8 +141,8 @@ function boundedInt(value, min, max, fallback = min) {
 
 function normalizeCosmetics(value) {
     const source = value && typeof value === 'object' ? value : {};
-    const colors = ['blue', 'crimson', 'violet', 'green', 'amber', 'gold'];
-    const trails = ['none', 'spark', 'ghost', 'ember'];
+    const colors = ['blue', 'crimson', 'violet', 'green', 'amber', 'gold', 'sepia'];
+    const trails = ['none', 'spark', 'ghost', 'ember', 'static'];
     const unlocked = Array.isArray(source.unlocked) ? source.unlocked.filter(id => colors.includes(id) || trails.includes(id)) : [];
     return {
         color: colors.includes(source.color) ? source.color : 'blue',
@@ -144,7 +153,7 @@ function normalizeCosmetics(value) {
 
 function normalizeStats(value) {
     const source = value && typeof value === 'object' ? value : {};
-    const names = ['CALEB', 'MALAKAI', 'JORDAN', 'AESON', 'BASSAM', 'RHYS'];
+    const names = ['CALEB', 'MALAKAI', 'JORDAN', 'AESON', 'BASSAM', 'RHYS', 'NOAH'];
     const encounters = {};
     names.forEach(name => encounters[name] = boundedInt(source.encounters?.[name], 0, 999999, 0));
     const encounteredNames = names.filter(name => encounters[name] > 0);
@@ -162,6 +171,8 @@ function normalizeStats(value) {
         fastestWin: boundedInt(source.fastestWin, 0, 86400000, 0),
         mostGenerators: boundedInt(source.mostGenerators, 0, 999999, 0),
         itemsUsed: boundedInt(source.itemsUsed, 0, 999999, 0),
+        survivalRuns: boundedInt(source.survivalRuns, 0, 999999, 0),
+        challengesCleared: boundedInt(source.challengesCleared, 0, 999999, 0),
         favoriteMonster: favorite,
         encounters
     };
@@ -199,8 +210,11 @@ function normalizeProgress(raw) {
         stats: normalizeStats(source.stats),
         unlockedMaps: Array.from(new Set(['level0', ...unlockedMaps])),
         campaignCleared: Array.isArray(source.campaignCleared) ? source.campaignCleared.filter(id => MAP_DEFINITIONS[id]) : [],
-        selectedLoadout: LOADOUT_DEFINITIONS[source.selectedLoadout] ? source.selectedLoadout : 'free',
-        daily: { date: String(dailySource.date || ''), objectives: dailyObjectives }
+        selectedLoadout: LOADOUT_DEFINITIONS[source.selectedLoadout] || /^custom[123]$/.test(source.selectedLoadout) ? source.selectedLoadout : 'free',
+        customLoadouts: Array.isArray(source.customLoadouts) ? source.customLoadouts.slice(0, 3).map(list => Array.isArray(list) ? list.filter(id => ITEM_DEFINITIONS[id]).slice(0, 3) : []) : [[], [], []],
+        mapMastery: source.mapMastery && typeof source.mapMastery === 'object' ? source.mapMastery : {},
+        mapIntel: Array.isArray(source.mapIntel) ? source.mapIntel.filter(id => MAP_DEFINITIONS[id]) : [],
+        daily: { date: String(dailySource.date || ''), objectives: dailyObjectives, bonusClaimed: Boolean(dailySource.bonusClaimed) }
     };
 }
 
@@ -248,7 +262,10 @@ let stats = normalizeStats(loadedProgress.stats);
 let unlockedMaps = loadedProgress.unlockedMaps || ['level0'];
 let campaignCleared = loadedProgress.campaignCleared || [];
 let selectedLoadout = loadedProgress.selectedLoadout || 'free';
-let daily = loadedProgress.daily || { date: '', objectives: [] };
+let customLoadouts = loadedProgress.customLoadouts || [[], [], []];
+let mapMastery = loadedProgress.mapMastery || {};
+let mapIntel = loadedProgress.mapIntel || [];
+let daily = loadedProgress.daily || { date: '', objectives: [], bonusClaimed: false };
 
 // Settings Data
 let setFPS = localStorage.getItem('br_fps') === 'true';
@@ -258,7 +275,7 @@ let setVolM = localStorage.getItem('br_volM') || 100;
 let setVolS = localStorage.getItem('br_volS') || 100;
 
 function currentProgress() {
-    return { tokens, upgShoe, upgHack, upgQuick, upgCoin, invAdrenaline, invFlashbang, invNoiseMaker, invBearTrap, invBattery, invBreathFilter, invSignalScrambler, invNeutralizer, invRepairKit, invFlare, cosmetics, stats, unlockedMaps, campaignCleared, selectedLoadout, daily };
+    return { tokens, upgShoe, upgHack, upgQuick, upgCoin, invAdrenaline, invFlashbang, invNoiseMaker, invBearTrap, invBattery, invBreathFilter, invSignalScrambler, invNeutralizer, invRepairKit, invFlare, cosmetics, stats, unlockedMaps, campaignCleared, selectedLoadout, customLoadouts, mapMastery, mapIntel, daily };
 }
 
 function getDateKey(date = new Date()) {
@@ -274,7 +291,7 @@ function ensureDailyObjectives() {
         objectives: [0, 1, 2].map(offset => {
             const item = DAILY_OBJECTIVE_POOL[(seed + offset * 3) % DAILY_OBJECTIVE_POOL.length];
             return { ...item, progress: 0, claimed: false };
-        })
+        }), bonusClaimed: false
     };
     saveData();
 }
@@ -299,10 +316,17 @@ function claimDailyObjective(index) {
     tokens += objective.reward;
     saveData();
     renderDailyObjectives();
-    showMsg(`<span style="color:#0f0">DAILY REWARD +${objective.reward} TOKENS</span>`, 1200);
+    notify(`TODAY'S SHIFT +${objective.reward} TOKENS`, 'unlock');
+}
+
+function claimDailyBonus() {
+    ensureDailyObjectives();
+    if (daily.bonusClaimed || !daily.objectives.every(objective => objective.claimed)) return;
+    daily.bonusClaimed = true; tokens += 35; saveData(); renderDailyObjectives(); notify("TODAY'S SHIFT COMPLETE +35 TOKENS", 'unlock');
 }
 
 function itemAllowed(type) {
+    if (/^custom[123]$/.test(selectedLoadout)) return customLoadouts[Number(selectedLoadout.at(-1)) - 1].includes(type);
     const loadout = LOADOUT_DEFINITIONS[selectedLoadout] || LOADOUT_DEFINITIONS.free;
     return !loadout.items || loadout.items.includes(type);
 }
@@ -315,13 +339,23 @@ function renderDailyObjectives() {
         const complete = objective.progress >= objective.target;
         const action = complete && !objective.claimed ? ` <button onclick="claimDailyObjective(${index})">CLAIM ${objective.reward} T</button>` : '';
         return `<div class="objective-row"><div><b>${objective.label}</b><br><span>${Math.min(objective.progress, objective.target)}/${objective.target}${objective.claimed ? ' · CLAIMED' : ''}</span></div>${action}</div>`;
-    }).join('');
+    }).join('') + `<div class="objective-row"><div><b>SHIFT BONUS</b><br><span>Claim after all three tasks · 35 Tokens</span></div>${daily.objectives.every(objective => objective.claimed) && !daily.bonusClaimed ? '<button onclick="claimDailyBonus()">CLAIM 35 T</button>' : `<span>${daily.bonusClaimed ? 'CLAIMED' : 'LOCKED'}</span>`}</div>`;
 }
 
 function renderLoadouts() {
     const content = document.getElementById('loadoutsContent');
     if (!content) return;
-    content.innerHTML = Object.entries(LOADOUT_DEFINITIONS).map(([id, loadout]) => `<button class="loadout-option" ${selectedLoadout === id ? 'style="border-color:#0f0;color:#0f0"' : ''} onclick="selectLoadout('${id}')"><b>${loadout.name}</b><br><span>${loadout.description}</span></button>`).join('');
+    const presets = Object.entries(LOADOUT_DEFINITIONS).map(([id, loadout]) => `<button class="loadout-option" ${selectedLoadout === id ? 'style="border-color:#0f0;color:#0f0"' : ''} onclick="selectLoadout('${id}')"><b>${loadout.name}</b><br><span>${loadout.description}</span></button>`).join('');
+    const custom = customLoadouts.map((items, index) => `<div class="loadout-editor"><button class="loadout-option" ${selectedLoadout === `custom${index + 1}` ? 'style="border-color:#0f0;color:#0f0"' : ''} onclick="selectLoadout('custom${index + 1}')"><b>CUSTOM KIT ${index + 1}</b><br><span>${items.length ? items.map(id => ITEM_DEFINITIONS[id]).join(', ') : 'Choose up to three item types.'}</span></button><div class="loadout-picks">${Object.entries(ITEM_DEFINITIONS).map(([id, name]) => `<button class="${items.includes(id) ? 'active-tab' : ''}" onclick="toggleCustomLoadout(${index},'${id}')">${name}</button>`).join('')}</div></div>`).join('');
+    content.innerHTML = `${presets}<h3>CUSTOM KITS</h3>${custom}`;
+}
+
+function toggleCustomLoadout(index, item) {
+    const items = customLoadouts[index], found = items.indexOf(item);
+    if (found >= 0) items.splice(found, 1);
+    else if (items.length < 3) items.push(item);
+    else { notify('CUSTOM KITS HOLD THREE ITEM TYPES', 'warning'); return; }
+    saveData(); renderLoadouts(); renderRunSetup();
 }
 
 function mountSurvivalSetup() {
@@ -511,8 +545,11 @@ function updateMenuData() {
     const status = document.getElementById('menuStatusRow');
     if (status) {
         const dailyReady = daily.objectives.filter(objective => objective.progress >= objective.target && !objective.claimed).length;
-        status.innerHTML = `<span>${unlockedMaps.length}/${Object.keys(MAP_DEFINITIONS).length} MAPS</span><span>${dailyReady ? `${dailyReady} DAILY READY` : 'DAILY ACTIVE'}</span><span>${LOADOUT_DEFINITIONS[selectedLoadout].name}</span>`;
+        const loadoutName = LOADOUT_DEFINITIONS[selectedLoadout]?.name || selectedLoadout.replace('custom', 'CUSTOM KIT ');
+        status.innerHTML = `<span>${unlockedMaps.length}/${Object.keys(MAP_DEFINITIONS).length} MAPS</span><span>${dailyReady ? `${dailyReady} DAILY READY` : 'DAILY ACTIVE'}</span><span>${loadoutName}</span>`;
     }
+    const dailyBadge = document.getElementById('dailyBadge');
+    if (dailyBadge) dailyBadge.textContent = daily.objectives.every(objective => objective.claimed) ? '✓' : `${daily.objectives.filter(objective => objective.progress >= objective.target && !objective.claimed).length}/3`;
     
     let btnShoe = document.getElementById('btnShoe');
     if (upgShoe >= 3) { btnShoe.innerText = "MAX"; btnShoe.disabled = true; }
@@ -552,13 +589,15 @@ function renderCosmetics() {
             { id:'violet', label:'Violet', desc:'A hunter-purple finish.', how:'Catch Malakai.', preview:'#a64dff' },
             { id:'green', label:'Green', desc:'A mimic-green finish.', how:'Catch Jordan.', preview:'#19c76b' },
             { id:'amber', label:'Amber', desc:'A quick-escape gold.', how:'Win a run in under two minutes.', preview:'#e7a21a' },
-            { id:'gold', label:'Containment Gold', desc:'A yellow Rhys-themed finish.', how:'Catch Rhys in Crimson Containment.', preview:'#e9cf38' }
+            { id:'gold', label:'Containment Gold', desc:'A yellow Rhys-themed finish.', how:'Catch Rhys in Crimson Containment.', preview:'#e9cf38' },
+            { id:'sepia', label:'Caleb Shift', desc:'A faded Level 0 survivor finish.', how:'Catch Caleb.', preview:'#b58a54' }
         ]},
         trails: { type:'trail', items:[
             { id:'none', label:'No Trail', desc:'No motion effect.', how:'Available from the start.', preview:'#888' },
             { id:'spark', label:'Spark Trail', desc:'A short fading line of sparks.', how:'Clear Endless round 3.', preview:'#ffd750' },
             { id:'ghost', label:'Ghost Trail', desc:'A soft spectral after-trail.', how:'Win without items.', preview:'#b4d7ff' },
-            { id:'ember', label:'Ember Trail', desc:'A warm containment glow.', how:'Catch Rhys in Crimson Containment.', preview:'#ffb347' }
+            { id:'ember', label:'Ember Trail', desc:'A warm containment glow.', how:'Catch Rhys in Crimson Containment.', preview:'#ffb347' },
+            { id:'static', label:'Static Trail', desc:'A broken signal after-trail.', how:'Catch Caleb.', preview:'#d8eef2' }
         ]}
     };
     const content = document.getElementById('cosmeticsContent'); if (!content) return;
@@ -600,9 +639,26 @@ function showMenu(menuId) {
 
 function showInstallHelp() { showMenu('installMenu'); }
 
+function getChallengeBoard() {
+    const maps = unlockedMaps.length ? unlockedMaps : ['level0'];
+    const templates = [
+        { id:'blackout', title:'BLACKOUT CONTRACT', detail:'Unreliable safe rooms and one extra generator.', reward:48, diff:1 },
+        { id:'pressure', title:'PRESSURE CONTRACT', detail:'Map events start early and return faster.', reward:55, diff:2 },
+        { id:'lean', title:'LEAN SHIFT', detail:'Bring only your chosen custom kit; search for field supplies.', reward:52, diff:1 },
+        { id:'double', title:'TWO HUNTERS', detail:'Two monsters coordinate their search.', reward:65, diff:2 },
+        { id:'relay', title:'RELAY RUN', detail:'Extra generator stages, extra token reward.', reward:50, diff:1 }
+    ];
+    const seed = getDateKey().split('-').reduce((sum, part) => sum * 31 + Number(part), 7);
+    return [0, 1, 2].map(index => ({ ...templates[(seed + index * 3) % templates.length], mapId:maps[(seed + index * 5) % maps.length] }));
+}
+function openChallengeMode() { gameMode = 'challenge'; challengeConfig = null; showMenu('challengeMenu'); renderChallenges(); }
+function renderChallenges() { const content = document.getElementById('challengeContent'); if (content) content.innerHTML = getChallengeBoard().map((challenge, index) => `<button class="loadout-option" onclick="startChallenge(${index})"><b>${challenge.title}</b><br><span>${MAP_DEFINITIONS[challenge.mapId].name} · ${challenge.detail}</span><br><span style="color:#ffe06b">REWARD: ${challenge.reward} TOKENS</span></button>`).join(''); }
+function startChallenge(index) { const challenge = getChallengeBoard()[index]; if (!challenge) return; gameMode = 'challenge'; challengeConfig = challenge; currentMapId = challenge.mapId; if (challenge.id === 'lean') selectedLoadout = 'custom1'; startGame(challenge.diff); }
+
 function chooseMode(mode) {
     gameMode = mode;
     survivalConfig = null;
+    challengeConfig = null;
     endlessRound = 1;
     showMenu('mapMenu');
 }
@@ -643,6 +699,7 @@ function startSurvival() {
     if (document.getElementById('survivalAeson').checked) names.push('AESON');
     if (document.getElementById('survivalBassam')?.checked) names.push('BASSAM');
     if (document.getElementById('survivalRhys')?.checked) names.push('RHYS');
+    if (document.getElementById('survivalNoah')?.checked) names.push('NOAH');
     if (names.length === 0) { showMsg('SELECT AT LEAST ONE MONSTER', 1600); return; }
     gameMode = 'survival';
     endlessRound = 1;
@@ -675,12 +732,23 @@ function setShopTab(tab) {
     document.querySelectorAll('#shopMenu .shop-item').forEach(item => {
         const text = item.textContent;
         const upgrade = /Running Shoes|Hacker Gloves|Quick Hands|Lucky Coin/.test(text);
-        item.style.display = (tab === 'upgrades') === upgrade ? 'flex' : 'none';
+        item.style.display = tab === 'maps' ? 'none' : ((tab === 'upgrades') === upgrade ? 'flex' : 'none');
     });
+    renderMapIntelShop(tab);
     const carried = invAdrenaline + invFlashbang + invNoiseMaker + invBearTrap + invBattery + invBreathFilter + invSignalScrambler + invNeutralizer + invRepairKit + invFlare;
-    const status = document.getElementById('shopCarryStatus'); if (status) status.textContent = `CARRIED SUPPLIES: ${carried}/5`;
+    const status = document.getElementById('shopCarryStatus'); if (status) status.textContent = `CARRIED SUPPLIES: ${carried}/8`;
     document.querySelectorAll('.shop-tabs button').forEach(button => button.classList.toggle('active-tab', button.textContent.toLowerCase() === tab));
 }
+function renderMapIntelShop(tab) {
+    const content = document.getElementById('mapIntelShop'); if (!content) return;
+    if (tab !== 'maps') { content.innerHTML = ''; return; }
+    content.innerHTML = Object.values(MAP_DEFINITIONS).map((mapDef, index) => {
+        const mastered = (mapMastery[mapDef.id] || []).filter(Boolean).length === 3;
+        const owned = mapIntel.includes(mapDef.id), cost = 35 + index * 15;
+        return `<div class="shop-item"><div><div>${mapDef.name} MAP INTEL</div><div class="shop-desc">${owned ? 'Press M / tap MAP during a run to view the full live layout.' : mastered ? 'All three difficulties cleared. Unlock the live map viewer.' : 'Clear Easy, Normal, and Hard on this map first.'}</div></div><button ${owned || !mastered ? 'disabled' : ''} onclick="buyMapIntel('${mapDef.id}',${cost})">${owned ? 'OWNED' : `${cost} T`}</button></div>`;
+    }).join('');
+}
+function buyMapIntel(mapId, cost) { if (mapIntel.includes(mapId) || !(mapMastery[mapId] || []).every(Boolean) || tokens < cost) return; tokens -= cost; mapIntel.push(mapId); saveData(); setShopTab('maps'); }
 function openShop() { showMenu('shopMenu'); setShopTab(shopTab); }
 
 function buyUpgrade(type, baseCost) {
@@ -700,7 +768,7 @@ function buyUpgrade(type, baseCost) {
 }
 function buyConsumable(type, cost) {
     const carried = invAdrenaline + invFlashbang + invNoiseMaker + invBearTrap + invBattery + invBreathFilter + invSignalScrambler + invNeutralizer + invRepairKit + invFlare;
-    if (carried >= 5) { setSaveStatus('Inventory full — carry at most 5 consumables', '#ffcc66'); return; }
+    if (carried >= 8) { setSaveStatus('Inventory full — carry at most 8 consumables', '#ffcc66'); return; }
     if (tokens >= cost) {
         tokens -= cost;
         if (type === 'adrenaline') invAdrenaline++;
@@ -725,7 +793,7 @@ const TS = 40;
 let COLS = 41, ROWS = 33;
 const MAZE_LEFT = 5, MAZE_TOP = 5, MAZE_COLS = 31, MAZE_ROWS = 23;
 let state = 0; let currentDiff = 0; let rewardTokens = 0;
-let gameMode = 'normal', endlessRound = 1, survivalConfig = null, eventsEnabled = true, safeRoomsReliable = true;
+let gameMode = 'challenge', endlessRound = 1, survivalConfig = null, challengeConfig = null, eventsEnabled = true, safeRoomsReliable = true;
 let currentMapId = 'level0';
 
 let map = [], floors = [], rooms = [], fuses = [], hidingSpots = [], coolingValves = [], employees = [];
@@ -733,6 +801,7 @@ let reservedObjectTiles = new Set(), hotelDoorTiles = [], hotelBlockedDoor = nul
 let centralBoiler = null, boilerShutdown = false, boilerReadyShown = false;
 let hotelElevator = null, hotelLockdownTimer = 0, hotelEventCooldown = 0, hotelLockdownActive = false;
 let rhysSeal = null, rhysChest = null, rhysChestKey = null, rhysBreakWall = null, rhysTrap = null, rhysRoute = 'search', rhysSealCollected = false, rhysTrapArmed = false;
+let forestCabins = [], forestBreakers = [], noahState = 'hidden', noahTimer = 0, noahMarkCooldown = 0, noahMarkedTimer = 0;
 let playerTrail = [];
 let hotelEmployeesRequired = 3, hotelDialogueOpen = false, hotelTaskSerial = 0;
 let nearFuse = null, nearHide = null, nearValve = null, nearBoiler = false, nearEmployee = null, nearElevator = false, nearHotelTask = null, nearRhysSeal = false, nearRhysKey = false, nearRhysChest = false, nearRhysTrap = false;
@@ -753,6 +822,7 @@ let empTimer = 0, empWarning = 0, empActive = 0, flashAlpha = 0, scramblerTimer 
 let powerOutageTimer = 0, powerOutageCooldown = 0, flickerTimer = 0, flickerCooldown = 0, emergencyTimer = 0, emergencyCooldown = 0, outageFlickerTimer = 0;
 let noiseTarget = null, noiseTimer = 0, bearTraps = [], heatZones = [], heatEventCooldown = 0;
 let goopZones = [], goopShots = [], rhysSpitCooldown = 0, rhysDashTimer = 0, rhysChargeWindup = 0, rhysDashCooldown = 0, rhysDashTarget = null, rhysEventCooldown = 900, rhysSweepTimer = 0, rhysSweepRadius = 0, rhysPressureZones = [];
+let groundLoot = [];
 let heatOverlay = null;
 let ambienceClock = 0;
 let runStartedAt = 0, runItemsUsed = 0, hallucinationHudTimer = 0;
@@ -817,6 +887,25 @@ function useFlare() {
     invFlare--; flareTimer = 360; runItemsUsed++; stats.itemsUsed++; advanceDailyObjective('items');
     noiseTarget = { x:player.x, y:player.y }; noiseTimer = 180;
     saveData(); updateHUD(); showMsg('<span style="color:#ffbf70">EMERGENCY FLARE · THEY HEARD IT</span>', 900);
+}
+
+function carriedSupplyCount() { return invAdrenaline + invFlashbang + invNoiseMaker + invBearTrap + invBattery + invBreathFilter + invSignalScrambler + invNeutralizer + invRepairKit + invFlare; }
+function addSupply(type) {
+    if (!ITEM_DEFINITIONS[type] || carriedSupplyCount() >= 8) return false;
+    if (type === 'adrenaline') invAdrenaline++; else if (type === 'flashbang') invFlashbang++; else if (type === 'noiseMaker') invNoiseMaker++; else if (type === 'bearTrap') invBearTrap++; else if (type === 'battery') invBattery++; else if (type === 'breathFilter') invBreathFilter++; else if (type === 'signalScrambler') invSignalScrambler++; else if (type === 'neutralizer') invNeutralizer++; else if (type === 'repairKit') invRepairKit++; else if (type === 'flare') invFlare++;
+    return true;
+}
+function spawnGroundLoot() {
+    groundLoot = [];
+    const types = ['battery','noiseMaker','flashbang','repairKit','flare','bearTrap'];
+    for (let index = 0; index < 2 + (Math.random() < .5 ? 1 : 0); index++) {
+        const candidates = floors.filter(tile => {
+            const x = tile.c * TS + TS / 2, y = tile.r * TS + TS / 2;
+            return !isSafeRoom(x, y) && !isReservedObjectSpot(x, y, TS * 2) && !generators.some(generator => Math.hypot(generator.x - x, generator.y - y) < TS * 3) && !groundLoot.some(loot => Math.hypot(loot.x - x, loot.y - y) < TS * 5);
+        });
+        const tile = candidates[Math.floor(Math.random() * Math.max(1, candidates.length))];
+        if (tile) groundLoot.push({ x:tile.c * TS + TS / 2, y:tile.r * TS + TS / 2, type:types[Math.floor(Math.random() * types.length)] });
+    }
 }
 
 function toggleHide() {
@@ -967,6 +1056,7 @@ function finishGeneratorInteraction() {
 
 window.addEventListener('keydown', (e) => {
     let k = e.key.toLowerCase();
+    if (k === 'm' && state === 1) { toggleMapOverlay(); return; }
     if (hotelDialogueOpen) {
         if (k === 'escape' || k === 'e') closeHotelDialogue();
         return;
@@ -986,6 +1076,11 @@ window.addEventListener('keydown', (e) => {
         invFlashbang--;
         runItemsUsed++; stats.itemsUsed++; advanceDailyObjective('items');
         for (const enemy of monsters) enemy.stunTimer = enemy.isResilient ? 120 : 240;
+        for (const enemy of monsters.filter(enemy => enemy.name === 'NOAH')) {
+            const far = floors.filter(tile => Math.hypot(tile.c * TS + TS / 2 - player.x, tile.r * TS + TS / 2 - player.y) > TS * 12 && !isSafeRoom(tile.c * TS + TS / 2, tile.r * TS + TS / 2));
+            const tile = far[Math.floor(Math.random() * Math.max(1, far.length))] || floors.at(-1);
+            enemy.x = tile.c * TS + TS / 2; enemy.y = tile.r * TS + TS / 2; enemy.path = []; noahState = 'hidden'; noahTimer = 0;
+        }
         flashAlpha = 1.0;
         playSound('emp');
         saveData(); updateHUD();
@@ -1004,6 +1099,13 @@ window.addEventListener('keydown', (e) => {
 
     // Generator Interaction
     if (state === 1 && k === 'e' && player.stunTimer <= 0) {
+        const lootIndex = groundLoot.findIndex(loot => Math.hypot(player.x - loot.x, player.y - loot.y) < 34);
+        if (lootIndex >= 0) {
+            if (!addSupply(groundLoot[lootIndex].type)) { notify('INVENTORY FULL · 8/8 SUPPLIES', 'warning'); return; }
+            const loot = groundLoot.splice(lootIndex, 1)[0]; advanceDailyObjective('loot'); notify(`${ITEM_DEFINITIONS[loot.type].toUpperCase()} FOUND`, 'unlock'); saveData(); updateHUD(); return;
+        }
+        const forestBreaker = forestBreakers.find(breaker => !breaker.active && Math.hypot(player.x - breaker.x, player.y - breaker.y) < 38);
+        if (forestBreaker) { forestBreaker.active = true; forestBreaker.cabin.lit = true; notify('CABIN BREAKER RESTORED · LIGHT IS SAFE', 'unlock'); updateHUD(); checkPhase(); return; }
         const nearbyRoom = getRoomAt(player.x, player.y);
         if (nearbyRoom?.type === 'maintenance' && powerOutageTimer > 0) {
             powerOutageTimer = 0;
@@ -1410,6 +1512,50 @@ function generateCrimsonContainment() {
     if (intake) hidingSpots.push({ x:intake.x, y:intake.y, occupied:false });
 }
 
+function generateForest() {
+    map = Array.from({length: ROWS}, () => Array(COLS).fill(1));
+    rooms = []; hidingSpots = []; coolingValves = []; fuses = []; employees = []; reservedObjectTiles = new Set(); forestCabins = []; forestBreakers = [];
+    const clearings = [];
+    for (let i = 0; i < 11; i++) {
+        const node = { c: 5 + (i % 4) * 22 + Math.floor(Math.random() * 7), r: 6 + Math.floor(i / 4) * 18 + Math.floor(Math.random() * 7), width: 5 + Math.floor(Math.random() * 4), height: 5 + Math.floor(Math.random() * 3) };
+        carveBoilerRect(node.c, node.r, node.width, node.height); clearings.push(node);
+        if (i) carveBoilerCorridor(clearings[i - 1], node);
+    }
+    for (let i = 0; i < 4; i++) carveBoilerCorridor(clearings[i], clearings[i + 4] || clearings[i + 1]);
+    clearings.slice(0, 7).forEach((node, index) => {
+        const lit = index < 3;
+        const cabin = { type: lit ? 'safe' : 'cabin', c:node.c, r:node.r, width:node.width, height:node.height, x:node.c * TS + TS / 2, y:node.r * TS + TS / 2, lit, breaker: !lit && forestBreakers.length < 2 };
+        rooms.push(cabin); forestCabins.push(cabin); reserveObjectTile(node.c, node.r, 1);
+        if (cabin.breaker) forestBreakers.push({ x:cabin.x, y:cabin.y, active:false, cabin });
+    });
+    rebuildFloors();
+}
+
+function forestObjectiveComplete() { return currentMapId !== 'forest' || (activeGens >= totalGens && forestBreakers.every(breaker => breaker.active)); }
+
+function updateNoah() {
+    if (monster.name !== 'NOAH' || state !== 1) return false;
+    if (noahTimer > 0) noahTimer--; if (noahMarkCooldown > 0) noahMarkCooldown--; if (noahMarkedTimer > 0) noahMarkedTimer--;
+    const lit = isSafeRoom(player.x, player.y) || flareTimer > 0;
+    if (noahState === 'hidden') {
+        monster.invisible = true;
+        if (noahMarkCooldown <= 0 && !lit) { noahMarkedTimer = 300; noahMarkCooldown = 900; notify('WATCHER\'S MARK · NOAH KNOWS YOUR POSITION', 'warning'); }
+        const target = noahMarkedTimer > 0 ? player : (noiseTarget && noiseTimer > 0 ? noiseTarget : null);
+        if (target) monster.path = findPath(Math.floor(monster.x / TS), Math.floor(monster.y / TS), Math.floor(target.x / TS), Math.floor(target.y / TS));
+        else if (!monster.path.length) { const tile = floors[Math.floor(Math.random() * floors.length)]; monster.path = findPath(Math.floor(monster.x / TS), Math.floor(monster.y / TS), tile.c, tile.r); }
+        moveMonsterAlongPath(getMonsterSpeed(monster) * .82, monster);
+        if (!lit && !player.hidden && Math.hypot(player.x-monster.x, player.y-monster.y) < 92) { noahState = 'reveal'; noahTimer = 55; monster.invisible = false; notify('NOAH REVEALS HIMSELF', 'danger'); }
+    } else if (noahState === 'reveal') { monster.invisible = false; if (noahTimer <= 0) { noahState = 'burst'; noahTimer = 250; } }
+    else {
+        const speed = noahState === 'burst' ? getMonsterSpeed(monster) * 1.55 : getMonsterSpeed(monster) * 1.06;
+        monster.path = findPath(Math.floor(monster.x / TS), Math.floor(monster.y / TS), Math.floor(player.x / TS), Math.floor(player.y / TS)); moveMonsterAlongPath(speed, monster);
+        if (noahState === 'burst' && noahTimer <= 0) { noahState = 'hunt'; noahTimer = 480; }
+        if (noahState === 'hunt' && (noahTimer <= 0 || lit || player.hidden)) { noahState = 'hidden'; noahTimer = 0; monster.path = []; }
+        if (!lit && !player.hidden && Math.hypot(player.x-monster.x, player.y-monster.y) < player.r + monster.r) endGame(false, monster);
+    }
+    return true;
+}
+
 function isInHeatZone(x, y) {
     return heatZones.some(zone => zone.life > 0 && Math.hypot(zone.x - x, zone.y - y) < zone.radius);
 }
@@ -1487,13 +1633,13 @@ function updateRhysCombat(canSeePlayer) {
     for (const zone of rhysPressureZones) zone.life--; rhysPressureZones = rhysPressureZones.filter(zone => zone.life > 0);
     if (rhysChargeWindup > 0) {
         rhysChargeWindup--;
-        if (rhysChargeWindup <= 0) { rhysDashTimer = 44; notify('RHYS CHARGES', 'danger'); }
+        if (rhysChargeWindup <= 0) { rhysDashTimer = 150; notify('RHYS CHARGES', 'danger'); }
         return true;
     }
     if (rhysDashTimer > 0) {
-        rhysDashTimer--; moveEntity(monster, Math.cos(rhysDashTarget.angle) * 7.8, Math.sin(rhysDashTarget.angle) * 7.8);
+        rhysDashTimer--; const beforeX = monster.x, beforeY = monster.y; moveEntity(monster, Math.cos(rhysDashTarget.angle) * 7.8, Math.sin(rhysDashTarget.angle) * 7.8);
         if (rhysBreakWall && !rhysBreakWall.broken && Math.hypot(monster.x-rhysBreakWall.x, monster.y-rhysBreakWall.y) < TS * 1.15) { rhysBreakWall.broken = true; rhysSeal.accessible = true; monster.stunTimer = 180; notify('RHYS BROKE THE WALL · HE IS STUNNED', 'unlock'); updateHUD(); }
-        if (rhysDashTimer <= 0 && monster.stunTimer <= 0) monster.stunTimer = 75;
+        if ((Math.hypot(monster.x - beforeX, monster.y - beforeY) < 1 || rhysDashTimer <= 0) && monster.stunTimer <= 0) { rhysDashTimer = 0; monster.stunTimer = 105; }
         return true;
     }
     const dist = Math.hypot(player.x-monster.x, player.y-monster.y);
@@ -1586,7 +1732,8 @@ function getRoomAt(x, y) {
 }
 
 function isSafeRoom(x, y) {
-    return safeRoomsReliable && getRoomAt(x, y)?.type === 'safe';
+    const room = getRoomAt(x, y);
+    return safeRoomsReliable && (room?.type === 'safe' || (currentMapId === 'forest' && room?.type === 'cabin' && room.lit));
 }
 
 function monsterCanSeeUnhiddenPlayer(enemy = monster) {
@@ -1797,8 +1944,9 @@ function updateHotelEmployees() {
 
 function modeMonsterCount() {
     if (gameMode === 'survival') return survivalConfig?.count || 1;
+    if (gameMode === 'challenge' && challengeConfig?.id === 'double') return 2;
     if (gameMode === 'endless') return Math.min(4, 1 + Math.floor((endlessRound - 1) / 3));
-    if ((gameMode === 'normal' || gameMode === 'campaign') && currentMapId === 'boilerworks' && Math.random() < 0.06) return 2;
+    if ((gameMode === 'challenge' || gameMode === 'campaign') && currentMapId === 'boilerworks' && Math.random() < 0.06) return 2;
     return 1;
 }
 
@@ -1821,6 +1969,7 @@ function createExtraMonster(name, diffData, index) {
     if (name === 'AESON') { enemy.baseSpeed += 0.12; enemy.speed = enemy.baseSpeed; enemy.color = '#d43b18'; enemy.textColor = '#ff9a66'; }
     if (name === 'BASSAM') { enemy.baseSpeed += 0.05; enemy.speed = enemy.baseSpeed; enemy.color = '#8d7654'; enemy.textColor = '#d4c09a'; }
     if (name === 'RHYS') { enemy.baseSpeed += 0.16; enemy.speed = enemy.baseSpeed; enemy.color = '#d8bd32'; enemy.textColor = '#ffe878'; }
+    if (name === 'NOAH') { enemy.baseSpeed += 0.10; enemy.speed = enemy.baseSpeed; enemy.color = '#18242a'; enemy.textColor = '#9ad7dd'; }
     const count = gameMode === 'survival' ? (survivalConfig?.mutations || 0) : Math.min(3, Math.floor((endlessRound - 1) / 2));
     const pool = ['Speed Demon', 'Giant', 'Reinforced', 'Resilient', 'All-Seeing'];
     for (let i = 0; i < count; i++) {
@@ -1841,6 +1990,7 @@ function startGame(diffLevel) {
     currentDiff = diffLevel;
     runStartedAt = performance.now(); runItemsUsed = 0;
     stats.games++;
+    if (gameMode === 'survival') stats.survivalRuns++;
     if (currentMapId === 'boilerworks') advanceDailyObjective('boilerworks');
     document.querySelectorAll('.menu-panel').forEach(p => p.style.display = 'none');
     hud.style.display = 'block';
@@ -1848,19 +1998,20 @@ function startGame(diffLevel) {
     
     if (currentMapId === 'boilerworks') { COLS = 65; ROWS = 49; }
     else if (currentMapId === 'hotel') { COLS = 91; ROWS = 69; }
-    else if (currentMapId === 'crimson') { COLS = 93; ROWS = 65; }
+    else if (currentMapId === 'crimson' || currentMapId === 'forest') { COLS = 93; ROWS = 65; }
     else { COLS = 41; ROWS = 33; }
     hotelTaskSerial = 0;
     if (currentMapId === 'boilerworks') generateBoilerworks();
     else if (currentMapId === 'hotel') generateHotel();
     else if (currentMapId === 'crimson') generateCrimsonContainment();
+    else if (currentMapId === 'forest') generateForest();
     else { generateMaze(); generateSpecialRooms(); }
     if (currentMapId !== 'hotel') hotelElevator = null;
     if (currentMapId !== 'boilerworks') { centralBoiler = null; coolingValves = []; }
     
-    const spawnRoom = (currentMapId === 'boilerworks' || currentMapId === 'hotel' || currentMapId === 'crimson') ? rooms[0] : null;
+    const spawnRoom = (currentMapId === 'boilerworks' || currentMapId === 'hotel' || currentMapId === 'crimson' || currentMapId === 'forest') ? rooms[0] : null;
     player.x = spawnRoom?.x || (MAZE_LEFT + 1.5) * TS; player.y = spawnRoom?.y || (MAZE_TOP + 1.5) * TS;
-    player.baseSpeed = 4.3 * (1 + (upgShoe * 0.05));
+    player.baseSpeed = 3.85 * (1 + (upgShoe * 0.05));
     player.speed = player.baseSpeed;
     playerTrail = [];
     player.boostTimer = 0; player.stunTimer = 0; player.crouching = false; player.breathing = false; player.breathTimer = 0; player.breathCooldown = 0; player.heat = 0; player.inHeatZone = false; player.hidden = false; player.hideTimer = 0; player.hideCompromised = false;
@@ -1877,9 +2028,9 @@ function startGame(diffLevel) {
     eventsEnabled = gameMode !== 'survival' || survivalConfig?.events !== false;
     safeRoomsReliable = gameMode !== 'endless' || Math.random() < Math.max(0.35, 1 - roundScale * 0.14);
     let diffData = [
-        { t: 10, gMin: 3, gMax: 4, mMin: 0, mMax: 1, mSpd: 2.5 },
-        { t: 25, gMin: 4, gMax: 5, mMin: 1, mMax: 2, mSpd: 3.0 },
-        { t: 40, gMin: 5, gMax: 6, mMin: 2, mMax: 3, mSpd: 3.4 }
+        { t: 10, gMin: 3, gMax: 4, mMin: 0, mMax: 1, mSpd: 2.65 },
+        { t: 25, gMin: 4, gMax: 5, mMin: 1, mMax: 2, mSpd: 3.18 },
+        { t: 40, gMin: 5, gMax: 6, mMin: 2, mMax: 3, mSpd: 3.65 }
     ][diffLevel];
     diffData = { ...diffData };
     if (gameMode === 'endless') {
@@ -1895,8 +2046,13 @@ function startGame(diffLevel) {
         diffData.mMin = survivalConfig.mutations;
         diffData.mMax = survivalConfig.mutations;
     }
+    if (gameMode === 'challenge' && challengeConfig) {
+        if (challengeConfig.id === 'blackout') { diffData.gMin++; diffData.gMax++; safeRoomsReliable = false; }
+        if (challengeConfig.id === 'double') survivalConfig = { names:['CALEB','MALAKAI'], count:2, generators:diffData.gMax, mutations:0, events:true };
+        if (challengeConfig.id === 'relay') { diffData.gMin++; diffData.gMax++; }
+    }
     
-    rewardTokens = diffData.t + (gameMode === 'endless' ? roundScale * 8 : gameMode === 'survival' ? (survivalConfig?.count || 1) * 5 : 0);
+    rewardTokens = diffData.t + (gameMode === 'endless' ? roundScale * 8 : gameMode === 'survival' ? (survivalConfig?.count || 1) * 5 : gameMode === 'challenge' ? (challengeConfig?.reward || 0) : 0);
 
     let rand = Math.random();
     let monsterName = 'CALEB';
@@ -1904,6 +2060,8 @@ function startGame(diffLevel) {
         monsterName = 'RHYS';
     } else if (currentMapId === 'hotel' && gameMode !== 'survival') {
         monsterName = 'BASSAM';
+    } else if (currentMapId === 'forest' && gameMode !== 'survival') {
+        monsterName = 'NOAH';
     } else if (currentMapId === 'boilerworks' && gameMode !== 'survival') {
         if (rand < 0.58) monsterName = 'AESON';
         else if (rand < 0.78) monsterName = 'JORDAN';
@@ -1962,6 +2120,9 @@ function startGame(diffLevel) {
     } else if (monsterName === 'RHYS') {
         monster.baseSpeed += 0.16; monster.speed = monster.baseSpeed;
         monster.color = '#d8bd32'; monster.textColor = '#ffe878';
+    } else if (monsterName === 'NOAH') {
+        monster.baseSpeed += 0.10; monster.speed = monster.baseSpeed;
+        monster.color = '#18242a'; monster.textColor = '#9ad7dd'; noahState = 'hidden'; noahTimer = 0; noahMarkCooldown = 420; noahMarkedTimer = 0;
     } else if (monsterName === 'CALEB') {
         empTimer = Math.floor(Math.random() * 600) + 600; 
     }
@@ -2032,6 +2193,7 @@ function startGame(diffLevel) {
     totalGens = Math.floor(Math.random() * (diffData.gMax - diffData.gMin + 1)) + diffData.gMin;
     if (currentMapId === 'hotel') totalGens = Math.max(4, Math.min(7, totalGens + 1));
     if (currentMapId === 'crimson') totalGens = Math.max(5, Math.min(7, totalGens + 1));
+    if (currentMapId === 'forest') totalGens = Math.max(4, Math.min(6, totalGens));
     activeGens = 0; generators = [];
     
     let genPool = floors.filter(tile => !getRoomAt(tile.c * TS + TS / 2, tile.r * TS + TS / 2) && !(currentMapId === 'crimson' && rhysRoute === 'break' && tile.c >= rhysBreakWall.c) && !isDynamicBlockedCell(tile.c, tile.r)).sort(() => Math.random() - 0.5);
@@ -2081,6 +2243,7 @@ function startGame(diffLevel) {
     }
     // Decoys never count toward the power objective.
     totalGens = generators.filter(generator => !generator.isFalse).length;
+    spawnGroundLoot();
     const storageRoom = rooms.find(room => room.type === 'storage');
     if (storageRoom && !generators.some(generator => generator.x === storageRoom.x && generator.y === storageRoom.y)) {
         hidingSpots.push({ x: storageRoom.x, y: storageRoom.y, occupied: false });
@@ -2106,7 +2269,8 @@ function endGame(isWin, sourceMonster = monster) {
         return;
     }
     if (isWin && gameMode === 'endless') {
-        const earned = Math.floor(rewardTokens * (upgCoin > 0 ? 1.5 : 1));
+        const endlessMultiplier = 1 + Math.min(1.5, Math.max(0, endlessRound - 1) * 0.15);
+        const earned = Math.floor(rewardTokens * (upgCoin > 0 ? 1.5 : 1) * endlessMultiplier);
         tokens += earned;
         stats.wins++; stats.caught++; stats.bestEndless = Math.max(stats.bestEndless, endlessRound);
         if (endlessRound >= 3) unlockCosmetic('spark');
@@ -2128,7 +2292,8 @@ function endGame(isWin, sourceMonster = monster) {
     document.getElementById('endTitle').style.color = isWin ? "#0f0" : "#f00";
     
     if (isWin) {
-        let earned = Math.floor(rewardTokens * (upgCoin > 0 ? 1.5 : 1));
+        const endlessMultiplier = gameMode === 'endless' ? 1 + Math.min(1.5, Math.max(0, endlessRound - 1) * 0.15) : 1;
+        let earned = Math.floor(rewardTokens * (upgCoin > 0 ? 1.5 : 1) * endlessMultiplier);
         tokens += earned;
         stats.wins++; stats.caught++;
         stats.mostGenerators = Math.max(stats.mostGenerators, totalGens);
@@ -2142,6 +2307,11 @@ function endGame(isWin, sourceMonster = monster) {
         advanceDailyObjective('wins');
         if (sourceMonster.name === 'AESON') advanceDailyObjective('aeson');
         if (sourceMonster.name === 'RHYS') { unlockCosmetic('gold'); unlockCosmetic('ember'); }
+        if (sourceMonster.name === 'NOAH') advanceDailyObjective('noah');
+        if (sourceMonster.name === 'CALEB') { unlockCosmetic('sepia'); unlockCosmetic('static'); }
+        if (gameMode === 'challenge') { stats.challengesCleared++; advanceDailyObjective('challenge'); }
+        if (!mapMastery[currentMapId]) mapMastery[currentMapId] = [false, false, false];
+        mapMastery[currentMapId][currentDiff] = true;
         if (runItemsUsed === 0) advanceDailyObjective('noItems');
         if (gameMode === 'campaign') {
             if (!campaignCleared.includes(currentMapId)) campaignCleared.push(currentMapId);
@@ -2153,7 +2323,7 @@ function endGame(isWin, sourceMonster = monster) {
         }
         saveData();
         playSound('success');
-        document.getElementById('endDesc').innerHTML = `You caught ${sourceMonster.name}.<br>+${earned} Tokens`;
+        document.getElementById('endDesc').innerHTML = `You caught ${sourceMonster.name}.<br>${(elapsed / 1000).toFixed(1)}s · ${activeGens}/${totalGens} generators · ${runItemsUsed} items used<br>+${earned} Tokens${gameMode === 'endless' ? ` · x${endlessMultiplier.toFixed(2)} Endless` : ''}`;
     } else {
         stats.losses++; stats.timesCaught++;
         saveData();
@@ -2198,15 +2368,19 @@ function checkPhase() {
             return;
         }
         if (currentMapId === 'crimson') { showMsg('<span style="color:#ffe878">GENERATORS ONLINE</span><br>LOCATE THE CRIMSON SEAL', 1400); return; }
+        if (currentMapId === 'forest') {
+            if (!forestBreakers.every(breaker => breaker.active)) { notify(`RESTORE ${forestBreakers.filter(breaker => !breaker.active).length} DARK CABIN BREAKER(S)`, 'warning'); return; }
+            beginFinalChase(); return;
+        }
         beginFinalChase();
     }
 }
 
 function showMsg(text, time = 0) {
-    msgBox.innerHTML = text;
-    msgBox.classList.toggle('top-alert', text.includes("THAT'S NOT A GENERATOR"));
-    msgBox.style.display = 'block';
-    if (time > 0) setTimeout(hideMsg, time);
+    // Routine gameplay information uses the unobtrusive notification stack.
+    // Generator puzzles and end screens use their own dedicated UI instead.
+    const plain = String(text).replace(/<br\s*\/?>/gi, ' · ').replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').trim();
+    notify(plain, /CAUGHT|FAILED|NOT A GENERATOR|FOUND YOU|BRACING|CHARGES|OUTAGE|LOCKDOWN/i.test(plain) ? 'danger' : /ONLINE|RESTORED|READY|COMPLETE|UNLOCKED/i.test(plain) ? 'unlock' : 'info', time || 1800);
 }
 function hideMsg() { msgBox.style.display = 'none'; msgBox.classList.remove('top-alert'); }
 
@@ -2222,6 +2396,21 @@ function notify(text, tone = 'info', duration = 2600) {
         item.classList.add('notification-leave');
         setTimeout(() => item.remove(), 280);
     }, duration);
+}
+
+function toggleHUDCollapsed() {
+    hud.classList.toggle('collapsed');
+    document.getElementById('hudCollapse').textContent = hud.classList.contains('collapsed') ? '›' : '‹';
+}
+function toggleMapOverlay() {
+    if (!mapIntel.includes(currentMapId)) { notify('BUY THIS MAP\'S INTEL AFTER CLEARING ALL THREE DIFFICULTIES', 'warning'); return; }
+    const overlay = document.getElementById('mapOverlay'); const opening = overlay.style.display === 'none'; overlay.style.display = opening ? 'flex' : 'none';
+    if (!opening) return;
+    const mapCtx = document.getElementById('mapCanvas').getContext('2d'), scale = Math.min(640 / COLS, 440 / ROWS);
+    mapCtx.fillStyle = '#060706'; mapCtx.fillRect(0, 0, 640, 440);
+    for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) if (map[r][c] === 0) { mapCtx.fillStyle = '#777'; mapCtx.fillRect(c * scale, r * scale, Math.ceil(scale), Math.ceil(scale)); }
+    generators.forEach(generator => { mapCtx.fillStyle = generator.active ? '#4f4' : '#fc5'; mapCtx.fillRect(generator.x / TS * scale - 2, generator.y / TS * scale - 2, 4, 4); });
+    mapCtx.fillStyle = '#4cf'; mapCtx.beginPath(); mapCtx.arc(player.x / TS * scale, player.y / TS * scale, 4, 0, Math.PI * 2); mapCtx.fill();
 }
 
 function updateHUD() {
@@ -2242,6 +2431,8 @@ function updateHUD() {
     }
     
     let invText = [];
+    const carriedCount = invAdrenaline + invFlashbang + invNoiseMaker + invBearTrap + invBattery + invBreathFilter + invSignalScrambler + invNeutralizer + invRepairKit + invFlare;
+    invText.push(`SUPPLIES: ${carriedCount}/8`);
     if (itemAllowed('adrenaline') && invAdrenaline > 0) invText.push(`Adrenaline: ${invAdrenaline} (SPACE)`);
     if (itemAllowed('flashbang') && invFlashbang > 0) invText.push(`Flashbang: ${invFlashbang} (F)`);
     if (itemAllowed('noiseMaker') && invNoiseMaker > 0) invText.push(`Noise: ${invNoiseMaker} (N)`);
@@ -2584,7 +2775,9 @@ function update() {
         let tracksBlood = !player.hidden && !isSafeRoom(player.x, player.y) && monster.name === 'MALAKAI' && monster.bloodHuntTimer > 0;
         let tracksHeat = !player.hidden && !isSafeRoom(player.x, player.y) && monster.name === 'AESON' && monster.heatAlertTimer > 0;
         
-        if (state === 1 && player.hidden && player.hideCompromised) {
+        if (state === 1 && monster.name === 'NOAH' && updateNoah()) {
+            // Noah owns his full stalk/reveal/chase lifecycle.
+        } else if (state === 1 && player.hidden && player.hideCompromised) {
             // The monster watched the player enter this exact hiding spot.
             const targetC = Math.floor(player.x / TS), targetR = Math.floor(player.y / TS);
             if (monster.lastTargetC !== targetC || monster.lastTargetR !== targetR || monster.path.length === 0) {
@@ -2926,6 +3119,14 @@ function draw() {
         }
     }
 
+    if (currentMapId === 'forest') {
+        for (const cabin of forestCabins) {
+            ctx.fillStyle = cabin.lit ? 'rgba(255,220,110,.14)' : 'rgba(8,10,12,.22)';
+            ctx.fillRect((cabin.c - Math.floor(cabin.width / 2)) * TS, (cabin.r - Math.floor(cabin.height / 2)) * TS, cabin.width * TS, cabin.height * TS);
+            ctx.fillStyle = cabin.lit ? '#fff0aa' : '#637078'; ctx.font = 'bold 10px Arial'; ctx.textAlign = 'center'; ctx.fillText(cabin.lit ? 'LIT CABIN' : 'DARK CABIN', cabin.x, cabin.y - 24);
+        }
+        for (const breaker of forestBreakers) { ctx.fillStyle = breaker.active ? '#65ff8b' : '#e6ae4b'; ctx.fillRect(breaker.x - 9, breaker.y - 9, 18, 18); ctx.strokeStyle = '#111'; ctx.strokeRect(breaker.x - 9, breaker.y - 9, 18, 18); if (!breaker.active && Math.hypot(player.x-breaker.x, player.y-breaker.y) < 38) { ctx.fillStyle='#fff'; ctx.fillText('[E] RESTORE BREAKER', breaker.x, breaker.y-17); } }
+    }
     if (currentMapId === 'crimson') {
         if (rhysBreakWall && !rhysBreakWall.broken) {
             for (const cell of rhysBreakWall.cells) {
@@ -3023,6 +3224,11 @@ function draw() {
         }
     }
 
+    for (const loot of groundLoot) {
+        ctx.fillStyle = '#86d8ff'; ctx.beginPath(); ctx.arc(loot.x, loot.y, 8, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#e6fbff'; ctx.lineWidth = 2; ctx.stroke();
+        if (Math.hypot(player.x - loot.x, player.y - loot.y) < 34) { ctx.fillStyle = '#fff'; ctx.font = 'bold 10px Arial'; ctx.textAlign = 'center'; ctx.fillText(`[E] ${ITEM_DEFINITIONS[loot.type].toUpperCase()}`, loot.x, loot.y - 15); }
+    }
     for (let g of generators) {
         if (g.active || g.repairFlash > 0) {
             const glow = g.repairFlash > 0 ? 0.35 + (g.repairFlash / 45) * 0.35 : 0.16;
@@ -3107,11 +3313,13 @@ function draw() {
         ctx.fillStyle = 'rgba(255,255,255,0.13)';
         ctx.beginPath(); ctx.arc(ax, ay, monster.drawRadius * 0.8, 0, Math.PI * 2); ctx.fill();
     }
-    if (!(monster.name === 'BASSAM' && bassamState === 'disguised' && state !== 3)) {
+    if (!(monster.invisible && state === 1) && !(monster.name === 'BASSAM' && bassamState === 'disguised' && state !== 3)) {
         ctx.fillStyle = 'rgba(0,0,0,0.35)';
         ctx.beginPath(); ctx.ellipse(monster.x, monster.y + monster.drawRadius * 0.65, monster.drawRadius * 0.9, monster.drawRadius * 0.35, 0, 0, Math.PI * 2); ctx.fill();
     }
-    if (monster.name === 'BASSAM' && bassamState === 'disguised' && state !== 3) {
+    if (monster.invisible && state === 1) {
+        // Noah is deliberately absent during Hidden Stalk; audio hooks are reserved for later assets.
+    } else if (monster.name === 'BASSAM' && bassamState === 'disguised' && state !== 3) {
         // The matching employee sprite was drawn above; the disguise must not
         // reveal Bassam until the player interacts with him.
     } else if (monster.name === 'JORDAN' && jordanState === 'mimic' && state !== 3) {
@@ -3151,7 +3359,7 @@ function draw() {
     }
 
     if (!player.hidden) {
-        const playerColors = { blue:'#00f', crimson:'#d22', violet:'#a64dff', green:'#19c76b', amber:'#e7a21a', gold:'#e9ca35' };
+        const playerColors = { blue:'#00f', crimson:'#d22', violet:'#a64dff', green:'#19c76b', amber:'#e7a21a', gold:'#e9ca35', sepia:'#b58a54' };
         if (cosmetics.trail !== 'none') {
             const trailColor = cosmetics.trail === 'spark' ? 'rgba(255,215,80,.64)' : cosmetics.trail === 'ember' ? 'rgba(255,104,42,.62)' : 'rgba(180,210,255,.42)';
             ctx.strokeStyle = trailColor; ctx.lineWidth = cosmetics.trail === 'ghost' ? 10 : 6; ctx.lineCap = 'round'; ctx.beginPath();
@@ -3166,6 +3374,12 @@ function draw() {
         ctx.beginPath(); ctx.arc(player.x, player.y, player.r, 0, Math.PI * 2); ctx.fill();
     }
     ctx.restore();
+
+    if (flareTimer > 0 && state === 1 && Math.hypot(monster.x - player.x, monster.y - player.y) > 260) {
+        const angle = Math.atan2(monster.y - player.y, monster.x - player.x), radius = Math.min(canvas.width, canvas.height) * .42;
+        const x = canvas.width / 2 + Math.cos(angle) * radius, y = canvas.height / 2 + Math.sin(angle) * radius;
+        ctx.save(); ctx.translate(x, y); ctx.rotate(angle); ctx.fillStyle = '#ffd36b'; ctx.beginPath(); ctx.moveTo(13, 0); ctx.lineTo(-10, -9); ctx.lineTo(-10, 9); ctx.closePath(); ctx.fill(); ctx.restore();
+    }
 
     if (currentMapId === 'crimson' && rhysSweepTimer > 0) {
         const centerX = (COLS * TS) / 2, centerY = (ROWS * TS) / 2;

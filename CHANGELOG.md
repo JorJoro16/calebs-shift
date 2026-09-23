@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.5.0
+
+- Added Noah, The Stalker, and the procedurally generated Blackwood Forest with lit and dark cabins, breaker objectives, Flashbang scatter counterplay, and silent hooks reserved for custom audio.
+- Replaced Normal Mode with a three-contract Challenge Board that displays map rules and token rewards.
+- Added Today’s Shift main-menu access, a completion bonus, more objective variety, custom saved item kits, an eight-item carry cap, Survival/Challenge Records, and Endless token scaling.
+- Added purchasable Map Intel after Easy, Normal, and Hard clears; the live map can be opened with M or the mobile MAP control without pausing danger.
+- Lowered player movement and raised monster speed by difficulty for closer but escapable chases; added HUD collapsing and Forest Info entries.
+- Updated the offline cache to `calebs-shift-v37`.
+
 ## 2.4.2
 
 - Prevented Crimson Containment from ending until every generator is repaired, the seal is recovered, and the containment trap is armed.

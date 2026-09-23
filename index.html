@@ -23,6 +23,7 @@
     <div id="notificationStack" aria-live="polite"></div>
 
     <div id="gameHUD">
+        <button id="hudCollapse" onclick="toggleHUDCollapsed()" aria-label="Hide HUD">‹</button>
         Generators: <span id="genCount">0/0</span>
         <div id="mapObjective"></div>
         <div id="inventory"></div>
@@ -30,6 +31,8 @@
         <button id="monsterRosterToggle" onclick="toggleMonsterRoster()" style="display:none;">MONSTERS ▾</button>
         <div id="monsterRoster" style="display:none;"></div>
     </div>
+    <button id="mapButton" onclick="toggleMapOverlay()" aria-label="Open map">MAP</button>
+    <div id="mapOverlay" role="dialog" aria-label="Map" style="display:none;"><div class="map-card"><button onclick="toggleMapOverlay()">CLOSE MAP</button><canvas id="mapCanvas" width="640" height="440"></canvas><p>Viewing the map does not pause the hunt.</p></div></div>
     <aside id="hotelTaskHUD" aria-live="polite" style="display:none;">
         <div class="hotel-task-title">HOTEL ASSIGNMENTS <span id="hotelTaskCount">0/2</span></div>
         <div id="hotelTaskList"></div>
@@ -53,6 +56,7 @@
         <div class="subtitle">CALEB'S SHIFT</div>
         <div id="menuStatusRow" class="menu-status-row"></div>
         <div class="token-display" id="tokenDisplayMain">Tokens: 0</div>
+        <button class="todays-shift-button" onclick="showMenu('objectivesMenu')">TODAY'S SHIFT <span id="dailyBadge"></span></button>
         <button onclick="showMenu('modeMenu')">PLAY</button>
         <button onclick="openShop()">SHOP</button>
         <button onclick="showMenu('infoMenu')">INFO</button>
@@ -129,10 +133,17 @@
     <div id="modeMenu" class="menu-panel">
         <h2>CHOOSE MODE</h2>
         <button onclick="chooseMode('campaign')">CAMPAIGN<br><span style="font-size:12px;color:#aaa">Unlock maps and progress through the story.</span></button>
-        <button onclick="chooseMode('normal')">NORMAL MODE<br><span style="font-size:12px;color:#aaa">Repair generators, then catch the monster.</span></button>
+        <button onclick="openChallengeMode()">CHALLENGE MODE<br><span style="font-size:12px;color:#aaa">Three rotating altered contracts with token rewards.</span></button>
         <button onclick="chooseMode('endless')">ENDLESS MODE<br><span style="font-size:12px;color:#aaa">Each completed round gets more dangerous.</span></button>
         <button onclick="chooseMode('survival')">SURVIVAL MODE<br><span style="font-size:12px;color:#aaa">Build your own monster challenge.</span></button>
         <button onclick="showMenu('mainMenu')" style="margin-top:15px; border-color:#ff4444; color:#ff4444;">BACK</button>
+    </div>
+
+    <div id="challengeMenu" class="menu-panel" style="max-height:80vh; overflow-y:auto;">
+        <h2>CHALLENGE BOARD</h2>
+        <p style="font-size:12px;color:#aaa">Complete altered contracts. Each one has its own map rule and reward.</p>
+        <div id="challengeContent"></div>
+        <button onclick="showMenu('modeMenu')" style="border-color:#ff4444;color:#ff4444;">BACK</button>
     </div>
 
     <!-- Map Select -->
@@ -168,12 +179,13 @@
             <label><input id="survivalJordan" type="checkbox"> Jordan</label>
             <label><input id="survivalAeson" type="checkbox"> Aeson</label><br>
             <label><input id="survivalBassam" type="checkbox"> Bassam</label><br>
-            <label><input id="survivalRhys" type="checkbox"> Rhys</label><br>
-            <label>Map: <select id="survivalMap"><option value="level0">Level 0 — The Maze</option><option value="boilerworks">Level 3 — The Boilerworks</option><option value="hotel">THE ENDLESS HOTEL</option><option value="crimson">THE CRIMSON CONTAINMENT</option></select></label><br>
+            <label><input id="survivalRhys" type="checkbox"> Rhys</label>
+            <label><input id="survivalNoah" type="checkbox"> Noah</label><br>
+            <label>Map: <select id="survivalMap"><option value="level0">Level 0 — The Maze</option><option value="boilerworks">Level 3 — The Boilerworks</option><option value="hotel">THE ENDLESS HOTEL</option><option value="crimson">THE CRIMSON CONTAINMENT</option><option value="forest">THE BLACKWOOD FOREST</option></select></label><br>
             <label>How many: <select id="survivalCount"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option></select></label><br>
             <label>Difficulty: <select id="survivalDiff"><option value="0">Easy</option><option value="1" selected>Normal</option><option value="2">Hard</option></select></label><br>
             <label>Generators: <select id="survivalGens"><option value="3">3</option><option value="4" selected>4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option></select></label><br>
-            <label>Mutations per monster: <select id="survivalMuts"><option value="0">0</option><option value="1" selected>1</option><option value="2">2</option><option value="3">3</option></select></label><br>
+            <label>Mutations per monster: <select id="survivalMuts"><option value="0" selected>0</option></select> <span style="color:#888">New mutations are coming later.</span></label><br>
             <label><input id="survivalEvents" type="checkbox" checked> Events enabled</label>
         </div>
         <button onclick="startSurvival()">START SURVIVAL</button>
@@ -191,9 +203,9 @@
             <b>Goal:</b> Repair every generator, then catch the fleeing monster.<br></div></details>
 
             <details class="info-section" data-info-tab="start"><summary style="color:#b8aaff;">GAME MODES</summary><div>
-            <b>Normal:</b> The original one-round game. Choose difficulty, repair generators, then catch the monster.<br>
+            <b>Challenge:</b> Choose one of three rotating altered contracts. Each has a map rule, focused objective, and listed token reward.<br>
             <b>Endless:</b> Each win immediately begins the next round. Generators, speed, mutations, outages, false generators, and monster count increase; round 4 introduces a second monster.<br>
-            <b>Survival:</b> Choose Caleb, Malakai, Jordan, Aeson, and/or Bassam, how many appear, difficulty, generator count, mutations per monster, and whether map events are active.<br></div></details>
+            <b>Survival:</b> Choose the map, monster roster, difficulty, generators, event setting, and a saved loadout. Every monster uses its core chase behavior on every map; home-map mechanics remain special.</div></details>
 
             <details class="info-section" data-info-tab="monsters"><summary style="color:#ff4444;">MONSTERS</summary><div>
             <b>CALEB — The Disruptor</b><br>Patrols normally and periodically releases an EMP that makes the map difficult to read.<br><span style="color:#aaa">Counter:</span> Keep moving after the warning and use landmarks to reorient yourself.<br><br>
@@ -202,6 +214,7 @@
             <b>AESON — The Firestarter</b><br>Ignites sections of the Boilerworks and senses players who build up too much heat.<br><span style="color:#aaa">Counter:</span> Leave burning areas, cool down, and use the facility’s alternate routes.<br><br>
             <b>BASSAM — The Concierge</b><br>Disguises himself as a hotel employee and offers believable but dangerous directions. Genuine employees can help with small tasks and clues.<br><span style="color:#aaa">Counter:</span> Check badges, shadows, and directions before trusting an employee. A fake employee cannot provide a consistent department or safe route.<br><br>
             <b>RHYS — The Contained</b><br>Spits short-range goop that slows you, creates slowing puddles, and charges in a straight line after a brief brace. On Crimson Containment, restore the generators before recovering the seal and arming the vault trap.<br><span style="color:#aaa">Counter:</span> Dodge sideways during the brace, use the Goop Neutralizer, and bait his special charge into the cracked wall.<br></div></details>
+            <details class="info-section" data-info-tab="monsters"><summary style="color:#9ad7dd;">NOAH — THE STALKER</summary><div>Invisible for most of the run, Noah marks your position, then reveals himself nearby for a slow-to-fast chase before fading back into the forest.<br><span style="color:#aaa">Counter:</span> Stay in lit cabins, break line of sight, use a Flashbang to scatter him, and use a Signal Scrambler when marked. Audio hooks are intentionally ready but silent until custom files are added.</div></details>
             
             <details class="info-section" data-info-tab="monsters"><summary style="color:#ff4444;">MUTATIONS</summary><div>
             <b>Speed Demon:</b> Flat speed boost.<br>
@@ -229,7 +242,7 @@
             <details class="info-section" data-info-tab="systems"><summary style="color:#d8b4ff;">PROGRESSION</summary><div>
             <b>Cosmetics:</b> Colors and trails are cosmetic-only rewards for Hard wins, monster catches, Endless progress, and item-free wins.<br>
             <b>Statistics:</b> The Statistics screen records wins, losses, generators, catches, Endless best, fastest win, item use, and favorite monster.<br>
-            <b>Inventory:</b> You can carry up to five consumables. Batteries restore lights with R; Breath Filters extend your next breath hold.<br>
+            <b>Inventory:</b> You can carry up to eight consumables. Ground supplies only fit when a slot is free. Custom loadouts choose up to three item types to bring; Free Carry permits any owned supply.<br>
             <b>Specialist Gear:</b> Signal Scramblers block tracking alerts, Goop Neutralizers clear Rhys hazards, Repair Kits widen the next skill-check zone, and Flares brighten the area but reveal your location.<br></div></details>
             
             <details class="info-section" data-info-tab="start"><summary style="color:#0f0;">TIPS</summary><div>
@@ -257,6 +270,8 @@
             <b>Employees:</b> Speak to staff to accept up to two assignments. Complete the work, then return to the same staff member to report it.<br>
             <b>Events:</b> Hotel Lockdown seals a whole corridor section temporarily. Bassam can impersonate staff and place a false assignment among your real ones.<br></div></details>
             <details class="info-section" data-info-tab="maps"><summary style="color:#ffe06b;">THE CRIMSON CONTAINMENT</summary><div><b>Objective:</b> Repair generators, locate the Crimson Seal through a changing route, then lure Rhys into the containment trap.<br><b>Events:</b> Containment alarms, pressure releases, a sweeping emergency-light circle, and seal resonance. This level does not use power outages.</div></details>
+            <details class="info-section" data-info-tab="maps"><summary style="color:#9ad7dd;">THE BLACKWOOD FOREST</summary><div><b>Objective:</b> Repair remote generators and restore two dark cabin breakers. Lit cabins are safe zones because Noah cannot stalk through strong light.<br><b>Layout:</b> Procedural clearings, woodland trails, tree barriers, and cabin interiors change each run. Flashbangs scatter Noah to a distant unlit location.</div></details>
+            <details class="info-section" data-info-tab="systems"><summary style="color:#8cd9d0;">MAP INTEL</summary><div>Clear a map on Easy, Normal, and Hard, then buy its Map Intel in the Shop. Press <b>M</b> on desktop or tap <b>MAP</b> on mobile to open the full layout without pausing the danger.</div></details>
             <details class="info-section" data-info-tab="start"><summary style="color:#0ff;">MOBILE CONTROLS</summary><div>
             <b>Joystick:</b> Move freely in any direction.<br>
             <b>E:</b> Interact with generators, fuses, rooms, and hiding spots.<br>
@@ -276,7 +291,8 @@
         <h2>BLACK MARKET</h2>
         <div class="token-display" id="tokenDisplayShop">Tokens: 0</div>
         <div id="shopCarryStatus" class="shop-carry-status"></div>
-        <div class="shop-tabs"><button onclick="setShopTab('upgrades')">UPGRADES</button><button onclick="setShopTab('supplies')">SUPPLIES</button></div>
+        <div class="shop-tabs"><button onclick="setShopTab('upgrades')">UPGRADES</button><button onclick="setShopTab('supplies')">SUPPLIES</button><button onclick="setShopTab('maps')">MAP INTEL</button></div>
+        <div id="mapIntelShop"></div>
         
         <div class="shop-item">
             <div>
