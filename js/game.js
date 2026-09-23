@@ -93,8 +93,8 @@ function playSound(type) {
 }
 
 // Versioned local progress with a backup copy and import/export support.
-const GAME_VERSION = '2.5.3';
-const SAVE_SCHEMA_VERSION = 9;
+const GAME_VERSION = '2.6.0';
+const SAVE_SCHEMA_VERSION = 10;
 const SAVE_KEY = 'br_save_v2';
 const SAVE_BACKUP_KEY = 'br_save_backup_v2';
 
@@ -137,6 +137,19 @@ function safeStorageGet(key) {
 function boundedInt(value, min, max, fallback = min) {
     const number = Number(value);
     return Number.isFinite(number) ? Math.max(min, Math.min(max, Math.floor(number))) : fallback;
+}
+
+function normalizeCustomLoadout(value) {
+    // v9 stored an array of names. Keep every old kit by converting each name
+    // into one carried copy; v10 stores quantities by item id.
+    if (Array.isArray(value)) return value.filter(id => ITEM_DEFINITIONS[id]).reduce((kit, id) => ({ ...kit, [id]: 1 }), {});
+    if (!value || typeof value !== 'object') return {};
+    const kit = {};
+    for (const id of Object.keys(ITEM_DEFINITIONS)) {
+        const amount = boundedInt(value[id], 0, 8, 0);
+        if (amount) kit[id] = amount;
+    }
+    return kit;
 }
 
 function normalizeCosmetics(value) {
@@ -211,7 +224,7 @@ function normalizeProgress(raw) {
         unlockedMaps: Array.from(new Set(['level0', ...unlockedMaps])),
         campaignCleared: Array.isArray(source.campaignCleared) ? source.campaignCleared.filter(id => MAP_DEFINITIONS[id]) : [],
         selectedLoadout: LOADOUT_DEFINITIONS[source.selectedLoadout] || /^custom[123]$/.test(source.selectedLoadout) ? source.selectedLoadout : 'free',
-        customLoadouts: Array.isArray(source.customLoadouts) ? source.customLoadouts.slice(0, 3).map(list => Array.isArray(list) ? list.filter(id => ITEM_DEFINITIONS[id]).slice(0, 3) : []) : [[], [], []],
+        customLoadouts: Array.isArray(source.customLoadouts) ? source.customLoadouts.slice(0, 3).map(normalizeCustomLoadout) : [{}, {}, {}],
         mapMastery: source.mapMastery && typeof source.mapMastery === 'object' ? source.mapMastery : {},
         mapIntel: Array.isArray(source.mapIntel) ? source.mapIntel.filter(id => MAP_DEFINITIONS[id]) : [],
         daily: { date: String(dailySource.date || ''), objectives: dailyObjectives, bonusClaimed: Boolean(dailySource.bonusClaimed) }
@@ -262,7 +275,8 @@ let stats = normalizeStats(loadedProgress.stats);
 let unlockedMaps = loadedProgress.unlockedMaps || ['level0'];
 let campaignCleared = loadedProgress.campaignCleared || [];
 let selectedLoadout = loadedProgress.selectedLoadout || 'free';
-let customLoadouts = loadedProgress.customLoadouts || [[], [], []];
+let customLoadouts = loadedProgress.customLoadouts || [{}, {}, {}];
+let runLoadoutRemaining = null;
 let mapMastery = loadedProgress.mapMastery || {};
 let mapIntel = loadedProgress.mapIntel || [];
 let daily = loadedProgress.daily || { date: '', objectives: [], bonusClaimed: false };
@@ -326,9 +340,23 @@ function claimDailyBonus() {
 }
 
 function itemAllowed(type) {
-    if (/^custom[123]$/.test(selectedLoadout)) return customLoadouts[Number(selectedLoadout.at(-1)) - 1].includes(type);
+    if (/^custom[123]$/.test(selectedLoadout)) return (runLoadoutRemaining?.[type] ?? customLoadouts[Number(selectedLoadout.at(-1)) - 1]?.[type] ?? 0) > 0;
     const loadout = LOADOUT_DEFINITIONS[selectedLoadout] || LOADOUT_DEFINITIONS.free;
     return !loadout.items || loadout.items.includes(type);
+}
+
+function getOwnedItemCount(type) {
+    const inventory = { adrenaline: invAdrenaline, flashbang: invFlashbang, noiseMaker: invNoiseMaker, bearTrap: invBearTrap, battery: invBattery, breathFilter: invBreathFilter, signalScrambler: invSignalScrambler, neutralizer: invNeutralizer, repairKit: invRepairKit, flare: invFlare };
+    return inventory[type] || 0;
+}
+
+function consumeLoadoutItem(type) {
+    if (runLoadoutRemaining?.[type] !== undefined) runLoadoutRemaining[type] = Math.max(0, runLoadoutRemaining[type] - 1);
+}
+
+function customKitSummary(kit) {
+    const entries = Object.entries(kit).filter(([, amount]) => amount > 0);
+    return entries.length ? entries.map(([id, amount]) => `${ITEM_DEFINITIONS[id]} ×${amount}`).join(', ') : 'Choose items and quantities (8 total).';
 }
 
 function renderDailyObjectives() {
@@ -346,15 +374,16 @@ function renderLoadouts() {
     const content = document.getElementById('loadoutsContent');
     if (!content) return;
     const presets = Object.entries(LOADOUT_DEFINITIONS).map(([id, loadout]) => `<button class="loadout-option" ${selectedLoadout === id ? 'style="border-color:#0f0;color:#0f0"' : ''} onclick="selectLoadout('${id}')"><b>${loadout.name}</b><br><span>${loadout.description}</span></button>`).join('');
-    const custom = customLoadouts.map((items, index) => `<div class="loadout-editor"><button class="loadout-option" ${selectedLoadout === `custom${index + 1}` ? 'style="border-color:#0f0;color:#0f0"' : ''} onclick="selectLoadout('custom${index + 1}')"><b>CUSTOM KIT ${index + 1}</b><br><span>${items.length ? items.map(id => ITEM_DEFINITIONS[id]).join(', ') : 'Choose up to three item types.'}</span></button><div class="loadout-picks">${Object.entries(ITEM_DEFINITIONS).map(([id, name]) => `<button class="${items.includes(id) ? 'active-tab' : ''}" onclick="toggleCustomLoadout(${index},'${id}')">${name}</button>`).join('')}</div></div>`).join('');
+    const custom = customLoadouts.map((kit, index) => { const total = Object.values(kit).reduce((sum, amount) => sum + amount, 0); return `<div class="loadout-editor"><button class="loadout-option" ${selectedLoadout === `custom${index + 1}` ? 'style="border-color:#0f0;color:#0f0"' : ''} onclick="selectLoadout('custom${index + 1}')"><b>CUSTOM KIT ${index + 1} · ${total}/8</b><br><span>${customKitSummary(kit)}</span></button><div class="loadout-picks">${Object.entries(ITEM_DEFINITIONS).map(([id, name]) => `<span class="loadout-quantity"><b>${name}</b><small>OWNED ${getOwnedItemCount(id)} · BRING ${kit[id] || 0}</small><button onclick="changeCustomLoadout(${index},'${id}',-1)">−</button><button ${total >= 8 || (kit[id] || 0) >= getOwnedItemCount(id) ? 'disabled' : ''} onclick="changeCustomLoadout(${index},'${id}',1)">+</button></span>`).join('')}</div></div>`; }).join('');
     content.innerHTML = `${presets}<h3>CUSTOM KITS</h3>${custom}`;
 }
 
-function toggleCustomLoadout(index, item) {
-    const items = customLoadouts[index], found = items.indexOf(item);
-    if (found >= 0) items.splice(found, 1);
-    else if (items.length < 3) items.push(item);
-    else { notify('CUSTOM KITS HOLD THREE ITEM TYPES', 'warning'); return; }
+function changeCustomLoadout(index, item, amount) {
+    const kit = customLoadouts[index] ||= {};
+    const total = Object.values(kit).reduce((sum, value) => sum + value, 0);
+    const next = Math.max(0, Math.min(getOwnedItemCount(item), (kit[item] || 0) + amount));
+    if (amount > 0 && total >= 8) { notify('CUSTOM KITS HOLD EIGHT SUPPLIES', 'warning'); return; }
+    if (next) kit[item] = next; else delete kit[item];
     saveData(); renderLoadouts(); renderRunSetup();
 }
 
@@ -365,6 +394,16 @@ function mountSurvivalSetup() {
     source.dataset.mounted = 'true';
     source.id = 'embeddedSurvivalFields';
     target.insertBefore(source, target.firstChild);
+}
+
+function updateSurvivalSummary() {
+    const summary = document.getElementById('survivalSummary');
+    if (!summary) return;
+    const selected = ['Caleb','Malakai','Jordan','Aeson','Bassam','Rhys','Noah'].filter(name => document.getElementById(`survival${name}`)?.checked);
+    const map = document.getElementById('survivalMap')?.selectedOptions?.[0]?.textContent || 'a map';
+    const count = document.getElementById('survivalCount')?.value || '1';
+    const difficulty = document.getElementById('survivalDiff')?.selectedOptions?.[0]?.textContent || 'Normal';
+    summary.textContent = `${map} · ${difficulty} · ${count} active hunter${count === '1' ? '' : 's'} · Pool: ${selected.join(', ') || 'none'}`;
 }
 
 function renderRunSetup() {
@@ -378,12 +417,13 @@ function renderRunSetup() {
     if (runOptions) runOptions.style.display = 'block';
     if (survivalFields) survivalFields.style.display = isSurvival ? 'block' : 'none';
     if (survivalStart) survivalStart.style.display = isSurvival ? 'block' : 'none';
+    updateSurvivalSummary();
     const heading = document.querySelector('#diffMenu h2');
     if (heading) heading.textContent = isSurvival ? 'RUN SETUP' : 'SELECT DIFFICULTY';
     const loadoutTarget = document.getElementById('runLoadoutOptions');
     if (loadoutTarget) {
         const presets = Object.entries(LOADOUT_DEFINITIONS).map(([id, loadout]) => `<button class="loadout-option" ${selectedLoadout === id ? 'style="border-color:#0f0;color:#0f0"' : ''} onclick="selectLoadout('${id}')"><b>${loadout.name}</b><br><span>${loadout.description}</span></button>`).join('');
-        const customs = customLoadouts.map((items, index) => `<button class="loadout-option" ${selectedLoadout === `custom${index + 1}` ? 'style="border-color:#0f0;color:#0f0"' : ''} onclick="selectLoadout('custom${index + 1}')"><b>CUSTOM KIT ${index + 1}</b><br><span>${items.length ? items.map(item => ITEM_DEFINITIONS[item]).join(', ') : 'Edit this kit from Loadouts on the main menu.'}</span></button>`).join('');
+        const customs = customLoadouts.map((kit, index) => `<button class="loadout-option" ${selectedLoadout === `custom${index + 1}` ? 'style="border-color:#0f0;color:#0f0"' : ''} onclick="selectLoadout('custom${index + 1}')"><b>CUSTOM KIT ${index + 1}</b><br><span>${customKitSummary(kit)}</span></button>`).join('');
         loadoutTarget.innerHTML = `${presets}<h3>CUSTOM KITS</h3>${customs}`;
     }
 }
@@ -646,18 +686,19 @@ let challengeBoard = [];
 function getChallengeBoard() {
     const maps = unlockedMaps.length ? unlockedMaps : ['level0'];
     const templates = [
-        { id:'blackout', title:'BLACKOUT CONTRACT', detail:'Unreliable safe rooms and one extra generator.', reward:48, diff:1 },
-        { id:'pressure', title:'PRESSURE CONTRACT', detail:'Map events start early and return faster.', reward:55, diff:2 },
-        { id:'lean', title:'LEAN SHIFT', detail:'Bring only your chosen custom kit; search for field supplies.', reward:52, diff:1 },
-        { id:'double', title:'TWO HUNTERS', detail:'Two monsters coordinate their search.', reward:65, diff:2 },
-        { id:'relay', title:'RELAY RUN', detail:'Extra generator stages, extra token reward.', reward:50, diff:1 }
+        { id:'blackout', title:'BLACKOUT CONTRACT', detail:'Safe rooms can fail and the grid needs an extra generator.', reward:48, diff:1 },
+        { id:'pressure', title:'PRESSURE CONTRACT', detail:'Events recover faster; every repair makes a disturbance.', reward:55, diff:2 },
+        { id:'lean', title:'LEAN SHIFT', detail:'Bring only the custom kit you select; field supplies are scarce.', reward:52, diff:1 },
+        { id:'double', title:'TWO HUNTERS', detail:'Two monsters search together and share line-of-sight alerts.', reward:65, diff:2 },
+        { id:'relay', title:'RELAY RUN', detail:'Every generator uses multiple repair stages.', reward:58, diff:2 },
+        { id:'fog', title:'FOG ROLL', detail:'A rolling fog cuts visibility but reveals active generators.', reward:54, diff:1 }
     ];
     const shuffledTemplates = [...templates].sort(() => Math.random() - .5);
     return [0, 1, 2].map(index => ({ ...shuffledTemplates[index], mapId:maps[Math.floor(Math.random() * maps.length)] }));
 }
 function openChallengeMode() { gameMode = 'challenge'; challengeConfig = null; challengeBoard = getChallengeBoard(); showMenu('challengeMenu'); renderChallenges(); }
 function renderChallenges() { const content = document.getElementById('challengeContent'); if (content) content.innerHTML = challengeBoard.map((challenge, index) => `<button class="loadout-option" onclick="startChallenge(${index})"><b>${challenge.title}</b><br><span>${MAP_DEFINITIONS[challenge.mapId].name} · ${challenge.detail}</span><br><span style="color:#ffe06b">REWARD: ${challenge.reward} TOKENS</span></button>`).join(''); }
-function startChallenge(index) { const challenge = challengeBoard[index]; if (!challenge) return; gameMode = 'challenge'; challengeConfig = challenge; currentMapId = challenge.mapId; if (challenge.id === 'lean') selectedLoadout = 'custom1'; startGame(challenge.diff); }
+function startChallenge(index) { const challenge = challengeBoard[index]; if (!challenge) return; gameMode = 'challenge'; challengeConfig = challenge; currentMapId = challenge.mapId; if (challenge.id === 'lean' && !Object.keys(customLoadouts[0] || {}).length) { notify('BUILD CUSTOM KIT 1 BEFORE STARTING LEAN SHIFT', 'warning'); return; } if (challenge.id === 'lean') selectedLoadout = 'custom1'; startGame(challenge.diff); }
 
 function chooseMode(mode) {
     gameMode = mode;
@@ -805,7 +846,7 @@ let reservedObjectTiles = new Set(), hotelDoorTiles = [], hotelBlockedDoor = nul
 let centralBoiler = null, boilerShutdown = false, boilerReadyShown = false;
 let hotelElevator = null, hotelLockdownTimer = 0, hotelEventCooldown = 0, hotelLockdownActive = false;
 let rhysSeal = null, rhysChest = null, rhysChestKey = null, rhysBreakWall = null, rhysTrap = null, rhysRoute = 'search', rhysSealCollected = false, rhysTrapArmed = false;
-let forestCabins = [], forestBreakers = [], forestTrees = [], noahState = 'hidden', noahTimer = 0, noahMarkCooldown = 0, noahMarkedTimer = 0, noahPathTimer = 0;
+let forestCabins = [], forestBreakers = [], forestTrees = [], forestBeaconBattery = null, forestWatchtower = null, forestBeaconActive = false, forestFogTimer = 0, forestFogCooldown = 0, noahState = 'hidden', noahTimer = 0, noahMarkCooldown = 0, noahMarkedTimer = 0, noahPathTimer = 0, noahCharge = null;
 let playerTrail = [];
 let hotelEmployeesRequired = 3, hotelDialogueOpen = false, hotelTaskSerial = 0;
 let nearFuse = null, nearHide = null, nearValve = null, nearBoiler = false, nearEmployee = null, nearElevator = false, nearHotelTask = null, nearRhysSeal = false, nearRhysKey = false, nearRhysChest = false, nearRhysTrap = false;
@@ -834,6 +875,7 @@ let mobileMenuPaused = false;
 
 // Skill Check Variables
 let scNeedle = 0, scSpeed = 0, scZoneStart = 0, scZoneEnd = 0, scHits = 0, scRequired = 0, scDelay = 0;
+let tuneNeedle = 0, tuneSpeed = 0, tuneZoneStart = 0, tuneZoneEnd = 0, tuneHits = 0, tuneRequired = 0;
 
 let lastTime = 0, frames = 0;
 let lastFrameTime = 0, gameAccumulator = 0;
@@ -847,7 +889,7 @@ function clearMovementKeys() {
 function activateBreath() {
     if ((state === 1 || state === 3) && !player.hidden && player.breathCooldown <= 0 && player.breathTimer <= 0) {
         const filtered = itemAllowed('breathFilter') && invBreathFilter > 0;
-        if (filtered) invBreathFilter--;
+        if (filtered) { invBreathFilter--; consumeLoadoutItem('breathFilter'); }
         player.breathTimer = filtered ? 480 : 300;
         player.breathing = true;
         if (filtered) { runItemsUsed++; stats.itemsUsed++; advanceDailyObjective('items'); saveData(); }
@@ -857,7 +899,7 @@ function activateBreath() {
 
 function useBattery() {
     if (!itemAllowed('battery') || (state !== 1 && state !== 3) || invBattery <= 0 || powerOutageTimer <= 0) return;
-    invBattery--; runItemsUsed++; stats.itemsUsed++;
+    invBattery--; consumeLoadoutItem('battery'); runItemsUsed++; stats.itemsUsed++;
     advanceDailyObjective('items');
     powerOutageTimer = 0; powerOutageCooldown = 1500;
     playSound('success'); saveData(); updateHUD();
@@ -866,7 +908,7 @@ function useBattery() {
 
 function useSignalScrambler() {
     if (!itemAllowed('signalScrambler') || (state !== 1 && state !== 3) || invSignalScrambler <= 0 || scramblerTimer > 0) return;
-    invSignalScrambler--; scramblerTimer = 480; runItemsUsed++; stats.itemsUsed++; advanceDailyObjective('items');
+    invSignalScrambler--; consumeLoadoutItem('signalScrambler'); scramblerTimer = 480; runItemsUsed++; stats.itemsUsed++; advanceDailyObjective('items');
     for (const enemy of monsters) { enemy.bloodHuntTimer = 0; enemy.heatAlertTimer = 0; enemy.path = []; }
     noiseTarget = null; noiseTimer = 0; saveData(); updateHUD();
     showMsg('<span style="color:#8ff">SIGNAL SCRAMBLER ACTIVE</span>', 900);
@@ -874,7 +916,7 @@ function useSignalScrambler() {
 
 function useNeutralizer() {
     if (!itemAllowed('neutralizer') || state !== 1 || currentMapId !== 'crimson' || invNeutralizer <= 0) return;
-    invNeutralizer--; runItemsUsed++; stats.itemsUsed++; advanceDailyObjective('items');
+    invNeutralizer--; consumeLoadoutItem('neutralizer'); runItemsUsed++; stats.itemsUsed++; advanceDailyObjective('items');
     goopZones = goopZones.filter(zone => Math.hypot(zone.x - player.x, zone.y - player.y) > 180);
     rhysPressureZones = rhysPressureZones.filter(zone => Math.hypot(zone.x - player.x, zone.y - player.y) > 180);
     saveData(); updateHUD(); showMsg('<span style="color:#dfff70">GOOP NEUTRALIZED</span>', 850);
@@ -882,21 +924,22 @@ function useNeutralizer() {
 
 function useRepairKit() {
     if (!itemAllowed('repairKit') || state !== 1 || invRepairKit <= 0 || repairAssist > 0) return;
-    invRepairKit--; repairAssist = 1; runItemsUsed++; stats.itemsUsed++; advanceDailyObjective('items');
+    invRepairKit--; consumeLoadoutItem('repairKit'); repairAssist = 1; runItemsUsed++; stats.itemsUsed++; advanceDailyObjective('items');
     saveData(); updateHUD(); showMsg('<span style="color:#bff">NEXT SKILL CHECK STABILIZED</span>', 850);
 }
 
 function useFlare() {
     if (!itemAllowed('flare') || (state !== 1 && state !== 3) || invFlare <= 0 || flareTimer > 0) return;
-    invFlare--; flareTimer = 360; runItemsUsed++; stats.itemsUsed++; advanceDailyObjective('items');
+    invFlare--; consumeLoadoutItem('flare'); flareTimer = 360; runItemsUsed++; stats.itemsUsed++; advanceDailyObjective('items');
     noiseTarget = { x:player.x, y:player.y }; noiseTimer = 180;
     saveData(); updateHUD(); showMsg('<span style="color:#ffbf70">EMERGENCY FLARE · THEY HEARD IT</span>', 900);
 }
 
-function carriedSupplyCount() { return invAdrenaline + invFlashbang + invNoiseMaker + invBearTrap + invBattery + invBreathFilter + invSignalScrambler + invNeutralizer + invRepairKit + invFlare; }
+function carriedSupplyCount() { return runLoadoutRemaining ? Object.values(runLoadoutRemaining).reduce((sum, amount) => sum + amount, 0) : invAdrenaline + invFlashbang + invNoiseMaker + invBearTrap + invBattery + invBreathFilter + invSignalScrambler + invNeutralizer + invRepairKit + invFlare; }
 function addSupply(type) {
     if (!ITEM_DEFINITIONS[type] || carriedSupplyCount() >= 8) return false;
     if (type === 'adrenaline') invAdrenaline++; else if (type === 'flashbang') invFlashbang++; else if (type === 'noiseMaker') invNoiseMaker++; else if (type === 'bearTrap') invBearTrap++; else if (type === 'battery') invBattery++; else if (type === 'breathFilter') invBreathFilter++; else if (type === 'signalScrambler') invSignalScrambler++; else if (type === 'neutralizer') invNeutralizer++; else if (type === 'repairKit') invRepairKit++; else if (type === 'flare') invFlare++;
+    if (runLoadoutRemaining) runLoadoutRemaining[type] = (runLoadoutRemaining[type] || 0) + 1;
     return true;
 }
 function spawnGroundLoot() {
@@ -937,7 +980,7 @@ function toggleHide() {
 
 function useNoiseMaker() {
     if (!itemAllowed('noiseMaker') || (state !== 1 && state !== 3) || invNoiseMaker <= 0 || player.hidden) return;
-    invNoiseMaker--;
+    invNoiseMaker--; consumeLoadoutItem('noiseMaker');
     runItemsUsed++; stats.itemsUsed++;
     advanceDailyObjective('items');
     const options = floors.filter(tile => Math.hypot(tile.c * TS + TS / 2 - player.x, tile.r * TS + TS / 2 - player.y) > 240);
@@ -966,7 +1009,7 @@ function triggerBloodHunt() {
 function placeBearTrap() {
     if (!itemAllowed('bearTrap') || (state !== 1 && state !== 3) || invBearTrap <= 0 || player.hidden || player.stunTimer > 0) return;
     if (bearTraps.length >= 2) { showMsg('ONLY TWO TRAPS CAN BE ACTIVE', 800); return; }
-    invBearTrap--; runItemsUsed++; stats.itemsUsed++; advanceDailyObjective('items');
+    invBearTrap--; consumeLoadoutItem('bearTrap'); runItemsUsed++; stats.itemsUsed++; advanceDailyObjective('items');
     bearTraps.push({ x: player.x, y: player.y, life: 1800, triggered: false });
     saveData(); updateHUD();
     showMsg('<span style="color:#bbb">BEAR TRAP PLACED</span>', 800);
@@ -990,6 +1033,16 @@ function beginCircuitPuzzle() {
     const length = 3 + circuitStage;
     for (let i = 0; i < length; i++) circuitSequence.push(options[Math.floor(Math.random() * options.length)]);
     updateHUD();
+}
+
+function beginTuningPuzzle() {
+    state = 7;
+    tuneNeedle = 0; tuneHits = 0;
+    tuneRequired = currentDiff === 0 ? 1 : currentDiff === 1 ? 2 : 3;
+    tuneSpeed = currentDiff === 0 ? .012 : currentDiff === 1 ? .019 : .027;
+    const width = currentDiff === 0 ? .28 : currentDiff === 1 ? .19 : .13;
+    tuneZoneStart = .18 + Math.random() * (.64 - width); tuneZoneEnd = tuneZoneStart + width;
+    scDelay = 45; updateHUD();
 }
 
 function boilerObjectiveComplete() {
@@ -1070,7 +1123,7 @@ window.addEventListener('keydown', (e) => {
     
     // Adrenaline
     if (itemAllowed('adrenaline') && (state === 1 || state === 3) && k === ' ' && invAdrenaline > 0 && player.boostTimer <= 0 && player.stunTimer <= 0) {
-        invAdrenaline--;
+        invAdrenaline--; consumeLoadoutItem('adrenaline');
         runItemsUsed++; stats.itemsUsed++; advanceDailyObjective('items');
         player.boostTimer = monsters.some(enemy => enemy.hasHexed) ? 120 : 240; 
         saveData(); updateHUD();
@@ -1078,7 +1131,7 @@ window.addEventListener('keydown', (e) => {
 
     // Flashbang
     if (itemAllowed('flashbang') && (state === 1 || state === 3) && k === 'f' && invFlashbang > 0 && monsters.some(enemy => enemy.stunTimer <= 0)) {
-        invFlashbang--;
+        invFlashbang--; consumeLoadoutItem('flashbang');
         runItemsUsed++; stats.itemsUsed++; advanceDailyObjective('items');
         for (const enemy of monsters) enemy.stunTimer = enemy.isResilient ? 120 : 240;
         for (const enemy of monsters.filter(enemy => enemy.name === 'NOAH')) {
@@ -1111,6 +1164,12 @@ window.addEventListener('keydown', (e) => {
         }
         const forestBreaker = forestBreakers.find(breaker => !breaker.active && Math.hypot(player.x - breaker.x, player.y - breaker.y) < 38);
         if (forestBreaker) { forestBreaker.active = true; forestBreaker.cabin.lit = true; notify('CABIN BREAKER RESTORED · LIGHT IS SAFE', 'unlock'); updateHUD(); checkPhase(); return; }
+        if (currentMapId === 'forest' && forestBeaconBattery && !forestBeaconBattery.collected && forestBreakers.every(breaker => breaker.active) && Math.hypot(player.x - forestBeaconBattery.x, player.y - forestBeaconBattery.y) < 38) {
+            forestBeaconBattery.collected = true; notify('RANGER BEACON BATTERY RECOVERED', 'unlock'); updateHUD(); checkPhase(); return;
+        }
+        if (currentMapId === 'forest' && forestWatchtower && forestBeaconBattery?.collected && activeGens >= totalGens && !forestBeaconActive && Math.hypot(player.x - forestWatchtower.x, player.y - forestWatchtower.y) < 46) {
+            forestBeaconActive = true; notify('RANGER BEACON ONLINE · NOAH IS EXPOSED', 'unlock'); beginFinalChase(); return;
+        }
         const nearbyRoom = getRoomAt(player.x, player.y);
         if (nearbyRoom?.type === 'maintenance' && powerOutageTimer > 0) {
             powerOutageTimer = 0;
@@ -1178,6 +1237,7 @@ window.addEventListener('keydown', (e) => {
             beginCircuitPuzzle();
             return;
         }
+        if (currentGen.type === 'tune') { beginTuningPuzzle(); return; }
 
         let roll = Math.random();
         let isSkillCheck = (currentDiff === 0 && roll < 0.2) || (currentDiff === 1 && roll < 0.5) || (currentDiff === 2 && roll < 0.8);
@@ -1225,6 +1285,14 @@ window.addEventListener('keydown', (e) => {
             playSound('fail'); showMsg('<span style="color:#ff4444">WIRING FAILED</span>', 900);
             keys.w = false; keys.a = false; keys.s = false; keys.d = false;
         }
+        return;
+    }
+    if (state === 7 && k === ' ' && scDelay <= 0) {
+        if (tuneNeedle >= tuneZoneStart && tuneNeedle <= tuneZoneEnd) {
+            tuneHits++; playSound('success');
+            if (tuneHits >= tuneRequired) finishGeneratorInteraction();
+            else { const width = tuneZoneEnd - tuneZoneStart; tuneZoneStart = .12 + Math.random() * (.76 - width); tuneZoneEnd = tuneZoneStart + width; tuneNeedle = 0; }
+        } else { triggerBloodHunt(); player.stunTimer = 45; playSound('fail'); tuneNeedle = 0; notify('FREQUENCY SLIPPED', 'warning'); }
         return;
     }
     
@@ -1542,7 +1610,17 @@ function generateForest() {
     rebuildFloors();
 }
 
-function forestObjectiveComplete() { return currentMapId !== 'forest' || (activeGens >= totalGens && forestBreakers.every(breaker => breaker.active)); }
+function setupForestBeacon() {
+    if (currentMapId !== 'forest') return;
+    const darkCabin = forestBreakers[0]?.cabin || forestCabins.find(cabin => !cabin.lit) || forestCabins[0];
+    forestBeaconBattery = darkCabin ? { x: darkCabin.x, y: darkCabin.y + TS * .45, collected:false } : null;
+    const candidates = floors.filter(tile => Math.hypot(tile.c * TS + TS / 2 - player.x, tile.r * TS + TS / 2 - player.y) > TS * 16 && !getRoomAt(tile.c * TS + TS / 2, tile.r * TS + TS / 2) && isOpenObjectSpot(tile.c * TS + TS / 2, tile.r * TS + TS / 2, TS * 4));
+    const tile = candidates[Math.floor(Math.random() * Math.max(1, candidates.length))] || floors.at(-1);
+    forestWatchtower = tile ? { x: tile.c * TS + TS / 2, y: tile.r * TS + TS / 2 } : null;
+    if (forestWatchtower) reserveObjectTile(Math.floor(forestWatchtower.x / TS), Math.floor(forestWatchtower.y / TS), 2);
+}
+
+function forestObjectiveComplete() { return currentMapId !== 'forest' || (activeGens >= totalGens && forestBreakers.every(breaker => breaker.active) && forestBeaconActive); }
 
 function updateNoah() {
     if (monster.name !== 'NOAH' || state !== 1) return false;
@@ -1555,22 +1633,38 @@ function updateNoah() {
     if (noahState === 'hidden') {
         monster.invisible = true;
         if (noahMarkCooldown <= 0 && !lit) { noahMarkedTimer = 360; noahMarkCooldown = 420; notify('WATCHER\'S MARK · NOAH KNOWS YOUR POSITION', 'warning'); }
-        const target = noahMarkedTimer > 0 || Math.hypot(player.x - monster.x, player.y - monster.y) < 520 ? pursue : (noiseTarget && noiseTimer > 0 ? noiseTarget : null);
+        const target = noahMarkedTimer > 0 || Math.hypot(player.x - monster.x, player.y - monster.y) < 680 ? pursue : (noiseTarget && noiseTimer > 0 ? noiseTarget : null);
         if (target && (noahPathTimer <= 0 || !monster.path.length)) { monster.path = findPath(Math.floor(monster.x / TS), Math.floor(monster.y / TS), Math.floor(target.x / TS), Math.floor(target.y / TS)); noahPathTimer = 18; }
         else if (!monster.path.length) { const tile = floors[Math.floor(Math.random() * floors.length)]; monster.path = findPath(Math.floor(monster.x / TS), Math.floor(monster.y / TS), tile.c, tile.r); }
-        const oldX = monster.x, oldY = monster.y; moveMonsterAlongPath(getMonsterSpeed(monster) * .72, monster);
+        const oldX = monster.x, oldY = monster.y; moveMonsterAlongPath(getMonsterSpeed(monster) * 1.14, monster);
         if (isSafeRoom(monster.x, monster.y)) { monster.x = oldX; monster.y = oldY; monster.path = []; }
         if (!lit && !player.hidden && Math.hypot(player.x-monster.x, player.y-monster.y) < 92) { noahState = 'reveal'; noahTimer = 55; monster.invisible = false; notify('NOAH REVEALS HIMSELF', 'danger'); }
-    } else if (noahState === 'reveal') { monster.invisible = false; if (noahTimer <= 0) { noahState = 'burst'; noahTimer = 250; } }
+    } else if (noahState === 'reveal') { monster.invisible = false; if (noahTimer <= 0) { noahState = 'burst'; noahTimer = 130; const intercept = { x: player.x + moveX * TS * 5, y: player.y + moveY * TS * 5 }; const angle = Math.atan2(intercept.y - monster.y, intercept.x - monster.x); noahCharge = { angle, x:intercept.x, y:intercept.y }; notify('NOAH LUNGES FOR YOUR PATH', 'danger'); } }
     else {
-        const speed = noahState === 'burst' ? getMonsterSpeed(monster) * 1.45 : getMonsterSpeed(monster) * 1.05;
-        if (noahPathTimer <= 0 || !monster.path.length) { monster.path = findPath(Math.floor(monster.x / TS), Math.floor(monster.y / TS), Math.floor(pursue.x / TS), Math.floor(pursue.y / TS)); noahPathTimer = 14; } const oldX = monster.x, oldY = monster.y; moveMonsterAlongPath(speed, monster);
+        const oldX = monster.x, oldY = monster.y;
+        if (noahState === 'burst' && noahCharge) {
+            // A burst is a committed intercept line, not a path recalculated on the
+            // player's current tile every frame. This stops vertical kiting.
+            moveEntity(monster, Math.cos(noahCharge.angle) * getMonsterSpeed(monster) * 1.62, Math.sin(noahCharge.angle) * getMonsterSpeed(monster) * 1.62);
+            if (Math.hypot(monster.x - oldX, monster.y - oldY) < .4) noahTimer = 0;
+        } else {
+            if (noahPathTimer <= 0 || !monster.path.length) { monster.path = findPath(Math.floor(monster.x / TS), Math.floor(monster.y / TS), Math.floor(pursue.x / TS), Math.floor(pursue.y / TS)); noahPathTimer = 12; }
+            moveMonsterAlongPath(getMonsterSpeed(monster) * 1.10, monster);
+        }
         if (isSafeRoom(monster.x, monster.y)) { monster.x = oldX; monster.y = oldY; monster.path = []; noahState = 'hidden'; noahTimer = 0; monster.invisible = true; }
-        if (noahState === 'burst' && noahTimer <= 0) { noahState = 'hunt'; noahTimer = 480; }
+        if (noahState === 'burst' && noahTimer <= 0) { noahState = 'hunt'; noahTimer = 480; noahCharge = null; monster.path = []; }
         if (noahState === 'hunt' && (noahTimer <= 0 || lit || player.hidden)) { noahState = 'hidden'; noahTimer = 0; monster.path = []; }
         if (!lit && !player.hidden && Math.hypot(player.x-monster.x, player.y-monster.y) < player.r + monster.r) endGame(false, monster);
     }
     return true;
+}
+
+function updateForestEvent() {
+    if (currentMapId !== 'forest' || state !== 1 || !eventsEnabled) return;
+    if (forestFogTimer > 0) { forestFogTimer--; return; }
+    if (forestFogCooldown > 0) { forestFogCooldown--; return; }
+    forestFogTimer = 420; forestFogCooldown = 1260 + Math.floor(Math.random() * 480);
+    notify('FOG ROLL · STAY CLOSE TO LIGHT', 'warning');
 }
 
 function isInHeatZone(x, y) {
@@ -2031,6 +2125,11 @@ function startGame(diffLevel) {
     player.x = spawnRoom?.x || (MAZE_LEFT + 1.5) * TS; player.y = spawnRoom?.y || (MAZE_TOP + 1.5) * TS;
     player.baseSpeed = 3.85 * (1 + (upgShoe * 0.05));
     player.speed = player.baseSpeed;
+    runLoadoutRemaining = null;
+    if (/^custom[123]$/.test(selectedLoadout)) {
+        const kit = customLoadouts[Number(selectedLoadout.at(-1)) - 1] || {};
+        runLoadoutRemaining = Object.fromEntries(Object.entries(kit).map(([id, amount]) => [id, Math.min(amount, getOwnedItemCount(id))]));
+    }
     playerTrail = [];
     player.boostTimer = 0; player.stunTimer = 0; player.crouching = false; player.breathing = false; player.breathTimer = 0; player.breathCooldown = 0; player.heat = 0; player.inHeatZone = false; player.hidden = false; player.hideTimer = 0; player.hideCompromised = false;
     ambienceClock = 0;
@@ -2038,6 +2137,7 @@ function startGame(diffLevel) {
     nearGen = null; nearValve = null; nearBoiler = false; flashAlpha = 0;
     boilerShutdown = false; boilerReadyShown = false; heatZones = []; heatEventCooldown = currentMapId === 'boilerworks' ? 360 : 0;
     rhysSealCollected = false; rhysTrapArmed = false; goopZones = []; goopShots = []; rhysSpitCooldown = 180; rhysDashTimer = 0; rhysChargeWindup = 0; rhysDashCooldown = 360; rhysEventCooldown = 900; rhysSweepTimer = 0; rhysSweepRadius = 0; rhysPressureZones = [];
+    forestBeaconBattery = null; forestWatchtower = null; forestBeaconActive = false; forestFogTimer = 0; forestFogCooldown = currentMapId === 'forest' ? 720 : 0; noahCharge = null;
     hotelLockdownTimer = 0; hotelEventCooldown = currentMapId === 'hotel' ? 480 : 0; hotelLockdownActive = false; hotelBlockedDoor = null;
     bassamState = 'roaming'; bassamRevealPending = false; bassamTrapTaskId = null; bassamFakeTask = null; bassamFakeLine = ''; bassamAmbushActive = false; bassamLostTimer = 0; bassamAmbushCooldown = 900; hotelTaskGame = null; bassamStaffDepartment = ['FRONT DESK','MAINTENANCE','HOUSEKEEPING','KITCHEN'][Math.floor(Math.random() * 4)]; closeHotelDialogue();
     document.getElementById('hotelTaskHUD').style.display = currentMapId === 'hotel' ? 'block' : 'none';
@@ -2068,6 +2168,7 @@ function startGame(diffLevel) {
         if (challengeConfig.id === 'blackout') { diffData.gMin++; diffData.gMax++; safeRoomsReliable = false; }
         if (challengeConfig.id === 'double') survivalConfig = { names:['CALEB','MALAKAI'], count:2, generators:diffData.gMax, mutations:0, events:true };
         if (challengeConfig.id === 'relay') { diffData.gMin++; diffData.gMax++; }
+        if (challengeConfig.id === 'pressure') { diffData.mSpd += .18; }
     }
     
     rewardTokens = diffData.t + (gameMode === 'endless' ? roundScale * 8 : gameMode === 'survival' ? (survivalConfig?.count || 1) * 5 : gameMode === 'challenge' ? (challengeConfig?.reward || 0) : 0);
@@ -2119,7 +2220,7 @@ function startGame(diffLevel) {
     powerOutageTimer = 0; outageFlickerTimer = 0; powerOutageCooldown = Math.floor(Math.random() * 600) + 900;
     flickerTimer = 0; flickerCooldown = Math.floor(Math.random() * 600) + 600;
     emergencyTimer = 0; emergencyCooldown = currentMapId === 'crimson' ? 999999 : Math.floor(Math.random() * 1200) + 1200;
-    noiseTarget = null; noiseTimer = 0; fuses = [];
+    noiseTarget = null; noiseTimer = 0;
     jordanSabotageCooldown = 0;
 
     if (monsterName === 'MALAKAI') {
@@ -2241,6 +2342,7 @@ function startGame(diffLevel) {
 
     let fuseGeneratorAssigned = false;
     let multiGeneratorAssigned = false;
+    let tuneGeneratorAssigned = false;
     for (const generator of generators) {
         const roll = Math.random();
         if (!fuseGeneratorAssigned && roll < 0.12) {
@@ -2255,12 +2357,19 @@ function startGame(diffLevel) {
         } else if (!multiGeneratorAssigned && roll < 0.30) {
             generator.type = 'multi';
             multiGeneratorAssigned = true;
+        } else if (!tuneGeneratorAssigned && roll < (currentDiff === 0 ? .42 : currentDiff === 1 ? .58 : .74)) {
+            generator.type = 'tune';
+            tuneGeneratorAssigned = true;
         } else if (roll < 0.50 && generators.filter(other => !other.isFalse).length > 1 && generators.filter(other => other.isFalse).length < 1) {
             generator.isFalse = true;
         }
     }
+    if (gameMode === 'challenge' && challengeConfig?.id === 'relay') {
+        generators.filter(generator => !generator.isFalse).forEach(generator => { generator.type = 'multi'; generator.requiredStages = 2 + currentDiff; });
+    }
     // Decoys never count toward the power objective.
     totalGens = generators.filter(generator => !generator.isFalse).length;
+    setupForestBeacon();
     spawnGroundLoot();
     const storageRoom = rooms.find(room => room.type === 'storage');
     if (storageRoom && !generators.some(generator => generator.x === storageRoom.x && generator.y === storageRoom.y)) {
@@ -2382,14 +2491,20 @@ function checkPhase() {
             return;
         }
         if (currentMapId === 'hotel') {
+            if (monster.name !== 'BASSAM') { beginFinalChase(); return; }
             if (reportedHotelEmployees().length < hotelEmployeesRequired) showMsg(`<span style="color:#d4c09a">GENERATORS ONLINE</span><br>REPORT ${hotelEmployeesRequired - reportedHotelEmployees().length} EMPLOYEE(S)`, 1300);
             else if (evacuatedHotelEmployees().length < hotelEmployeesRequired) { notify('THE ELEVATOR IS READY FOR STAFF', 'unlock'); showMsg(`<span style="color:#d4c09a">ELEVATOR POWERED</span><br>EVACUATE ${hotelEmployeesRequired - evacuatedHotelEmployees().length} EMPLOYEE(S)`, 1500); }
             else beginFinalChase();
             return;
         }
-        if (currentMapId === 'crimson') { showMsg('<span style="color:#ffe878">GENERATORS ONLINE</span><br>LOCATE THE CRIMSON SEAL', 1400); return; }
+        if (currentMapId === 'crimson') {
+            if (monster.name !== 'RHYS') { beginFinalChase(); return; }
+            showMsg('<span style="color:#ffe878">GENERATORS ONLINE</span><br>LOCATE THE CRIMSON SEAL', 1400); return;
+        }
         if (currentMapId === 'forest') {
             if (!forestBreakers.every(breaker => breaker.active)) { notify(`RESTORE ${forestBreakers.filter(breaker => !breaker.active).length} DARK CABIN BREAKER(S)`, 'warning'); return; }
+            if (!forestBeaconBattery?.collected) { notify('RECOVER THE RANGER BEACON BATTERY', 'warning'); return; }
+            if (!forestBeaconActive) { notify('INSTALL THE BATTERY AT THE WATCHTOWER', 'warning'); return; }
             beginFinalChase(); return;
         }
         beginFinalChase();
@@ -2447,14 +2562,14 @@ function updateHUD() {
                 : currentMapId === 'hotel'
                     ? `Hotel: ${objectiveGens} generators · Staff ${evacuatedHotelEmployees().length}/${hotelEmployeesRequired} evacuated${hotelObjectiveComplete() ? ' · CATCH BASSAM' : ''}`
                     : currentMapId === 'crimson'
-                        ? `Containment: ${objectiveGens} generators · ${activeGens < totalGens ? 'Restore facility power' : !rhysSealCollected ? rhysRoute === 'break' && !rhysBreakWall?.broken ? 'Bait Rhys into the cracked wall' : rhysRoute === 'chest' && !rhysChestKey?.collected ? 'Find the chest key' : rhysRoute === 'chest' && !rhysChest?.opened ? 'Open the Crimson Chest' : 'Recover the Crimson Seal' : !rhysTrapArmed ? 'Arm the containment trap' : 'Lure Rhys into containment'}`
+                        ? `Containment: ${objectiveGens} generators · ${monster.name !== 'RHYS' ? (activeGens >= totalGens ? `CATCH ${monster.name}` : 'Restore facility power') : activeGens < totalGens ? 'Restore facility power' : !rhysSealCollected ? rhysRoute === 'break' && !rhysBreakWall?.broken ? 'Bait Rhys into the cracked wall' : rhysRoute === 'chest' && !rhysChestKey?.collected ? 'Find the chest key' : rhysRoute === 'chest' && !rhysChest?.opened ? 'Open the Crimson Chest' : 'Recover the Crimson Seal' : !rhysTrapArmed ? 'Arm the containment trap' : 'Lure Rhys into containment'}`
                     : currentMapId === 'forest'
-                        ? `Forest: ${objectiveGens} generators · ${forestBreakers.filter(breaker => breaker.active).length}/${forestBreakers.length} cabin breakers${forestObjectiveComplete() ? ' · CATCH NOAH' : activeGens >= totalGens ? ' · RESTORE DARK CABINS' : ' · REPAIR GENERATORS FIRST'}`
+                        ? `Forest: ${objectiveGens} generators · ${forestBreakers.filter(breaker => breaker.active).length}/${forestBreakers.length} cabin breakers${forestObjectiveComplete() ? ` · CATCH ${monster.name}` : activeGens < totalGens ? ' · REPAIR GENERATORS FIRST' : !forestBreakers.every(breaker => breaker.active) ? ' · RESTORE DARK CABINS' : !forestBeaconBattery?.collected ? ' · RECOVER RANGER BATTERY' : ' · INSTALL AT WATCHTOWER'}`
                     : 'Find and repair every generator';
     }
     
     let invText = [];
-    const carriedCount = invAdrenaline + invFlashbang + invNoiseMaker + invBearTrap + invBattery + invBreathFilter + invSignalScrambler + invNeutralizer + invRepairKit + invFlare;
+    const carriedCount = runLoadoutRemaining ? Object.values(runLoadoutRemaining).reduce((sum, amount) => sum + amount, 0) : invAdrenaline + invFlashbang + invNoiseMaker + invBearTrap + invBattery + invBreathFilter + invSignalScrambler + invNeutralizer + invRepairKit + invFlare;
     invText.push(`SUPPLIES: ${carriedCount}/8`);
     if (itemAllowed('adrenaline') && invAdrenaline > 0) invText.push(`Adrenaline: ${invAdrenaline} (SPACE)`);
     if (itemAllowed('flashbang') && invFlashbang > 0) invText.push(`Flashbang: ${invFlashbang} (F)`);
@@ -2633,7 +2748,7 @@ function separateMonsters() {
 
 function update() {
     if (mobileMenuPaused) return;
-    if (state !== 1 && state !== 3 && state !== 5 && state !== 6) return;
+    if (state !== 1 && state !== 3 && state !== 5 && state !== 6 && state !== 7) return;
 
     if (flashAlpha > 0) flashAlpha -= 0.02;
     ambienceClock++;
@@ -2671,6 +2786,7 @@ function update() {
     updateHeat();
     updateAesonEvents();
     updateRhysEvents();
+    updateForestEvent();
     updateHotelEvents();
     updateHotelEmployees();
     if (monsters.some(enemy => enemy.hasHallucinations) && state === 1 && Math.random() < 0.0025) {
@@ -2786,6 +2902,10 @@ function update() {
             scNeedle += scSpeed;
             if (scNeedle > Math.PI * 2) scNeedle -= Math.PI * 2; 
         }
+    }
+    if (state === 7) {
+        if (scDelay > 0) scDelay--;
+        else { tuneNeedle += tuneSpeed; if (tuneNeedle > 1) tuneNeedle -= 1; }
     }
 
     // --- MONSTER AI ---
@@ -3154,6 +3274,8 @@ function draw() {
             ctx.fillStyle = cabin.lit ? '#fff0aa' : '#637078'; ctx.font = 'bold 10px Arial'; ctx.textAlign = 'center'; ctx.fillText(cabin.lit ? 'LIT CABIN' : 'DARK CABIN', cabin.x, cabin.y - 24);
         }
         for (const breaker of forestBreakers) { ctx.fillStyle = breaker.active ? '#65ff8b' : '#e6ae4b'; ctx.fillRect(breaker.x - 9, breaker.y - 9, 18, 18); ctx.strokeStyle = '#111'; ctx.strokeRect(breaker.x - 9, breaker.y - 9, 18, 18); if (!breaker.active && Math.hypot(player.x-breaker.x, player.y-breaker.y) < 38) { ctx.fillStyle='#fff'; ctx.fillText('[E] RESTORE BREAKER', breaker.x, breaker.y-17); } }
+        if (forestBeaconBattery && !forestBeaconBattery.collected) { ctx.fillStyle = '#b8d8ea'; ctx.fillRect(forestBeaconBattery.x-8, forestBeaconBattery.y-6, 16, 12); ctx.fillStyle='#16242c'; ctx.fillRect(forestBeaconBattery.x-3, forestBeaconBattery.y-3, 6, 6); if (forestBreakers.every(breaker => breaker.active) && Math.hypot(player.x-forestBeaconBattery.x, player.y-forestBeaconBattery.y)<38) { ctx.fillStyle='#fff'; ctx.fillText('[E] RANGER BATTERY', forestBeaconBattery.x, forestBeaconBattery.y-18); } }
+        if (forestWatchtower) { ctx.strokeStyle = forestBeaconActive ? '#8fffb0' : '#8d7958'; ctx.lineWidth=4; ctx.strokeRect(forestWatchtower.x-16, forestWatchtower.y-16, 32, 32); ctx.fillStyle=forestBeaconActive ? '#9fffc0' : '#c5b185'; ctx.fillText(forestBeaconActive ? 'BEACON ONLINE' : 'WATCHTOWER', forestWatchtower.x, forestWatchtower.y-24); if (forestBeaconBattery?.collected && activeGens >= totalGens && !forestBeaconActive && Math.hypot(player.x-forestWatchtower.x,player.y-forestWatchtower.y)<46) { ctx.fillStyle='#fff'; ctx.fillText('[E] INSTALL BEACON', forestWatchtower.x, forestWatchtower.y+28); } }
     }
     if (currentMapId === 'crimson') {
         if (rhysBreakWall && !rhysBreakWall.broken) {
@@ -3267,7 +3389,7 @@ function draw() {
             ctx.fillStyle = gradient;
             ctx.beginPath(); ctx.arc(g.x, g.y, glowRadius, 0, Math.PI * 2); ctx.fill();
         }
-        const generatorColor = g.active ? '#0f0' : g.isFalse ? '#9a8060' : g.type === 'fuse' ? '#ffcc00' : g.type === 'multi' ? '#ff8c3a' : '#888';
+        const generatorColor = g.active ? '#0f0' : g.isFalse ? '#9a8060' : g.type === 'fuse' ? '#ffcc00' : g.type === 'multi' ? '#ff8c3a' : g.type === 'tune' ? '#64c7ff' : '#888';
         ctx.fillStyle = generatorColor;
         ctx.beginPath(); ctx.arc(g.x, g.y, g.r, 0, Math.PI * 2); ctx.fill();
         ctx.strokeStyle = '#000'; ctx.lineWidth = 2; ctx.stroke();
@@ -3287,6 +3409,9 @@ function draw() {
         } else if (!g.active && g.type === 'multi') {
             ctx.fillStyle = '#ffbb80'; ctx.font = 'bold 9px Arial'; ctx.textAlign = 'center';
             ctx.fillText(`${g.stage}/${g.requiredStages} STAGES`, g.x, g.y + 24);
+        } else if (!g.active && g.type === 'tune') {
+            ctx.fillStyle = '#9de4ff'; ctx.font = 'bold 9px Arial'; ctx.textAlign = 'center';
+            ctx.fillText('TUNE SIGNAL', g.x, g.y + 24);
         }
         
         if (state === 1 && nearGen === g && player.stunTimer <= 0) {
@@ -3416,13 +3541,14 @@ function draw() {
         ctx.lineWidth = 7; ctx.beginPath(); ctx.arc(screenX, screenY, rhysSweepRadius * camera.zoom, 0, Math.PI * 2); ctx.stroke();
     }
 
-    if (state === 1 || state === 2 || state === 3 || state === 5 || state === 6) {
+    if (state === 1 || state === 2 || state === 3 || state === 5 || state === 6 || state === 7) {
         if (empActive > 0) {
             let grad = ctx.createRadialGradient(canvas.width/2, canvas.height/2, 20, canvas.width/2, canvas.height/2, 250);
             grad.addColorStop(0, 'rgba(0,0,0,0)'); grad.addColorStop(1, 'rgba(0,0,0,0.98)');
             ctx.fillStyle = grad; ctx.fillRect(0, 0, canvas.width, canvas.height);
         } else {
             let darkness = monster.hasGloom ? 0.85 : (currentMapId === 'forest' ? 0.72 : 0.55);
+            if (forestFogTimer > 0) darkness = Math.min(.88, darkness + .10);
             if (flareTimer > 0) darkness = Math.max(0.18, darkness - 0.28);
             if (powerOutageTimer > 0) darkness = Math.min(0.92, darkness + 0.25);
             if (outageFlickerTimer > 0 && ambienceClock % 6 < 3) darkness = Math.max(0.05, darkness - 0.42);
@@ -3493,6 +3619,15 @@ function draw() {
         ctx.font = '18px Arial';
         ctx.fillText(window.matchMedia?.('(pointer: coarse), (max-width: 700px)').matches ? 'TAP SKILL CHECK IN THE GREEN ZONE' : 'Press SPACE in the Green Zone', cx, cy + 140);
     }
+    if (state === 7) {
+        const cx = canvas.width / 2, cy = canvas.height / 2, width = Math.min(420, canvas.width * .72), left = cx - width / 2;
+        ctx.fillStyle = 'rgba(0,0,0,.68)'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#9de4ff'; ctx.font = 'bold 23px Arial'; ctx.textAlign = 'center'; ctx.fillText(`FREQUENCY TUNE · ${tuneHits}/${tuneRequired}`, cx, cy - 62);
+        ctx.fillStyle = '#26323a'; ctx.fillRect(left, cy - 12, width, 24);
+        ctx.fillStyle = '#40d992'; ctx.fillRect(left + width * tuneZoneStart, cy - 12, width * (tuneZoneEnd - tuneZoneStart), 24);
+        ctx.fillStyle = '#fff'; ctx.fillRect(left + width * tuneNeedle - 3, cy - 27, 6, 54);
+        ctx.font = '16px Arial'; ctx.fillText(scDelay > 0 ? 'STABILIZING...' : 'TAP ALIGN WHEN THE NEEDLE IS GREEN', cx, cy + 62);
+    }
 }
 
 function loop(timestamp) {
@@ -3521,6 +3656,7 @@ function loop(timestamp) {
 }
 
 document.querySelectorAll('#infoVersion, #settingsVersion').forEach(element => element.textContent = GAME_VERSION);
+document.addEventListener('change', event => { if (event.target?.id?.startsWith('survival')) updateSurvivalSummary(); });
 applySettings();
 updateMenuData();
 requestAnimationFrame(loop);
@@ -3562,10 +3698,10 @@ function openMobileActionMenu(kind) {
 function updateMobileSkillCheckButton() {
     const button = document.getElementById('touchSkillCheck');
     if (!button) return;
-    const active = state === 5;
+    const active = state === 5 || state === 7;
     button.style.display = active ? 'block' : 'none';
     button.disabled = !active || scDelay > 0;
-    button.textContent = scDelay > 0 ? 'READY...' : 'HIT';
+    button.textContent = scDelay > 0 ? 'READY...' : state === 7 ? 'ALIGN' : 'HIT';
 }
 
 
@@ -3661,7 +3797,7 @@ function updateMobileSkillCheckButton() {
     document.getElementById('touchItems')?.addEventListener('pointerdown', event => { event.preventDefault(); openMobileActionMenu('items'); });
     document.getElementById('touchSkillCheck')?.addEventListener('pointerdown', event => {
         event.preventDefault();
-        if (state === 5 && scDelay <= 0) mobileKey(' ');
+        if ((state === 5 || state === 7) && scDelay <= 0) mobileKey(' ');
     });
 
     document.querySelectorAll('[data-puzzle-key]').forEach(button => {

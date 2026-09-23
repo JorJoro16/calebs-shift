@@ -173,21 +173,11 @@
     <!-- Survival Setup -->
     <div id="survivalMenu" class="menu-panel" style="max-height:80vh; overflow-y:auto;">
         <h2>SURVIVAL SETUP</h2>
-        <div style="text-align:left; line-height:1.8; font-size:14px;">
-            <b>Monsters</b><br>
-            <label><input id="survivalCaleb" type="checkbox" checked> Caleb</label>
-            <label><input id="survivalMalakai" type="checkbox"> Malakai</label>
-            <label><input id="survivalJordan" type="checkbox"> Jordan</label>
-            <label><input id="survivalAeson" type="checkbox"> Aeson</label><br>
-            <label><input id="survivalBassam" type="checkbox"> Bassam</label><br>
-            <label><input id="survivalRhys" type="checkbox"> Rhys</label>
-            <label><input id="survivalNoah" type="checkbox"> Noah</label><br>
-            <label>Map: <select id="survivalMap"><option value="level0">Level 0 — The Maze</option><option value="boilerworks">Level 3 — The Boilerworks</option><option value="hotel">THE ENDLESS HOTEL</option><option value="crimson">THE CRIMSON CONTAINMENT</option><option value="forest">THE BLACKWOOD FOREST</option></select></label><br>
-            <label>How many: <select id="survivalCount"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option></select></label><br>
-            <label>Difficulty: <select id="survivalDiff"><option value="0">Easy</option><option value="1" selected>Normal</option><option value="2">Hard</option></select></label><br>
-            <label>Generators: <select id="survivalGens"><option value="3">3</option><option value="4" selected>4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option></select></label><br>
-            <label>Mutations per monster: <select id="survivalMuts"><option value="0" selected>0</option></select> <span style="color:#888">New mutations are coming later.</span></label><br>
-            <label><input id="survivalEvents" type="checkbox" checked> Events enabled</label>
+        <div class="survival-setup">
+            <div class="survival-summary" id="survivalSummary">Choose a map, hunter team, and difficulty.</div>
+            <section><b>1 · MAP</b><label>Run location <select id="survivalMap"><option value="level0">Level 0 — The Maze</option><option value="boilerworks">Level 3 — The Boilerworks</option><option value="hotel">THE ENDLESS HOTEL</option><option value="crimson">THE CRIMSON CONTAINMENT</option><option value="forest">THE BLACKWOOD FOREST</option></select></label></section>
+            <section><b>2 · HUNTERS</b><div class="monster-picks"><label><input id="survivalCaleb" type="checkbox" checked> Caleb</label><label><input id="survivalMalakai" type="checkbox"> Malakai</label><label><input id="survivalJordan" type="checkbox"> Jordan</label><label><input id="survivalAeson" type="checkbox"> Aeson</label><label><input id="survivalBassam" type="checkbox"> Bassam</label><label><input id="survivalRhys" type="checkbox"> Rhys</label><label><input id="survivalNoah" type="checkbox"> Noah</label></div><label>Active hunters <select id="survivalCount"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option></select></label></section>
+            <section><b>3 · RULES</b><label>Difficulty <select id="survivalDiff"><option value="0">Easy</option><option value="1" selected>Normal</option><option value="2">Hard</option></select></label><label>Generators <select id="survivalGens"><option value="3">3</option><option value="4" selected>4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option></select></label><label><input id="survivalEvents" type="checkbox" checked> Map events enabled</label><input id="survivalMuts" type="hidden" value="0"></section>
         </div>
         <button onclick="startSurvival()">START SURVIVAL</button>
         <button onclick="showMenu('modeMenu')" style="margin-top:15px; border-color:#ff4444; color:#ff4444;">BACK</button>
@@ -243,7 +233,7 @@
             <details class="info-section" data-info-tab="systems"><summary style="color:#d8b4ff;">PROGRESSION</summary><div>
             <b>Cosmetics:</b> Colors and trails are cosmetic-only rewards for Hard wins, monster catches, Endless progress, and item-free wins.<br>
             <b>Statistics:</b> The Statistics screen records wins, losses, generators, catches, Endless best, fastest win, item use, and favorite monster.<br>
-            <b>Inventory:</b> You can carry up to eight consumables. Ground supplies only fit when a slot is free. Custom loadouts choose up to three item types to bring; Free Carry permits any owned supply.<br>
+            <b>Inventory:</b> You can carry up to eight consumables. Ground supplies only fit when a slot is free. Custom loadouts choose exact item quantities, up to eight total; Free Carry permits any owned supply.<br>
             <b>Specialist Gear:</b> Signal Scramblers block tracking alerts, Goop Neutralizers clear Rhys hazards, Repair Kits widen the next skill-check zone, and Flares brighten the area but reveal your location.<br></div></details>
             
             <details class="info-section" data-info-tab="start"><summary style="color:#0f0;">TIPS</summary><div>
@@ -271,7 +261,7 @@
             <b>Employees:</b> Speak to staff to accept up to two assignments. Complete the work, then return to the same staff member to report it.<br>
             <b>Events:</b> Hotel Lockdown seals a whole corridor section temporarily. Bassam can impersonate staff and place a false assignment among your real ones.<br></div></details>
             <details class="info-section" data-info-tab="maps"><summary style="color:#ffe06b;">THE CRIMSON CONTAINMENT</summary><div><b>Objective:</b> Repair generators, locate the Crimson Seal through a changing route, then lure Rhys into the containment trap.<br><b>Events:</b> Containment alarms, pressure releases, a sweeping emergency-light circle, and seal resonance. This level does not use power outages.</div></details>
-            <details class="info-section" data-info-tab="maps"><summary style="color:#9ad7dd;">THE BLACKWOOD FOREST</summary><div><b>Objective:</b> Repair remote generators and restore two dark cabin breakers. Lit cabins are safe zones because Noah cannot stalk through strong light.<br><b>Layout:</b> Procedural clearings, woodland trails, tree barriers, and cabin interiors change each run. Flashbangs scatter Noah to a distant unlit location.</div></details>
+            <details class="info-section" data-info-tab="maps"><summary style="color:#9ad7dd;">THE BLACKWOOD FOREST</summary><div><b>Objective:</b> Repair remote generators, restore two dark cabin breakers, recover the Ranger Beacon battery, then install it at the watchtower to expose Noah. Lit cabins are safe zones because Noah cannot stalk through strong light.<br><b>Events:</b> Fog Roll darkens the woods for a short time. <b>Layout:</b> Procedural clearings, woodland trails, tree barriers, and cabin interiors change each run. Flashbangs scatter Noah to a distant unlit location.</div></details>
             <details class="info-section" data-info-tab="systems"><summary style="color:#8cd9d0;">MAP INTEL</summary><div>Clear a map on Easy, Normal, and Hard, then buy its Map Intel in the Shop. Press <b>M</b> on desktop or tap <b>MAP</b> on mobile to open the full layout without pausing the danger.</div></details>
             <details class="info-section" data-info-tab="start"><summary style="color:#0ff;">MOBILE CONTROLS</summary><div>
             <b>Joystick:</b> Move freely in any direction.<br>
@@ -281,7 +271,7 @@
             <b>Skill Check:</b> Appears during timing-based repairs. Tap it when the needle is inside the green zone.<br></div></details>
             <details class="info-section" data-info-tab="systems"><summary style="color:#d8b4ff;">OBJECTIVES & LOADOUTS</summary><div>
             <b>Daily Objectives:</b> Complete rotating local objectives for bonus tokens from the main menu.<br>
-            <b>Loadouts:</b> Choose which owned item types are available during your next run. Items are still consumed normally when used.<br></div></details>
+            <b>Loadouts:</b> Build a custom kit from owned supplies, choosing exact quantities up to the eight-slot carry limit. Items are still consumed normally when used.<br></div></details>
             <br><span style="color:#888;">Version <span id="infoVersion">1.0.0</span> · Created for local play with friends.</span>
         </div>
         <button onclick="showMenu('mainMenu')" style="margin-top: 15px; border-color: #ff4444; color: #ff4444;">BACK</button>
