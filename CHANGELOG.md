@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.5.3
+
+- Disabled power outages and emergency-light events in Blackwood Forest.
+- Made Forest denser with additional collidable, sight-blocking trees while protecting cabin doors.
+- Noah now marks and re-engages more often, predicts a moving player's direction during pursuit, and receives a short burst speed advantage instead of being drained by straight-line kiting.
+- Noah becomes visible for the final Forest catch phase so he can be found and caught.
+- Updated the offline cache to `calebs-shift-v40`.
+
 ## 2.5.2
 
 - Moved all live objectives into a separate right-side panel so collapsing the left HUD never hides them.
