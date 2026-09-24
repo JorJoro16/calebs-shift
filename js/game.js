@@ -2,8 +2,11 @@
 
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
-const hatImages = { noahCap: new Image() };
+const hatImages = { noahCap: new Image(), idiotMask: new Image(), cowboyHat: new Image(), jordanMask: new Image() };
 hatImages.noahCap.src = 'assets/noah-cap.png';
+hatImages.idiotMask.src = 'assets/idiot-mask.png';
+hatImages.cowboyHat.src = 'assets/cowboy-hat.png';
+hatImages.jordanMask.src = 'assets/jordan-mask.png';
 const hud = document.getElementById('gameHUD');
 const msgBox = document.getElementById('message');
 
@@ -95,7 +98,7 @@ function playSound(type) {
 }
 
 // Versioned local progress with a backup copy and import/export support.
-const GAME_VERSION = '2.7.3';
+const GAME_VERSION = '2.7.4';
 const SAVE_SCHEMA_VERSION = 10;
 const SAVE_KEY = 'br_save_v2';
 const SAVE_BACKUP_KEY = 'br_save_backup_v2';
@@ -159,7 +162,7 @@ function normalizeCosmetics(value) {
     const source = value && typeof value === 'object' ? value : {};
     const colors = ['blue', 'crimson', 'violet', 'green', 'amber', 'gold', 'sepia', 'white'];
     const trails = ['none', 'spark', 'ghost', 'ember', 'static', 'circle'];
-    const hats = ['none', 'noahCap'];
+    const hats = ['none', 'noahCap', 'idiotMask', 'cowboyHat', 'jordanMask'];
     const unlocked = Array.isArray(source.unlocked) ? source.unlocked.filter(id => colors.includes(id) || trails.includes(id) || hats.includes(id)) : [];
     return {
         color: colors.includes(source.color) ? source.color : 'blue',
@@ -651,7 +654,10 @@ function renderCosmetics() {
         ]},
         hats: { type:'hat', items:[
             { id:'none', label:'No Hat', desc:'No headwear equipped.', how:'Available from the start.', preview:'#888' },
-            { id:'noahCap', label:'Noah’s Cap', desc:'The cap worn by the Stalker.', how:'Beat The Blackwood Forest.', preview:'#bbb' }
+            { id:'noahCap', label:'Noah’s Cap', desc:'The cap worn by the Stalker.', how:'Beat The Blackwood Forest.', preview:'#bbb' },
+            { id:'idiotMask', label:'Idiot Mask', desc:'A smile that appears after too many mistakes.', how:'Fail the same generator task three times in one run.', preview:'#fff' },
+            { id:'cowboyHat', label:'Cowboy Hat', desc:'For surviving on your own terms.', how:'Complete a Challenge with no items equipped.', preview:'#d7a94b' },
+            { id:'jordanMask', label:'Jordan Mask', desc:'Jordan’s face, earned through his own color.', how:'Catch Jordan while Green is equipped.', preview:'#6cce77' }
         ]}
     };
     const content = document.getElementById('cosmeticsContent'); if (!content) return;
@@ -891,7 +897,7 @@ let mobileMenuPaused = false;
 // Skill Check Variables
 let scNeedle = 0, scSpeed = 0, scZoneStart = 0, scZoneEnd = 0, scHits = 0, scRequired = 0, scDelay = 0;
 let tuneNeedle = 0, tuneSpeed = 0, tuneZoneStart = 0, tuneZoneEnd = 0, tuneHits = 0, tuneRequired = 0, tuneMisses = 0;
-let rapidTarget = null, rapidHits = 0, rapidRequired = 0, rapidTimer = 0, rapidLimit = 0;
+let rapidTarget = null, rapidHits = 0, rapidRequired = 0, rapidTimer = 0, rapidLimit = 0, generatorFailureStreak = 0, generatorFailureTarget = null;
 let simonSequence = [], simonInput = 0, simonShowIndex = 0, simonTimer = 0, simonPhase = 'show', simonRound = 1;
 
 let lastTime = 0, frames = 0;
@@ -1078,17 +1084,20 @@ function beginTuningPuzzle() {
 }
 
 function spawnRapidTarget() {
-    rapidTarget = { x:100 + Math.random()*(canvas.width-200), y:100 + Math.random()*(canvas.height-270), r:44 };
+    rapidTarget = { x:170 + Math.random()*460, y:150 + Math.random()*160, r:54 };
     rapidTimer = rapidLimit;
 }
 function beginRapidPuzzle() {
     state = 9; rapidHits = 0; rapidRequired = [10,16,21][currentDiff]; rapidLimit = [145,112,88][currentDiff]; spawnRapidTarget();
 }
 function beginSimonPuzzle() {
-    state = 10; const lengths = [[3,5],[5,7],[8,9]][currentDiff], length = lengths[0] + Math.floor(Math.random()*(lengths[1]-lengths[0]+1));
+    state = 10; const length = 4;
     simonSequence = []; for(let i=0;i<length;i++){let next=Math.floor(Math.random()*4);while(i&&next===simonSequence[i-1])next=Math.floor(Math.random()*4);simonSequence.push(next);} simonRound = 1; simonInput = 0; simonShowIndex = 0; simonTimer = 38; simonPhase = 'show';
 }
 function failGeneratorTask(label) {
+    if (generatorFailureTarget !== currentGen) { generatorFailureTarget = currentGen; generatorFailureStreak = 0; }
+    generatorFailureStreak++;
+    if (generatorFailureStreak >= 3) unlockCosmetic('idiotMask');
     triggerBloodHunt(); state = 1; player.stunTimer = 120; clearMovementKeys(); playSound('fail'); notify(`${label} FAILED · STUNNED`, 'danger');
 }
 function launchCurrentGeneratorTask() {
@@ -1169,6 +1178,7 @@ function finishGeneratorInteraction() {
         return;
     }
     currentGen.active = true;
+    generatorFailureStreak = 0; generatorFailureTarget = null;
     repairAssist = 0;
     currentGen.repairFlash = 45;
     noiseTarget = { x: currentGen.x, y: currentGen.y };
@@ -2578,7 +2588,7 @@ function endGame(isWin, sourceMonster = monster) {
         if (elapsed < 120000) unlockCosmetic('amber');
         if (currentDiff === 2) unlockCosmetic('crimson');
         if (sourceMonster.name === 'MALAKAI') unlockCosmetic('violet');
-        if (sourceMonster.name === 'JORDAN') unlockCosmetic('green');
+        if (sourceMonster.name === 'JORDAN') { unlockCosmetic('green'); if (cosmetics.color === 'green') unlockCosmetic('jordanMask'); }
         if (runItemsUsed === 0) unlockCosmetic('ghost');
         advanceDailyObjective('wins');
         if (sourceMonster.name === 'AESON') advanceDailyObjective('aeson');
@@ -2586,7 +2596,7 @@ function endGame(isWin, sourceMonster = monster) {
         if (sourceMonster.name === 'AMINE') { unlockCosmetic('white'); unlockCosmetic('circle'); }
         if (sourceMonster.name === 'NOAH') { advanceDailyObjective('noah'); if (currentMapId === 'forest') unlockCosmetic('noahCap'); }
         if (sourceMonster.name === 'CALEB') { unlockCosmetic('sepia'); unlockCosmetic('static'); }
-        if (gameMode === 'challenge') { stats.challengesCleared++; advanceDailyObjective('challenge'); }
+        if (gameMode === 'challenge') { stats.challengesCleared++; advanceDailyObjective('challenge'); if (runItemsUsed === 0) unlockCosmetic('cowboyHat'); }
         if (!mapMastery[currentMapId]) mapMastery[currentMapId] = [false, false, false];
         mapMastery[currentMapId][currentDiff] = true;
         if (runItemsUsed === 0) advanceDailyObjective('noItems');
@@ -3730,7 +3740,8 @@ function draw() {
         ctx.fillStyle = player.boostTimer > 0 ? '#0ff' : (player.stunTimer > 0 ? '#ff0' : (playerColors[cosmetics.color] || '#00f'));
         ctx.beginPath(); ctx.arc(player.x, player.y, player.r, 0, Math.PI * 2); ctx.fill();
         if (cosmetics.color === 'sepia' && player.boostTimer <= 0 && player.stunTimer <= 0) { ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(player.x-player.r*.3, player.y-2, 2, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(player.x+player.r*.3, player.y-2, 2, 0, Math.PI*2); ctx.fill(); }
-        if (cosmetics.hat === 'noahCap' && hatImages.noahCap.complete) { ctx.drawImage(hatImages.noahCap, player.x - player.r * 2, player.y - player.r * 2.15, player.r * 4, player.r * 4); }
+        const equippedHat = hatImages[cosmetics.hat];
+        if (cosmetics.hat !== 'none' && equippedHat?.complete) { ctx.drawImage(equippedHat, player.x - player.r * 2, player.y - player.r * 2.15, player.r * 4, player.r * 4); }
     }
     ctx.restore();
 
@@ -4029,6 +4040,11 @@ function updateMobileSkillCheckButton() {
     const puzzlePad = document.getElementById('touchPuzzle');
     function updatePuzzlePad() {
         if (puzzlePad) puzzlePad.style.display = (state === 2 || state === 6) ? 'grid' : 'none';
+        const touchActions = document.querySelector('.touch-actions');
+        const joystickElement = document.getElementById('joystick');
+        const canvasPuzzle = state === 9 || state === 10 || state === 11;
+        if (touchActions) touchActions.style.visibility = canvasPuzzle ? 'hidden' : 'visible';
+        if (joystickElement) joystickElement.style.visibility = canvasPuzzle ? 'hidden' : 'visible';
         updateMobileSkillCheckButton();
     }
     setInterval(updatePuzzlePad, 100);
