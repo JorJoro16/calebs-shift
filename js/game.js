@@ -2,6 +2,8 @@
 
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
+const hatImages = { noahCap: new Image() };
+hatImages.noahCap.src = 'assets/noah-cap.png';
 const hud = document.getElementById('gameHUD');
 const msgBox = document.getElementById('message');
 
@@ -93,7 +95,7 @@ function playSound(type) {
 }
 
 // Versioned local progress with a backup copy and import/export support.
-const GAME_VERSION = '2.7.2';
+const GAME_VERSION = '2.7.3';
 const SAVE_SCHEMA_VERSION = 10;
 const SAVE_KEY = 'br_save_v2';
 const SAVE_BACKUP_KEY = 'br_save_backup_v2';
@@ -157,10 +159,12 @@ function normalizeCosmetics(value) {
     const source = value && typeof value === 'object' ? value : {};
     const colors = ['blue', 'crimson', 'violet', 'green', 'amber', 'gold', 'sepia', 'white'];
     const trails = ['none', 'spark', 'ghost', 'ember', 'static', 'circle'];
-    const unlocked = Array.isArray(source.unlocked) ? source.unlocked.filter(id => colors.includes(id) || trails.includes(id)) : [];
+    const hats = ['none', 'noahCap'];
+    const unlocked = Array.isArray(source.unlocked) ? source.unlocked.filter(id => colors.includes(id) || trails.includes(id) || hats.includes(id)) : [];
     return {
         color: colors.includes(source.color) ? source.color : 'blue',
         trail: trails.includes(source.trail) ? source.trail : 'none',
+        hat: hats.includes(source.hat) ? source.hat : 'none',
         unlocked: Array.from(new Set(['blue', 'none', ...unlocked]))
     };
 }
@@ -644,12 +648,15 @@ function renderCosmetics() {
             { id:'ember', label:'Ember Trail', desc:'A warm containment glow.', how:'Catch Rhys in Crimson Containment.', preview:'#ffb347' },
             { id:'static', label:'Static Trail', desc:'A broken signal after-trail.', how:'Catch Caleb.', preview:'#d8eef2' },
             { id:'circle', label:'Orbit Trail', desc:'Fading white circles follow each step.', how:'Catch Amine in The Parted Grid.', preview:'#fff' }
+        ]},
+        hats: { type:'hat', items:[
+            { id:'none', label:'No Hat', desc:'No headwear equipped.', how:'Available from the start.', preview:'#888' },
+            { id:'noahCap', label:'Noah’s Cap', desc:'The cap worn by the Stalker.', how:'Beat The Blackwood Forest.', preview:'#bbb' }
         ]}
     };
     const content = document.getElementById('cosmeticsContent'); if (!content) return;
-    if (cosmeticTab === 'hats') { content.innerHTML = '<div class="cosmetic-book"><div class="coming-soon"><div><b>HATS</b><br><br>Coming soon — waiting for hat PNG designs.</div></div></div>'; return; }
     const group = groups[cosmeticTab] || groups.colors;
-    content.innerHTML = `<div class="cosmetic-book"><div class="cosmetic-grid">${group.items.map(item => { const unlocked = cosmetics.unlocked.includes(item.id); const equipped = cosmetics[group.type] === item.id; return `<div class="cosmetic-card"><div class="cosmetic-preview" style="color:${item.preview}; text-shadow:0 0 14px ${item.preview};">● ${item.label.toUpperCase()}</div><b>${item.label}</b><small>${item.desc}<br><span style="color:#d4c09a">How: ${item.how}</span></small><button ${unlocked ? '' : 'disabled'} onclick="selectCosmetic('${group.type}','${item.id}')">${equipped ? 'EQUIPPED' : unlocked ? 'EQUIP' : 'LOCKED'}</button></div>`; }).join('')}</div></div>`;
+    content.innerHTML = `<div class="cosmetic-book"><div class="cosmetic-grid">${group.items.map(item => { const unlocked = cosmetics.unlocked.includes(item.id); const equipped = cosmetics[group.type] === item.id; const preview = group.type === 'hat' && item.id === 'noahCap' ? '<img src="assets/noah-cap.png" alt="Noah cap preview">' : `<span style="color:${item.preview}; text-shadow:0 0 14px ${item.preview};">● ${item.label.toUpperCase()}</span>`; return `<div class="cosmetic-card"><div class="cosmetic-preview">${preview}</div><b>${item.label}</b><small>${item.desc}<br><span style="color:#d4c09a">How: ${item.how}</span></small><button ${unlocked ? '' : 'disabled'} onclick="selectCosmetic('${group.type}','${item.id}')">${equipped ? 'EQUIPPED' : unlocked ? 'EQUIP' : 'LOCKED'}</button></div>`; }).join('')}</div></div>`;
 }
 
 function renderCollection() {
@@ -2577,7 +2584,7 @@ function endGame(isWin, sourceMonster = monster) {
         if (sourceMonster.name === 'AESON') advanceDailyObjective('aeson');
         if (sourceMonster.name === 'RHYS') { unlockCosmetic('gold'); unlockCosmetic('ember'); }
         if (sourceMonster.name === 'AMINE') { unlockCosmetic('white'); unlockCosmetic('circle'); }
-        if (sourceMonster.name === 'NOAH') advanceDailyObjective('noah');
+        if (sourceMonster.name === 'NOAH') { advanceDailyObjective('noah'); if (currentMapId === 'forest') unlockCosmetic('noahCap'); }
         if (sourceMonster.name === 'CALEB') { unlockCosmetic('sepia'); unlockCosmetic('static'); }
         if (gameMode === 'challenge') { stats.challengesCleared++; advanceDailyObjective('challenge'); }
         if (!mapMastery[currentMapId]) mapMastery[currentMapId] = [false, false, false];
@@ -3723,6 +3730,7 @@ function draw() {
         ctx.fillStyle = player.boostTimer > 0 ? '#0ff' : (player.stunTimer > 0 ? '#ff0' : (playerColors[cosmetics.color] || '#00f'));
         ctx.beginPath(); ctx.arc(player.x, player.y, player.r, 0, Math.PI * 2); ctx.fill();
         if (cosmetics.color === 'sepia' && player.boostTimer <= 0 && player.stunTimer <= 0) { ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(player.x-player.r*.3, player.y-2, 2, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(player.x+player.r*.3, player.y-2, 2, 0, Math.PI*2); ctx.fill(); }
+        if (cosmetics.hat === 'noahCap' && hatImages.noahCap.complete) { ctx.drawImage(hatImages.noahCap, player.x - player.r * 2, player.y - player.r * 2.15, player.r * 4, player.r * 4); }
     }
     ctx.restore();
 

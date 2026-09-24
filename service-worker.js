@@ -1,4 +1,4 @@
-const CACHE_NAME = 'calebs-shift-v45';
+const CACHE_NAME = 'calebs-shift-v46';
 const FILES_TO_CACHE = [
   './',
   './index.html',
@@ -8,7 +8,8 @@ const FILES_TO_CACHE = [
   './service-worker.js',
   './assets/icon.svg',
   './assets/apple-touch-icon.png',
-  './assets/icon-512.png'
+  './assets/icon-512.png',
+  './assets/noah-cap.png'
 ];
 
 self.addEventListener('install', event => {
