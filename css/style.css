@@ -209,6 +209,7 @@ canvas {
     height: auto;
     max-height: 100vh;
     object-fit: contain;
+    touch-action: none;
 }
 #touchControls {
     display: none;
