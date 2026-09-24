@@ -38,6 +38,7 @@
         <div id="hotelTaskList"></div>
     </aside>
     <div id="storyLine" aria-live="polite"></div>
+    <div id="amineCall" class="amine-call" style="display:none;"><div><b>INCOMING CALL</b><span>AMINE</span><button onclick="answerAmineCall(true)">ACCEPT</button><button onclick="answerAmineCall(false)">DENY</button></div></div>
 
     <div id="hotelDialogue" role="dialog" aria-modal="false" aria-live="polite" style="display:none;">
         <div class="hotel-dialogue-card">
@@ -176,8 +177,8 @@
         <h2>SURVIVAL SETUP</h2>
         <div class="survival-setup">
             <div class="survival-summary" id="survivalSummary">Choose a map, hunter team, and difficulty.</div>
-            <section><b>1 · MAP</b><label>Run location <select id="survivalMap"><option value="level0">Level 0 — The Maze</option><option value="boilerworks">Level 3 — The Boilerworks</option><option value="hotel">THE ENDLESS HOTEL</option><option value="crimson">THE CRIMSON CONTAINMENT</option><option value="forest">THE BLACKWOOD FOREST</option></select></label></section>
-            <section><b>2 · HUNTERS</b><div class="monster-picks"><label><input id="survivalCaleb" type="checkbox" checked> Caleb</label><label><input id="survivalMalakai" type="checkbox"> Malakai</label><label><input id="survivalJordan" type="checkbox"> Jordan</label><label><input id="survivalAeson" type="checkbox"> Aeson</label><label><input id="survivalBassam" type="checkbox"> Bassam</label><label><input id="survivalRhys" type="checkbox"> Rhys</label><label><input id="survivalNoah" type="checkbox"> Noah</label></div><label>Active hunters <select id="survivalCount"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option></select></label></section>
+            <section><b>1 · MAP</b><label>Run location <select id="survivalMap"><option value="level0">Level 0 — The Maze</option><option value="boilerworks">Level 3 — The Boilerworks</option><option value="hotel">THE ENDLESS HOTEL</option><option value="crimson">THE CRIMSON CONTAINMENT</option><option value="forest">THE BLACKWOOD FOREST</option><option value="amine">THE PARTED GRID</option></select></label></section>
+            <section><b>2 · HUNTERS</b><div class="monster-picks"><label><input id="survivalCaleb" type="checkbox" checked> Caleb</label><label><input id="survivalMalakai" type="checkbox"> Malakai</label><label><input id="survivalJordan" type="checkbox"> Jordan</label><label><input id="survivalAeson" type="checkbox"> Aeson</label><label><input id="survivalBassam" type="checkbox"> Bassam</label><label><input id="survivalRhys" type="checkbox"> Rhys</label><label><input id="survivalNoah" type="checkbox"> Noah</label><label><input id="survivalAmine" type="checkbox"> Amine</label></div><label>Active hunters <select id="survivalCount"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option></select></label></section>
             <section><b>3 · RULES</b><label>Difficulty <select id="survivalDiff"><option value="0">Easy</option><option value="1" selected>Normal</option><option value="2">Hard</option></select></label><label>Generators <select id="survivalGens"><option value="3">3</option><option value="4" selected>4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option></select></label><label><input id="survivalEvents" type="checkbox" checked> Map events enabled</label><input id="survivalMuts" type="hidden" value="0"></section>
         </div>
         <button onclick="startSurvival()">START SURVIVAL</button>
@@ -207,6 +208,7 @@
             <b>BASSAM — The Concierge</b><br>Disguises himself as a hotel employee and offers believable but dangerous directions. Genuine employees can help with small tasks and clues.<br><span style="color:#aaa">Counter:</span> Check badges, shadows, and directions before trusting an employee. A fake employee cannot provide a consistent department or safe route.<br><br>
             <b>RHYS — The Contained</b><br>Spits short-range goop that slows you, creates slowing puddles, and charges in a straight line after a brief brace. On Crimson Containment, restore the generators before recovering the seal and arming the vault trap.<br><span style="color:#aaa">Counter:</span> Dodge sideways during the brace, use the Goop Neutralizer, and bait his special charge into the cracked wall.<br></div></details>
             <details class="info-section" data-info-tab="monsters"><summary style="color:#9ad7dd;">NOAH — THE STALKER</summary><div>Invisible for most of the run, Noah closes in nearby, briefly reveals himself, then makes a short intercept burst before fading back into the forest. He can call lightning circles that heavily slow and blur you.<br><span style="color:#aaa">Counter:</span> Stay in lit cabins, break line of sight, move out of lightning circles, and use a Flashbang to scatter him. Audio hooks are intentionally ready but silent until custom files are added.</div></details>
+            <details class="info-section" data-info-tab="monsters"><summary style="color:#ddd;">AMINE — THE PARTED</summary><div>Invisible normally. Hold Focus Vision to hide the map and reveal only Amine. He flashes periodically, teleports behind you, and interrupts generator repairs with escalating calls.<br><span style="color:#aaa">Counter:</span> Alternate normal sight and Focus Vision, deny calls carefully, and reach the exit gate for the turret finale.</div></details>
             
             <details class="info-section" data-info-tab="monsters"><summary style="color:#ff4444;">MUTATIONS</summary><div>
             <b>Speed Demon:</b> Flat speed boost.<br>
@@ -247,6 +249,9 @@
             <b>False Generators:</b> Look closely for their small offset amber status light. Do not repair them.<br>
             <b>Fuse Generator:</b> Find the loose fuses around the map before repairing it.<br>
             <b>Multi-stage Generator:</b> Complete several repair stages before it comes online. It uses a circuit puzzle.<br>
+            <b>Response Array:</b> Click each target before it expires. It is deliberately click/touch-only; missing one fails the repair and stuns you.<br>
+            <b>Color Memory:</b> Watch the red, blue, green, and yellow sequence, then repeat it. A wrong choice fails the repair and stuns you.<br>
+            <b>Shift Cache:</b> A rare lucky block that can contain an item, repair a generator, create another generator, or grant a temporary speed surge. Items still require free inventory space.<br>
             <b>Safe Room:</b> The monster cannot detect or catch you while you are inside, but it keeps moving through the map.<br>
             <b>Hiding Spot:</b> Hide for up to 20 seconds while the monster keeps patrolling. If it sees you enter, it will check the spot and catch you.<br>
             <b>Crouch:</b> Hold the crouch button to slow yourself and the monster while you reposition.<br>
@@ -263,6 +268,7 @@
             <b>Events:</b> Hotel Lockdown seals a whole corridor section temporarily. Bassam can impersonate staff and place a false assignment among your real ones.<br></div></details>
             <details class="info-section" data-info-tab="maps"><summary style="color:#ffe06b;">THE CRIMSON CONTAINMENT</summary><div><b>Objective:</b> Repair generators, locate the Crimson Seal through a changing route, then lure Rhys into the containment trap.<br><b>Events:</b> Containment alarms, pressure releases, a sweeping emergency-light circle, and seal resonance. This level does not use power outages.</div></details>
             <details class="info-section" data-info-tab="maps"><summary style="color:#9ad7dd;">THE BLACKWOOD FOREST</summary><div><b>Objective:</b> Repair remote generators, restore two dark cabin breakers, recover the Ranger Beacon battery, then install it at the watchtower to expose Noah. Lit cabins are safe zones because Noah cannot stalk through strong light.<br><b>Events:</b> Fog Roll darkens the woods for a short time. <b>Layout:</b> Procedural clearings, woodland trails, tree barriers, and cabin interiors change each run. Flashbangs scatter Noah to a distant unlit location.</div></details>
+            <details class="info-section" data-info-tab="maps"><summary style="color:#ddd;">THE PARTED GRID</summary><div><b>Objective:</b> Repair every generator, find the exit gate, then use the edge turret to shoot Amine. Hold <b>V</b> or the mobile <b>FOCUS</b> button to hide the map and reveal him.<br><b>Hazards:</b> Falling into biome holes is fatal. Burning zones heavily slow and blur you. Turret bullets penetrate at most three walls.</div></details>
             <details class="info-section" data-info-tab="systems"><summary style="color:#8cd9d0;">MAP INTEL</summary><div>Clear a map on Easy, Normal, and Hard, then buy its Map Intel in the Shop. Press <b>M</b> on desktop or tap <b>MAP</b> on mobile to open the full layout without pausing the danger.</div></details>
             <details class="info-section" data-info-tab="start"><summary style="color:#0ff;">MOBILE CONTROLS</summary><div>
             <b>Joystick:</b> Move freely in any direction.<br>
@@ -404,6 +410,7 @@
             <button id="touchAbilities" class="touch-button boost-button" aria-label="Abilities">◎</button>
             <button id="touchItems" class="touch-button flash-button" aria-label="Items">▣</button>
             <button id="touchSkillCheck" class="touch-button skill-check-button" aria-label="Skill check" style="display:none;">HIT</button>
+            <button id="touchFocus" class="touch-button focus-button" aria-label="Focus vision" style="display:none;">FOCUS</button>
         </div>
     </div>
 
