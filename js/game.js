@@ -93,7 +93,7 @@ function playSound(type) {
 }
 
 // Versioned local progress with a backup copy and import/export support.
-const GAME_VERSION = '2.7.0';
+const GAME_VERSION = '2.7.1';
 const SAVE_SCHEMA_VERSION = 10;
 const SAVE_KEY = 'br_save_v2';
 const SAVE_BACKUP_KEY = 'br_save_backup_v2';
@@ -155,8 +155,8 @@ function normalizeCustomLoadout(value) {
 
 function normalizeCosmetics(value) {
     const source = value && typeof value === 'object' ? value : {};
-    const colors = ['blue', 'crimson', 'violet', 'green', 'amber', 'gold', 'sepia'];
-    const trails = ['none', 'spark', 'ghost', 'ember', 'static'];
+    const colors = ['blue', 'crimson', 'violet', 'green', 'amber', 'gold', 'sepia', 'white'];
+    const trails = ['none', 'spark', 'ghost', 'ember', 'static', 'circle'];
     const unlocked = Array.isArray(source.unlocked) ? source.unlocked.filter(id => colors.includes(id) || trails.includes(id)) : [];
     return {
         color: colors.includes(source.color) ? source.color : 'blue',
@@ -634,14 +634,16 @@ function renderCosmetics() {
             { id:'green', label:'Green', desc:'A mimic-green finish.', how:'Catch Jordan.', preview:'#19c76b' },
             { id:'amber', label:'Amber', desc:'A quick-escape gold.', how:'Win a run in under two minutes.', preview:'#e7a21a' },
             { id:'gold', label:'Containment Gold', desc:'A yellow Rhys-themed finish.', how:'Catch Rhys in Crimson Containment.', preview:'#e9cf38' },
-            { id:'sepia', label:'Caleb Shift', desc:'Wear Caleb’s deep red color and unmistakable white eyes.', how:'Catch Caleb.', preview:'#800' }
+            { id:'sepia', label:'Caleb Shift', desc:'Wear Caleb’s deep red color and unmistakable white eyes.', how:'Catch Caleb.', preview:'#800' },
+            { id:'white', label:'Parted White', desc:'A stark white finish from the grid beyond sight.', how:'Catch Amine in The Parted Grid.', preview:'#f6f6f6' }
         ]},
         trails: { type:'trail', items:[
             { id:'none', label:'No Trail', desc:'No motion effect.', how:'Available from the start.', preview:'#888' },
             { id:'spark', label:'Spark Trail', desc:'A short fading line of sparks.', how:'Clear Endless round 3.', preview:'#ffd750' },
             { id:'ghost', label:'Ghost Trail', desc:'A soft spectral after-trail.', how:'Win without items.', preview:'#b4d7ff' },
             { id:'ember', label:'Ember Trail', desc:'A warm containment glow.', how:'Catch Rhys in Crimson Containment.', preview:'#ffb347' },
-            { id:'static', label:'Static Trail', desc:'A broken signal after-trail.', how:'Catch Caleb.', preview:'#d8eef2' }
+            { id:'static', label:'Static Trail', desc:'A broken signal after-trail.', how:'Catch Caleb.', preview:'#d8eef2' },
+            { id:'circle', label:'Orbit Trail', desc:'Fading white circles follow each step.', how:'Catch Amine in The Parted Grid.', preview:'#fff' }
         ]}
     };
     const content = document.getElementById('cosmeticsContent'); if (!content) return;
@@ -881,9 +883,9 @@ let mobileMenuPaused = false;
 
 // Skill Check Variables
 let scNeedle = 0, scSpeed = 0, scZoneStart = 0, scZoneEnd = 0, scHits = 0, scRequired = 0, scDelay = 0;
-let tuneNeedle = 0, tuneSpeed = 0, tuneZoneStart = 0, tuneZoneEnd = 0, tuneHits = 0, tuneRequired = 0;
+let tuneNeedle = 0, tuneSpeed = 0, tuneZoneStart = 0, tuneZoneEnd = 0, tuneHits = 0, tuneRequired = 0, tuneMisses = 0;
 let rapidTarget = null, rapidHits = 0, rapidRequired = 0, rapidTimer = 0, rapidLimit = 0;
-let simonSequence = [], simonInput = 0, simonShowIndex = 0, simonTimer = 0, simonPhase = 'show';
+let simonSequence = [], simonInput = 0, simonShowIndex = 0, simonTimer = 0, simonPhase = 'show', simonRound = 1;
 
 let lastTime = 0, frames = 0;
 let lastFrameTime = 0, gameAccumulator = 0;
@@ -1060,7 +1062,7 @@ function beginCircuitPuzzle() {
 
 function beginTuningPuzzle() {
     state = 7;
-    tuneNeedle = 0; tuneHits = 0;
+    tuneNeedle = 0; tuneHits = 0; tuneMisses = 0;
     tuneRequired = currentDiff === 0 ? 1 : currentDiff === 1 ? 2 : 3;
     tuneSpeed = currentDiff === 0 ? .012 : currentDiff === 1 ? .019 : .027;
     const width = currentDiff === 0 ? .28 : currentDiff === 1 ? .19 : .13;
@@ -1069,15 +1071,15 @@ function beginTuningPuzzle() {
 }
 
 function spawnRapidTarget() {
-    rapidTarget = { x:85 + Math.random()*(canvas.width-170), y:85 + Math.random()*(canvas.height-235), r:30 };
+    rapidTarget = { x:100 + Math.random()*(canvas.width-200), y:100 + Math.random()*(canvas.height-270), r:44 };
     rapidTimer = rapidLimit;
 }
 function beginRapidPuzzle() {
-    state = 9; rapidHits = 0; rapidRequired = [10,16,21][currentDiff]; rapidLimit = [105,72,52][currentDiff]; spawnRapidTarget();
+    state = 9; rapidHits = 0; rapidRequired = [10,16,21][currentDiff]; rapidLimit = [145,112,88][currentDiff]; spawnRapidTarget();
 }
 function beginSimonPuzzle() {
     state = 10; const lengths = [[3,5],[5,7],[8,9]][currentDiff], length = lengths[0] + Math.floor(Math.random()*(lengths[1]-lengths[0]+1));
-    simonSequence = []; for(let i=0;i<length;i++){let next=Math.floor(Math.random()*4);while(i&&next===simonSequence[i-1])next=Math.floor(Math.random()*4);simonSequence.push(next);} simonInput = 0; simonShowIndex = 0; simonTimer = 35; simonPhase = 'show';
+    simonSequence = []; for(let i=0;i<length;i++){let next=Math.floor(Math.random()*4);while(i&&next===simonSequence[i-1])next=Math.floor(Math.random()*4);simonSequence.push(next);} simonRound = 1; simonInput = 0; simonShowIndex = 0; simonTimer = 38; simonPhase = 'show';
 }
 function failGeneratorTask(label) {
     triggerBloodHunt(); state = 1; player.stunTimer = 120; clearMovementKeys(); playSound('fail'); notify(`${label} FAILED · STUNNED`, 'danger');
@@ -1330,10 +1332,14 @@ window.addEventListener('keydown', (e) => {
     }
     if (state === 7 && k === ' ' && scDelay <= 0) {
         if (tuneNeedle >= tuneZoneStart && tuneNeedle <= tuneZoneEnd) {
-            tuneHits++; playSound('success');
+            tuneHits++; tuneMisses = 0; playSound('success');
             if (tuneHits >= tuneRequired) finishGeneratorInteraction();
             else { const width = tuneZoneEnd - tuneZoneStart; tuneZoneStart = .12 + Math.random() * (.76 - width); tuneZoneEnd = tuneZoneStart + width; tuneNeedle = 0; }
-        } else { failGeneratorTask('FREQUENCY TUNE'); }
+        } else {
+            tuneMisses++;
+            if (tuneMisses >= 3) failGeneratorTask('FREQUENCY TUNE');
+            else { tuneNeedle = 0; scDelay = 24; playSound('fail'); notify(`FREQUENCY MISS ${tuneMisses}/3`, 'warning'); }
+        }
         return;
     }
     
@@ -1380,7 +1386,7 @@ window.addEventListener('keyup', (e) => {
 canvas.addEventListener('pointerdown', event => {
     const rect=canvas.getBoundingClientRect(), x=(event.clientX-rect.left)*canvas.width/rect.width, y=(event.clientY-rect.top)*canvas.height/rect.height;
     if(state===9){if(rapidTarget&&Math.hypot(x-rapidTarget.x,y-rapidTarget.y)<=rapidTarget.r){rapidHits++;playSound('tick');if(rapidHits>=rapidRequired)finishGeneratorInteraction();else spawnRapidTarget();}return;}
-    if(state===10&&simonPhase==='input'){const size=100,gap=14,left=canvas.width/2-size-gap/2,top=canvas.height/2-size-gap/2;const boxes=[[left,top],[left+size+gap,top],[left,top+size+gap],[left+size+gap,top+size+gap]];const choice=boxes.findIndex(([bx,by])=>x>=bx&&x<=bx+size&&y>=by&&y<=by+size);if(choice<0)return;if(choice!==simonSequence[simonInput]){failGeneratorTask('COLOR MEMORY');return;}simonInput++;playSound('tick');if(simonInput>=simonSequence.length)finishGeneratorInteraction();return;}
+    if(state===10&&simonPhase==='input'){const size=100,gap=14,left=canvas.width/2-size-gap/2,top=canvas.height/2-size-gap/2;const boxes=[[left,top],[left+size+gap,top],[left,top+size+gap],[left+size+gap,top+size+gap]];const choice=boxes.findIndex(([bx,by])=>x>=bx&&x<=bx+size&&y>=by&&y<=by+size);if(choice<0)return;if(choice!==simonSequence[simonInput]){failGeneratorTask('COLOR MEMORY');return;}simonInput++;playSound('tick');if(simonInput>=simonRound){if(simonRound>=simonSequence.length)finishGeneratorInteraction();else{simonRound++;simonInput=0;simonShowIndex=0;simonTimer=38;simonPhase='show';}}return;}
     if(state===11&&amineTurret&&amineTurret.ammo>0){const scale=Math.min(canvas.width/(COLS*TS),canvas.height/(ROWS*TS)),worldX=x/scale,worldY=y/scale,angle=Math.atan2(worldY-amineTurret.y,worldX-amineTurret.x);amineBullets.push({x:amineTurret.x,y:amineTurret.y,vx:Math.cos(angle)*14,vy:Math.sin(angle)*14,walls:0,life:480});amineTurret.ammo--;playSound('tick');}
 });
 
@@ -1668,9 +1674,9 @@ function generateAmineGrid() {
         biomeCenters.push({ c, r }); rooms.push({ type:i % 2 ? 'ash' : 'sinkhole', c, r, width:9, height:7, x:c*TS+TS/2, y:r*TS+TS/2 });
     }
     for (const biome of biomeCenters.filter((_, i) => i % 2 === 0)) {
-        for (let i = 0; i < 4; i++) { const c = biome.c - 3 + Math.floor(Math.random()*7), r = biome.r - 2 + Math.floor(Math.random()*5); if (map[r]?.[c] === 0) amineHoles.push({ c, r, x:c*TS+TS/2, y:r*TS+TS/2, radius:9 }); }
+        for (let i = 0; i < 7; i++) { const c = biome.c - 3 + Math.floor(Math.random()*7), r = biome.r - 2 + Math.floor(Math.random()*5); if (map[r]?.[c] === 0 && !amineHoles.some(h => h.c === c && h.r === r)) amineHoles.push({ c, r, x:c*TS+TS/2, y:r*TS+TS/2, radius:9 }); }
     }
-    for (let i = 0; i < 14; i++) { const c = 3 + Math.floor(Math.random()*(COLS-6)), r = 3 + Math.floor(Math.random()*(ROWS-6)); if (map[r]?.[c] === 0 && !amineHoles.some(h => Math.hypot(h.c-c,h.r-r)<3)) amineFireZones.push({ x:c*TS+TS/2, y:r*TS+TS/2, radius:48+Math.floor(Math.random()*28) }); }
+    for (let i = 0; i < 22; i++) { const c = 3 + Math.floor(Math.random()*(COLS-6)), r = 3 + Math.floor(Math.random()*(ROWS-6)); if (map[r]?.[c] === 0 && !amineHoles.some(h => Math.hypot(h.c-c,h.r-r)<3)) amineFireZones.push({ x:c*TS+TS/2, y:r*TS+TS/2, radius:52+Math.floor(Math.random()*32) }); }
     rebuildFloors();
     const exitTile = [...floors].sort((a,b) => (b.c+b.r)-(a.c+a.r)).find(tile => !amineHoles.some(h => Math.hypot(h.c-tile.c,h.r-tile.r)<3));
     amineExitGate = exitTile ? { x:exitTile.c*TS+TS/2, y:exitTile.r*TS+TS/2 } : null;
@@ -1704,14 +1710,14 @@ function updateNoah() {
         else if (!monster.path.length) { const tile = floors[Math.floor(Math.random() * floors.length)]; monster.path = findPath(Math.floor(monster.x / TS), Math.floor(monster.y / TS), tile.c, tile.r); }
         const oldX = monster.x, oldY = monster.y; moveMonsterAlongPath(getMonsterSpeed(monster) * 1.14, monster);
         if (isSafeRoom(monster.x, monster.y)) { monster.x = oldX; monster.y = oldY; monster.path = []; }
-        if (!lit && !player.hidden && Math.hypot(player.x-monster.x, player.y-monster.y) < 92) { noahState = 'reveal'; noahTimer = 30; monster.invisible = false; notify('NOAH REVEALS HIMSELF', 'danger'); }
-    } else if (noahState === 'reveal') { monster.invisible = false; if (noahTimer <= 0) { noahState = 'burst'; noahTimer = 42; const intercept = { x: player.x + moveX * TS * 4, y: player.y + moveY * TS * 4 }; const angle = Math.atan2(intercept.y - monster.y, intercept.x - monster.x); noahCharge = { angle, x:intercept.x, y:intercept.y }; } }
+        if (!lit && !player.hidden && Math.hypot(player.x-monster.x, player.y-monster.y) < 92) { noahState = 'reveal'; noahTimer = 60; monster.invisible = false; notify('NOAH REVEALS HIMSELF', 'danger'); }
+    } else if (noahState === 'reveal') { monster.invisible = false; if (noahTimer <= 0) { noahState = 'burst'; noahTimer = 34; const intercept = { x: player.x + moveX * TS * 4, y: player.y + moveY * TS * 4 }; const angle = Math.atan2(intercept.y - monster.y, intercept.x - monster.x); noahCharge = { angle, x:intercept.x, y:intercept.y }; } }
     else {
         const oldX = monster.x, oldY = monster.y;
         if (noahState === 'burst' && noahCharge) {
             // A burst is a committed intercept line, not a path recalculated on the
             // player's current tile every frame. This stops vertical kiting.
-            moveEntity(monster, Math.cos(noahCharge.angle) * getMonsterSpeed(monster) * 1.62, Math.sin(noahCharge.angle) * getMonsterSpeed(monster) * 1.62);
+            moveEntity(monster, Math.cos(noahCharge.angle) * getMonsterSpeed(monster) * 1.32, Math.sin(noahCharge.angle) * getMonsterSpeed(monster) * 1.32);
             if (Math.hypot(monster.x - oldX, monster.y - oldY) < .4) noahTimer = 0;
         } else {
             if (noahPathTimer <= 0 || !monster.path.length) { monster.path = findPath(Math.floor(monster.x / TS), Math.floor(monster.y / TS), Math.floor(pursue.x / TS), Math.floor(pursue.y / TS)); noahPathTimer = 12; }
@@ -1735,12 +1741,15 @@ function updateAmine() {
     if (amineVisibleTimer>0) amineVisibleTimer--; if (amineFlashCooldown>0) amineFlashCooldown--; if (amineTeleportCooldown>0) amineTeleportCooldown--;
     if (amineFlashCooldown<=0) { amineVisibleTimer=35; amineFlashCooldown=240+Math.floor(Math.random()*240); }
     const dist=Math.hypot(player.x-monster.x,player.y-monster.y);
-    if (amineTeleportCooldown<=0 && dist>180 && dist<620) {
+    if (amineTeleportCooldown<=0 && dist>180 && dist<420) {
         const mx=(keys.d?1:0)-(keys.a?1:0), my=(keys.s?1:0)-(keys.w?1:0), angle=(mx||my)?Math.atan2(my,mx):Math.atan2(player.y-monster.y,player.x-monster.x);
         const candidates=floors.filter(t=>Math.hypot(t.c*TS+TS/2-(player.x-Math.cos(angle)*TS*4),t.r*TS+TS/2-(player.y-Math.sin(angle)*TS*4))<TS*3&&!amineHoles.some(h=>h.c===t.c&&h.r===t.r));
-        const tile=candidates[Math.floor(Math.random()*Math.max(1,candidates.length))]; if(tile){monster.x=tile.c*TS+TS/2;monster.y=tile.r*TS+TS/2;monster.path=[];flashAlpha=.9;amineVisibleTimer=65;} amineTeleportCooldown=720;
+        const tile=candidates[Math.floor(Math.random()*Math.max(1,candidates.length))]; if(tile){monster.x=tile.c*TS+TS/2;monster.y=tile.r*TS+TS/2;monster.path=[];flashAlpha=.9;amineVisibleTimer=65;} amineTeleportCooldown=[720,960,1320][currentDiff];
     }
-    const tc=Math.floor(player.x/TS),tr=Math.floor(player.y/TS); if(!monster.path.length||monster.lastTargetC!==tc||monster.lastTargetR!==tr){monster.path=findPath(Math.floor(monster.x/TS),Math.floor(monster.y/TS),tc,tr);monster.lastTargetC=tc;monster.lastTargetR=tr;} moveMonsterAlongPath(getMonsterSpeed(monster)*1.04,monster);
+    const tc=Math.floor(player.x/TS),tr=Math.floor(player.y/TS);
+    if (dist < 430) { if(!monster.path.length||monster.lastTargetC!==tc||monster.lastTargetR!==tr){monster.path=findPath(Math.floor(monster.x/TS),Math.floor(monster.y/TS),tc,tr);monster.lastTargetC=tc;monster.lastTargetR=tr;} }
+    else if (!monster.path.length) { const tile=floors[Math.floor(Math.random()*floors.length)]; monster.path=findPath(Math.floor(monster.x/TS),Math.floor(monster.y/TS),tile.c,tile.r); }
+    moveMonsterAlongPath(getMonsterSpeed(monster)*.90,monster);
     if (!player.hidden && Math.hypot(player.x-monster.x,player.y-monster.y)<player.r+monster.r+3) { state=8; amineVisibleTimer=120; showStoryLine('“May death do us part.”',1500); setTimeout(()=>{if(state===8)endGame(false,monster);},1500); }
     return true;
 }
@@ -1752,8 +1761,8 @@ function beginAmineTurret() {
 function updateAmineTurret() {
     if(state!==11)return;
     if(!monster.path.length) monster.path=findPath(Math.floor(monster.x/TS),Math.floor(monster.y/TS),Math.floor(amineTurret.x/TS),Math.floor(amineTurret.y/TS));
-    moveMonsterAlongPath(2.15+currentDiff*.25,monster);
-    for(const bullet of amineBullets){const oldC=Math.floor(bullet.x/TS),oldR=Math.floor(bullet.y/TS);bullet.x+=bullet.vx;bullet.y+=bullet.vy;bullet.life--;const c=Math.floor(bullet.x/TS),r=Math.floor(bullet.y/TS);if((c!==oldC||r!==oldR)&&map[r]?.[c]===1)bullet.walls++;if(bullet.walls>3)bullet.life=0;if(Math.hypot(bullet.x-monster.x,bullet.y-monster.y)<monster.r+5){bullet.life=0;endGame(true,monster);return;}}
+    moveMonsterAlongPath(3.05+currentDiff*.35,monster);
+    for(const bullet of amineBullets){bullet.x+=bullet.vx;bullet.y+=bullet.vy;bullet.life--;if(Math.hypot(bullet.x-monster.x,bullet.y-monster.y)<monster.r+5){bullet.life=0;endGame(true,monster);return;}}
     amineBullets=amineBullets.filter(b=>b.life>0);
     if(Math.hypot(monster.x-amineTurret.x,monster.y-amineTurret.y)<28||(amineTurret.ammo<=0&&!amineBullets.length))endGame(false,monster);
 }
@@ -2555,6 +2564,7 @@ function endGame(isWin, sourceMonster = monster) {
         advanceDailyObjective('wins');
         if (sourceMonster.name === 'AESON') advanceDailyObjective('aeson');
         if (sourceMonster.name === 'RHYS') { unlockCosmetic('gold'); unlockCosmetic('ember'); }
+        if (sourceMonster.name === 'AMINE') { unlockCosmetic('white'); unlockCosmetic('circle'); }
         if (sourceMonster.name === 'NOAH') advanceDailyObjective('noah');
         if (sourceMonster.name === 'CALEB') { unlockCosmetic('sepia'); unlockCosmetic('static'); }
         if (gameMode === 'challenge') { stats.challengesCleared++; advanceDailyObjective('challenge'); }
@@ -2906,7 +2916,7 @@ function update() {
     if (flareTimer > 0) flareTimer--;
     if (jordanSabotageCooldown > 0) jordanSabotageCooldown--;
     if (state===9) { rapidTimer--; if(rapidTimer<=0) failGeneratorTask('RESPONSE ARRAY'); }
-    if (state===10 && simonPhase==='show') { simonTimer--; if(simonTimer<=0){simonShowIndex++;if(simonShowIndex>=simonSequence.length){simonPhase='input';simonInput=0;}else simonTimer=35;} }
+    if (state===10 && simonPhase==='show') { simonTimer--; if(simonTimer<=0){simonShowIndex++;if(simonShowIndex>=simonRound){simonPhase='input';simonInput=0;}else simonTimer=38;} }
     if (state===11) { updateAmineTurret(); return; }
 
     for (const generator of generators) {
@@ -3688,13 +3698,13 @@ function draw() {
     }
 
     if (!player.hidden) {
-        const playerColors = { blue:'#00f', crimson:'#d22', violet:'#a64dff', green:'#19c76b', amber:'#e7a21a', gold:'#e9ca35', sepia:'#800' };
+        const playerColors = { blue:'#00f', crimson:'#d22', violet:'#a64dff', green:'#19c76b', amber:'#e7a21a', gold:'#e9ca35', sepia:'#800', white:'#f6f6f6' };
         if (cosmetics.trail !== 'none') {
-            const trailColor = cosmetics.trail === 'spark' ? 'rgba(255,238,86,.82)' : cosmetics.trail === 'ember' ? 'rgba(255,70,24,.78)' : cosmetics.trail === 'static' ? 'rgba(185,245,255,.65)' : 'rgba(180,210,255,.42)';
+            const trailColor = cosmetics.trail === 'spark' ? 'rgba(255,238,86,.82)' : cosmetics.trail === 'ember' ? 'rgba(255,70,24,.78)' : cosmetics.trail === 'static' ? 'rgba(185,245,255,.65)' : cosmetics.trail === 'circle' ? 'rgba(255,255,255,.78)' : 'rgba(180,210,255,.42)';
             ctx.strokeStyle = trailColor; ctx.lineWidth = cosmetics.trail === 'ghost' ? 10 : cosmetics.trail === 'ember' ? 4 : 6; ctx.lineCap = cosmetics.trail === 'static' ? 'butt' : 'round'; if (cosmetics.trail === 'static') ctx.setLineDash([8, 7]); ctx.beginPath();
             playerTrail.forEach((point, index) => { if (index === 0) ctx.moveTo(point.x, point.y); else ctx.lineTo(point.x, point.y); }); ctx.stroke();
-            ctx.setLineDash([]); const spacing = cosmetics.trail === 'spark' ? 2 : cosmetics.trail === 'ember' ? 4 : 5;
-            for (let index = 0; index < playerTrail.length; index += spacing) { const point = playerTrail[index]; ctx.globalAlpha = Math.max(.1, index / playerTrail.length); ctx.fillStyle = trailColor; ctx.beginPath(); if (cosmetics.trail === 'ember') ctx.rect(point.x - 2, point.y - 2, 4, 4); else ctx.arc(point.x, point.y, cosmetics.trail === 'ghost' ? 5 : cosmetics.trail === 'spark' ? 2 : 3, 0, Math.PI * 2); ctx.fill(); } ctx.globalAlpha = 1;
+            ctx.setLineDash([]); const spacing = cosmetics.trail === 'spark' ? 2 : cosmetics.trail === 'ember' ? 4 : cosmetics.trail === 'circle' ? 6 : 5;
+            for (let index = 0; index < playerTrail.length; index += spacing) { const point = playerTrail[index]; ctx.globalAlpha = Math.max(.1, index / playerTrail.length); ctx.fillStyle = trailColor; ctx.beginPath(); if (cosmetics.trail === 'ember') ctx.rect(point.x - 2, point.y - 2, 4, 4); else if (cosmetics.trail === 'circle') { ctx.strokeStyle = trailColor; ctx.lineWidth = 2; ctx.arc(point.x, point.y, 4 + (index % 3), 0, Math.PI * 2); ctx.stroke(); } else ctx.arc(point.x, point.y, cosmetics.trail === 'ghost' ? 5 : cosmetics.trail === 'spark' ? 2 : 3, 0, Math.PI * 2); if (cosmetics.trail !== 'circle') ctx.fill(); } ctx.globalAlpha = 1;
         }
         ctx.fillStyle = 'rgba(0,0,0,0.35)';
         ctx.beginPath(); ctx.ellipse(player.x, player.y + player.r * 0.7, player.r * 0.9, player.r * 0.35, 0, 0, Math.PI * 2); ctx.fill();
@@ -3809,8 +3819,8 @@ function draw() {
         ctx.fillStyle = '#fff'; ctx.fillRect(left + width * tuneNeedle - 3, cy - 27, 6, 54);
         ctx.font = '16px Arial'; ctx.fillText(scDelay > 0 ? 'STABILIZING...' : 'TAP ALIGN WHEN THE NEEDLE IS GREEN', cx, cy + 62);
     }
-    if(state===9){ctx.fillStyle='rgba(0,0,0,.78)';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.fillStyle='#fff';ctx.font='bold 22px Arial';ctx.textAlign='center';ctx.fillText(`RESPONSE ARRAY · ${rapidHits}/${rapidRequired}`,canvas.width/2,50);if(rapidTarget){ctx.fillStyle='#ff4fc5';ctx.beginPath();ctx.arc(rapidTarget.x,rapidTarget.y,rapidTarget.r,0,Math.PI*2);ctx.fill();ctx.fillStyle='#fff';ctx.font='bold 18px Arial';ctx.fillText('CLICK',rapidTarget.x,rapidTarget.y+6);}}
-    if(state===10){ctx.fillStyle='rgba(0,0,0,.82)';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.fillStyle='#fff';ctx.font='bold 22px Arial';ctx.textAlign='center';ctx.fillText(`COLOR MEMORY · ${simonSequence.length}`,canvas.width/2,70);const colors=['#e33','#38f','#3c5','#fd3'],symbols=['▲','●','■','★'],size=100,gap=14,left=canvas.width/2-size-gap/2,top=canvas.height/2-size-gap/2,active=simonPhase==='show'?simonSequence[Math.min(simonShowIndex,simonSequence.length-1)]:-1;for(let i=0;i<4;i++){const x=left+(i%2)*(size+gap),y=top+Math.floor(i/2)*(size+gap);ctx.fillStyle=i===active?'#fff':colors[i];ctx.fillRect(x,y,size,size);ctx.fillStyle=i===active?colors[i]:'#111';ctx.font='bold 30px Arial';ctx.fillText(symbols[i],x+size/2,y+60);}ctx.fillStyle='#ddd';ctx.font='15px Arial';ctx.fillText(simonPhase==='show'?'WATCH':'REPEAT THE PATTERN',canvas.width/2,top+size*2+gap+38);}
+    if(state===9){ctx.fillStyle='rgba(7,3,10,.9)';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.strokeStyle='#ff75d2';ctx.lineWidth=2;ctx.strokeRect(18,18,canvas.width-36,74);ctx.fillStyle='#fff';ctx.font='bold 22px Arial';ctx.textAlign='center';ctx.fillText('RESPONSE ARRAY',canvas.width/2,48);ctx.font='15px Arial';ctx.fillStyle='#ffc1e9';ctx.fillText(`CLICK THE SIGNALS · ${rapidHits}/${rapidRequired}`,canvas.width/2,74);if(rapidTarget){ctx.fillStyle='rgba(255,79,197,.25)';ctx.beginPath();ctx.arc(rapidTarget.x,rapidTarget.y,rapidTarget.r+13,0,Math.PI*2);ctx.fill();ctx.fillStyle='#ff4fc5';ctx.beginPath();ctx.arc(rapidTarget.x,rapidTarget.y,rapidTarget.r,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#fff';ctx.lineWidth=3;ctx.beginPath();ctx.arc(rapidTarget.x,rapidTarget.y,rapidTarget.r,0,Math.PI*2);ctx.stroke();ctx.fillStyle='#fff';ctx.font='bold 19px Arial';ctx.fillText('TAP',rapidTarget.x,rapidTarget.y+7);}}
+    if(state===10){ctx.fillStyle='rgba(0,0,0,.82)';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.fillStyle='#fff';ctx.font='bold 22px Arial';ctx.textAlign='center';ctx.fillText(`COLOR MEMORY · ROUND ${simonRound}/${simonSequence.length}`,canvas.width/2,70);const colors=['#e33','#38f','#3c5','#fd3'],symbols=['▲','●','■','★'],size=100,gap=14,left=canvas.width/2-size-gap/2,top=canvas.height/2-size-gap/2,active=simonPhase==='show'?simonSequence[Math.min(simonShowIndex,simonRound-1)]:-1;for(let i=0;i<4;i++){const x=left+(i%2)*(size+gap),y=top+Math.floor(i/2)*(size+gap);ctx.fillStyle=i===active?'#fff':colors[i];ctx.fillRect(x,y,size,size);ctx.fillStyle=i===active?colors[i]:'#111';ctx.font='bold 30px Arial';ctx.fillText(symbols[i],x+size/2,y+60);}ctx.fillStyle='#ddd';ctx.font='15px Arial';ctx.fillText(simonPhase==='show'?'WATCH THE PATTERN':'REPEAT THE PATTERN',canvas.width/2,top+size*2+gap+38);}
     if(state===11&&amineTurret){ctx.fillStyle='#050505';ctx.fillRect(0,0,canvas.width,canvas.height);const scale=Math.min(canvas.width/(COLS*TS),canvas.height/(ROWS*TS));for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){ctx.fillStyle=map[r][c]===1?'#666':'#191919';ctx.fillRect(c*TS*scale,r*TS*scale,Math.ceil(TS*scale),Math.ceil(TS*scale));}ctx.fillStyle='#5cf';ctx.beginPath();ctx.arc(amineTurret.x*scale,amineTurret.y*scale,8,0,Math.PI*2);ctx.fill();ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(monster.x*scale,monster.y*scale,7,0,Math.PI*2);ctx.fill();for(const b of amineBullets){ctx.fillStyle='#ffdc62';ctx.beginPath();ctx.arc(b.x*scale,b.y*scale,3,0,Math.PI*2);ctx.fill();}ctx.fillStyle='#fff';ctx.font='bold 18px Arial';ctx.textAlign='left';ctx.fillText(`AMMO ${amineTurret.ammo}`,18,28);}
 }
 
