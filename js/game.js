@@ -2,11 +2,16 @@
 
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
-const hatImages = { noahCap: new Image(), idiotMask: new Image(), cowboyHat: new Image(), jordanMask: new Image() };
+const hatImages = { noahCap: new Image(), cowboyHat: new Image(), luffyHat: new Image(), krustyHat: new Image() };
+const maskImages = { idiotMask: new Image(), spongeMask: new Image(), jordanMask: new Image(), smileMask: new Image() };
 hatImages.noahCap.src = 'assets/noah-cap.png';
-hatImages.idiotMask.src = 'assets/idiot-mask.png';
 hatImages.cowboyHat.src = 'assets/cowboy-hat.png';
-hatImages.jordanMask.src = 'assets/jordan-mask.png';
+hatImages.luffyHat.src = 'assets/luffy-hat.png';
+hatImages.krustyHat.src = 'assets/krusty-krab-hat.png';
+maskImages.idiotMask.src = 'assets/idiot-mask.png';
+maskImages.spongeMask.src = 'assets/spongebob-mask.png';
+maskImages.jordanMask.src = 'assets/jordan-mask.png';
+maskImages.smileMask.src = 'assets/smile-mask.png';
 const hud = document.getElementById('gameHUD');
 const msgBox = document.getElementById('message');
 
@@ -98,7 +103,7 @@ function playSound(type) {
 }
 
 // Versioned local progress with a backup copy and import/export support.
-const GAME_VERSION = '2.7.5';
+const GAME_VERSION = '2.8.0';
 const SAVE_SCHEMA_VERSION = 10;
 const SAVE_KEY = 'br_save_v2';
 const SAVE_BACKUP_KEY = 'br_save_backup_v2';
@@ -162,12 +167,16 @@ function normalizeCosmetics(value) {
     const source = value && typeof value === 'object' ? value : {};
     const colors = ['blue', 'crimson', 'violet', 'green', 'amber', 'gold', 'sepia', 'white'];
     const trails = ['none', 'spark', 'ghost', 'ember', 'static', 'circle'];
-    const hats = ['none', 'noahCap', 'idiotMask', 'cowboyHat', 'jordanMask'];
-    const unlocked = Array.isArray(source.unlocked) ? source.unlocked.filter(id => colors.includes(id) || trails.includes(id) || hats.includes(id)) : [];
+    const hats = ['none', 'noahCap', 'cowboyHat', 'luffyHat', 'krustyHat'];
+    const masks = ['none', 'idiotMask', 'spongeMask', 'jordanMask', 'smileMask'];
+    const allCosmetics = [...colors, ...trails, ...hats, ...masks];
+    const unlocked = Array.isArray(source.unlocked) ? source.unlocked.filter(id => allCosmetics.includes(id)) : [];
+    const legacyMask = masks.includes(source.mask) ? source.mask : masks.includes(source.hat) ? source.hat : 'none';
     return {
         color: colors.includes(source.color) ? source.color : 'blue',
         trail: trails.includes(source.trail) ? source.trail : 'none',
         hat: hats.includes(source.hat) ? source.hat : 'none',
+        mask: legacyMask,
         unlocked: Array.from(new Set(['blue', 'none', ...unlocked]))
     };
 }
@@ -626,6 +635,7 @@ function renderStats() {
 
 let cosmeticTab = 'colors';
 function selectCosmetic(type, value) {
+    if (!['color','trail','hat','mask'].includes(type) || !cosmetics.unlocked.includes(value)) return;
     cosmetics[type] = value;
     saveData(); renderCosmetics();
 }
@@ -654,15 +664,22 @@ function renderCosmetics() {
         ]},
         hats: { type:'hat', items:[
             { id:'none', label:'No Hat', desc:'No headwear equipped.', how:'Available from the start.', preview:'#888' },
-            { id:'noahCap', label:'Noah’s Cap', desc:'The cap worn by the Stalker.', how:'Beat The Blackwood Forest.', preview:'#bbb' },
-            { id:'idiotMask', label:'Idiot Mask', desc:'A smile that appears after too many mistakes.', how:'Fail the same generator task three times in one run.', preview:'#fff' },
-            { id:'cowboyHat', label:'Cowboy Hat', desc:'For surviving on your own terms.', how:'Complete a Challenge with no items equipped.', preview:'#d7a94b' },
-            { id:'jordanMask', label:'Jordan Mask', desc:'Jordan’s face, earned through his own color.', how:'Catch Jordan while Green is equipped.', preview:'#6cce77' }
+            { id:'noahCap', label:'Noah’s Cap', desc:'The cap worn by the Stalker.', how:'Beat The Blackwood Forest.', preview:'#bbb', image:'noah-cap.png' },
+            { id:'cowboyHat', label:'Cowboy Hat', desc:'For surviving on your own terms.', how:'Complete a Challenge with no items equipped.', preview:'#d7a94b', image:'cowboy-hat.png' },
+            { id:'luffyHat', label:'Luffy’s Straw Hat', desc:'A famous hat with a very specific number attached.', how:'Repair 56 generators across your career.', preview:'#e5bd43', image:'luffy-hat.png' },
+            { id:'krustyHat', label:'Krusty Krab Hat', desc:'A hotel uniform for a dangerous assignment.', how:'Complete the hotel after accidentally completing Bassam’s task, then survive his chase for the rest of the run.', preview:'#4aa8e8', image:'krusty-krab-hat.png' }
+        ]},
+        masks: { type:'mask', items:[
+            { id:'none', label:'No Mask', desc:'No face covering equipped.', how:'Available from the start.', preview:'#888' },
+            { id:'idiotMask', label:'Idiot Mask', desc:'A smile that appears after too many mistakes.', how:'Fail the same generator task three times in one run.', preview:'#fff', image:'idiot-mask.png' },
+            { id:'spongeMask', label:'SpongeBob Mask', desc:'A cheerful face for deeply uncheerful places.', how:'Complete a full Endless Hotel shift while reporting every required employee assignment.', preview:'#f6d34a', image:'spongebob-mask.png' },
+            { id:'jordanMask', label:'Jordan Mask', desc:'Jordan’s face, earned through his own color.', how:'Catch Jordan while Green is equipped.', preview:'#6cce77', image:'jordan-mask.png' },
+            { id:'smileMask', label:'Smile Mask', desc:'A grin earned through endurance.', how:'Clear Endless Round 10.', preview:'#fff', image:'smile-mask.png' }
         ]}
     };
     const content = document.getElementById('cosmeticsContent'); if (!content) return;
     const group = groups[cosmeticTab] || groups.colors;
-    content.innerHTML = `<div class="cosmetic-book"><div class="cosmetic-grid">${group.items.map(item => { const unlocked = cosmetics.unlocked.includes(item.id); const equipped = cosmetics[group.type] === item.id; const hatPreview = { noahCap:'noah-cap.png', idiotMask:'idiot-mask.png', cowboyHat:'cowboy-hat.png', jordanMask:'jordan-mask.png' }[item.id]; const preview = group.type === 'hat' && hatPreview ? `<img src="assets/${hatPreview}" alt="${item.label} preview">` : `<span style="color:${item.preview}; text-shadow:0 0 14px ${item.preview};">● ${item.label.toUpperCase()}</span>`; return `<div class="cosmetic-card"><div class="cosmetic-preview">${preview}</div><b>${item.label}</b><small>${item.desc}<br><span style="color:#d4c09a">How: ${item.how}</span></small><button ${unlocked ? '' : 'disabled'} onclick="selectCosmetic('${group.type}','${item.id}')">${equipped ? 'EQUIPPED' : unlocked ? 'EQUIP' : 'LOCKED'}</button></div>`; }).join('')}</div></div>`;
+    content.innerHTML = `<div class="cosmetic-book"><div class="cosmetic-grid">${group.items.map(item => { const unlocked = cosmetics.unlocked.includes(item.id); const equipped = cosmetics[group.type] === item.id; const preview = item.image ? `<img src="assets/${item.image}" alt="${item.label} preview">` : `<span style="color:${item.preview}; text-shadow:0 0 14px ${item.preview};">● ${item.label.toUpperCase()}</span>`; return `<div class="cosmetic-card"><div class="cosmetic-preview">${preview}</div><b>${item.label}</b><small>${item.desc}<br><span style="color:#d4c09a">How: ${item.how}</span></small><button ${unlocked ? '' : 'disabled'} onclick="selectCosmetic('${group.type}','${item.id}')">${equipped ? 'EQUIPPED' : unlocked ? 'EQUIP' : 'LOCKED'}</button></div>`; }).join('')}</div></div>`;
 }
 
 function renderCollection() {
@@ -849,6 +866,23 @@ function buyConsumable(type, cost) {
         updateMenuData(); setShopTab(shopTab);
     }
 }
+function getInventoryCount(type) {
+    return ({ adrenaline:invAdrenaline, flashbang:invFlashbang, noiseMaker:invNoiseMaker, bearTrap:invBearTrap, battery:invBattery, breathFilter:invBreathFilter, signalScrambler:invSignalScrambler, neutralizer:invNeutralizer, repairKit:invRepairKit, flare:invFlare })[type] || 0;
+}
+function discardConsumable(type) {
+    if (!ITEM_DEFINITIONS[type] || getInventoryCount(type) <= 0) return;
+    if (type === 'adrenaline') invAdrenaline--;
+    if (type === 'flashbang') invFlashbang--;
+    if (type === 'noiseMaker') invNoiseMaker--;
+    if (type === 'bearTrap') invBearTrap--;
+    if (type === 'battery') invBattery--;
+    if (type === 'breathFilter') invBreathFilter--;
+    if (type === 'signalScrambler') invSignalScrambler--;
+    if (type === 'neutralizer') invNeutralizer--;
+    if (type === 'repairKit') invRepairKit--;
+    if (type === 'flare') invFlare--;
+    saveData(); updateMenuData(); setShopTab(shopTab);
+}
 
 // Game Core Settings
 const TS = 40;
@@ -865,7 +899,7 @@ let reservedObjectTiles = new Set(), hotelDoorTiles = [], hotelBlockedDoor = nul
 let centralBoiler = null, boilerShutdown = false, boilerReadyShown = false;
 let hotelElevator = null, hotelLockdownTimer = 0, hotelEventCooldown = 0, hotelLockdownActive = false;
 let rhysSeal = null, rhysChest = null, rhysChestKey = null, rhysBreakWall = null, rhysTrap = null, rhysRoute = 'search', rhysSealCollected = false, rhysTrapArmed = false;
-let forestCabins = [], forestBreakers = [], forestTrees = [], forestBeaconBattery = null, forestWatchtower = null, forestBeaconActive = false, forestFogTimer = 0, forestFogCooldown = 0, noahState = 'hidden', noahTimer = 0, noahPathTimer = 0, noahCharge = null, noahLightningCooldown = 0, noahLightningZones = [], noahLightningFlashes = 0, noahShockTimer = 0;
+let forestCabins = [], forestBreakers = [], forestTrees = [], forestBeaconBattery = null, forestWatchtower = null, forestBeaconActive = false, forestFogTimer = 0, forestFogCooldown = 0, noahState = 'hidden', noahTimer = 0, noahPathTimer = 0, noahCharge = null, noahLightningCooldown = 0, noahLightningZones = [], noahLightningPending = [], noahLightningWarning = 0, noahLightningFlashes = 0, noahShockTimer = 0;
 let amineHoles = [], amineFireZones = [], amineExitGate = null, amineFocus = false, amineVisibleTimer = 0, amineFlashCooldown = 0, amineTeleportCooldown = 0, amineCallCount = 1, amineCallsRemaining = 0, amineCallActive = false, amineTurret = null, amineBullets = [], amineBurnTimer = 0;
 let luckyBlocks = [];
 let playerTrail = [];
@@ -882,7 +916,7 @@ let puzzleSequence = [], circuitSequence = [], circuitStage = 0, circuitRequired
 let lastSingleMutation = null; 
 
 // AI & Item Variables
-let jordanState = 'saboteur', mimicTimer = 0, stateTimer = 0, jordanSabotageCooldown = 0, bassamState = 'roaming', bassamRevealPending = false, bassamTrapTaskId = null, bassamFakeTask = null, bassamStaffDepartment = 'FRONT DESK', bassamFakeLine = '', bassamAmbushActive = false, bassamLostTimer = 0, bassamAmbushCooldown = 0;
+let jordanState = 'saboteur', mimicTimer = 0, stateTimer = 0, jordanSabotageCooldown = 0, bassamState = 'roaming', bassamRevealPending = false, bassamTrapTaskId = null, bassamFakeTask = null, bassamStaffDepartment = 'FRONT DESK', bassamFakeLine = '', bassamAmbushActive = false, bassamRelentlessChase = false, bassamLostTimer = 0, bassamAmbushCooldown = 0;
 let hotelTaskGame = null;
 let empTimer = 0, empWarning = 0, empActive = 0, flashAlpha = 0, scramblerTimer = 0, repairAssist = 0, flareTimer = 0;
 let powerOutageTimer = 0, powerOutageCooldown = 0, flickerTimer = 0, flickerCooldown = 0, emergencyTimer = 0, emergencyCooldown = 0, outageFlickerTimer = 0;
@@ -898,7 +932,7 @@ let mobileMenuPaused = false;
 let scNeedle = 0, scSpeed = 0, scZoneStart = 0, scZoneEnd = 0, scHits = 0, scRequired = 0, scDelay = 0;
 let tuneNeedle = 0, tuneSpeed = 0, tuneZoneStart = 0, tuneZoneEnd = 0, tuneHits = 0, tuneRequired = 0, tuneMisses = 0;
 let rapidTarget = null, rapidHits = 0, rapidRequired = 0, rapidTimer = 0, rapidLimit = 0, generatorFailureStreak = 0, generatorFailureTarget = null;
-let simonSequence = [], simonInput = 0, simonShowIndex = 0, simonTimer = 0, simonPhase = 'show', simonRound = 1;
+let simonSequence = [], simonInput = 0, simonShowIndex = 0, simonTimer = 0, simonPhase = 'show', simonRound = 1, simonFlashChoice = -1, simonFlashTimer = 0;
 
 let lastTime = 0, frames = 0;
 let lastFrameTime = 0, gameAccumulator = 0;
@@ -948,7 +982,7 @@ function useNeutralizer() {
 function useRepairKit() {
     if (!itemAllowed('repairKit') || state !== 1 || invRepairKit <= 0 || repairAssist > 0) return;
     invRepairKit--; consumeLoadoutItem('repairKit'); repairAssist = 1; runItemsUsed++; stats.itemsUsed++; advanceDailyObjective('items');
-    saveData(); updateHUD(); showMsg('<span style="color:#bff">NEXT SKILL CHECK STABILIZED</span>', 850);
+    saveData(); updateHUD(); showMsg('<span style="color:#bff">REPAIR KIT ARMED · NEXT TASK EASIER</span>', 850);
 }
 
 function useFlare() {
@@ -1068,7 +1102,7 @@ function beginCircuitPuzzle() {
     circuitStage = currentGen.stage;
     circuitSequence = [];
     const options = ['w', 'a', 's', 'd'];
-    const length = 3 + circuitStage;
+    const length = Math.max(2, 3 + circuitStage - (repairAssist > 0 ? 1 : 0));
     for (let i = 0; i < length; i++) circuitSequence.push(options[Math.floor(Math.random() * options.length)]);
     updateHUD();
 }
@@ -1078,21 +1112,22 @@ function beginTuningPuzzle() {
     tuneNeedle = 0; tuneHits = 0; tuneMisses = 0;
     tuneRequired = currentDiff === 0 ? 1 : currentDiff === 1 ? 2 : 3;
     tuneSpeed = currentDiff === 0 ? .012 : currentDiff === 1 ? .019 : .027;
-    const width = currentDiff === 0 ? .28 : currentDiff === 1 ? .19 : .13;
+    const width = (currentDiff === 0 ? .28 : currentDiff === 1 ? .19 : .13) * (repairAssist > 0 ? 1.45 : 1);
     tuneZoneStart = .18 + Math.random() * (.64 - width); tuneZoneEnd = tuneZoneStart + width;
     scDelay = 45; updateHUD();
 }
 
 function spawnRapidTarget() {
-    rapidTarget = { x:170 + Math.random()*460, y:150 + Math.random()*160, r:54 };
+    const horizontalMargin = 92, topMargin = 138, bottomMargin = 76;
+    rapidTarget = { x:horizontalMargin + Math.random()*(canvas.width - horizontalMargin*2), y:topMargin + Math.random()*(canvas.height - topMargin - bottomMargin), r:62 + (repairAssist > 0 ? 10 : 0) };
     rapidTimer = rapidLimit;
 }
 function beginRapidPuzzle() {
-    state = 9; rapidHits = 0; rapidRequired = [10,16,21][currentDiff]; rapidLimit = [145,112,88][currentDiff]; spawnRapidTarget();
+    state = 9; rapidHits = 0; rapidRequired = [5,10,15][currentDiff]; rapidLimit = [190,150,120][currentDiff] + (repairAssist > 0 ? 35 : 0); spawnRapidTarget();
 }
 function beginSimonPuzzle() {
     state = 10; const length = 4;
-    simonSequence = []; for(let i=0;i<length;i++){let next=Math.floor(Math.random()*4);while(i&&next===simonSequence[i-1])next=Math.floor(Math.random()*4);simonSequence.push(next);} simonRound = 1; simonInput = 0; simonShowIndex = 0; simonTimer = 38; simonPhase = 'show';
+    simonSequence = []; for(let i=0;i<length;i++){let next=Math.floor(Math.random()*4);while(i&&next===simonSequence[i-1])next=Math.floor(Math.random()*4);simonSequence.push(next);} simonRound = 1; simonInput = 0; simonShowIndex = 0; simonTimer = 38; simonPhase = 'show'; simonFlashChoice = -1; simonFlashTimer = 0;
 }
 function failGeneratorTask(label) {
     if (generatorFailureTarget !== currentGen) { generatorFailureTarget = currentGen; generatorFailureStreak = 0; }
@@ -1114,7 +1149,7 @@ function launchCurrentGeneratorTask() {
 }
 
 function maybeStartAmineCall() {
-    if (currentMapId !== 'amine' || monster.name !== 'AMINE' || (amineCallCount===1 && Math.random() > .55)) return false;
+    if (monster.name !== 'AMINE' || (amineCallCount===1 && Math.random() > .55)) return false;
     amineCallsRemaining = amineCallCount; amineCallActive = true; state=12; document.getElementById('amineCall').style.display='flex'; return true;
 }
 function answerAmineCall(accept) {
@@ -1131,7 +1166,8 @@ function boilerObjectiveComplete() {
 }
 
 function crimsonObjectiveComplete() {
-    return currentMapId !== 'crimson' || (activeGens >= totalGens && rhysSealCollected && rhysTrapArmed);
+    const rhysActive = monsters.some(enemy => enemy.name === 'RHYS');
+    return currentMapId !== 'crimson' || !rhysActive || (activeGens >= totalGens && rhysSealCollected && rhysTrapArmed);
 }
 
 function beginFinalChase() {
@@ -1185,6 +1221,7 @@ function finishGeneratorInteraction() {
     noiseTimer = 300;
     activeGens++;
     stats.generators++;
+    if (stats.generators >= 56) { unlockCosmetic('luffyHat'); saveData(); }
     advanceDailyObjective('generators');
     playSound('success');
     showMsg('<span style="color:#0f0">GENERATOR ONLINE</span>', 900);
@@ -1196,7 +1233,7 @@ function finishGeneratorInteraction() {
 
 window.addEventListener('keydown', (e) => {
     let k = e.key.toLowerCase();
-    if (k==='v' && currentMapId==='amine' && monster.name==='AMINE' && state===1) { amineFocus=true; return; }
+    if (k==='v' && monster.name==='AMINE' && state===1) { amineFocus=true; return; }
     if (k === 'm' && state === 1) { toggleMapOverlay(); return; }
     if (hotelDialogueOpen) {
         if (k === 'escape' || k === 'e') closeHotelDialogue();
@@ -1242,7 +1279,7 @@ window.addEventListener('keydown', (e) => {
     if (state === 1 && k === 'e' && player.stunTimer <= 0) {
         const lucky = luckyBlocks.find(block => !block.opened && Math.hypot(player.x-block.x,player.y-block.y)<36);
         if (lucky) { openLuckyBlock(lucky); return; }
-        if (currentMapId === 'amine' && activeGens >= totalGens && amineExitGate && Math.hypot(player.x-amineExitGate.x,player.y-amineExitGate.y)<44) { beginAmineTurret(); return; }
+        if (currentMapId === 'amine' && activeGens >= totalGens && amineExitGate && Math.hypot(player.x-amineExitGate.x,player.y-amineExitGate.y)<44) { beginAmineFinalChase(); return; }
         const lootIndex = groundLoot.findIndex(loot => Math.hypot(player.x - loot.x, player.y - loot.y) < 34);
         if (lootIndex >= 0) {
             if (!addSupply(groundLoot[lootIndex].type)) { notify('INVENTORY FULL · 8/8 SUPPLIES', 'warning'); return; }
@@ -1403,7 +1440,7 @@ window.addEventListener('keyup', (e) => {
 function handleCanvasPress(clientX, clientY) {
     const rect=canvas.getBoundingClientRect(), x=(clientX-rect.left)*canvas.width/rect.width, y=(clientY-rect.top)*canvas.height/rect.height;
     if(state===9){if(rapidTarget&&Math.hypot(x-rapidTarget.x,y-rapidTarget.y)<=rapidTarget.r){rapidHits++;playSound('tick');if(rapidHits>=rapidRequired)finishGeneratorInteraction();else spawnRapidTarget();}return;}
-    if(state===10&&simonPhase==='input'){const size=100,gap=14,left=canvas.width/2-size-gap/2,top=canvas.height/2-size-gap/2;const boxes=[[left,top],[left+size+gap,top],[left,top+size+gap],[left+size+gap,top+size+gap]];const choice=boxes.findIndex(([bx,by])=>x>=bx&&x<=bx+size&&y>=by&&y<=by+size);if(choice<0)return;if(choice!==simonSequence[simonInput]){failGeneratorTask('COLOR MEMORY');return;}simonInput++;playSound('tick');if(simonInput>=simonRound){if(simonRound>=simonSequence.length)finishGeneratorInteraction();else{simonRound++;simonInput=0;simonShowIndex=0;simonTimer=38;simonPhase='show';}}return;}
+    if(state===10&&simonPhase==='input'){const size=100,gap=14,left=canvas.width/2-size-gap/2,top=canvas.height/2-size-gap/2;const boxes=[[left,top],[left+size+gap,top],[left,top+size+gap],[left+size+gap,top+size+gap]];const choice=boxes.findIndex(([bx,by])=>x>=bx&&x<=bx+size&&y>=by&&y<=by+size);if(choice<0)return;simonFlashChoice=choice;simonFlashTimer=14;if(choice!==simonSequence[simonInput]){failGeneratorTask('COLOR MEMORY');return;}simonInput++;playSound('tick');if(simonInput>=simonRound){if(simonRound>=simonSequence.length)finishGeneratorInteraction();else{simonRound++;simonInput=0;simonShowIndex=0;simonTimer=38;simonPhase='show';}}return;}
     if(state===11&&amineTurret&&amineTurret.ammo>0){const scale=Math.min(canvas.width/(COLS*TS),canvas.height/(ROWS*TS)),worldX=x/scale,worldY=y/scale,angle=Math.atan2(worldY-amineTurret.y,worldX-amineTurret.x);amineBullets.push({x:amineTurret.x,y:amineTurret.y,vx:Math.cos(angle)*14,vy:Math.sin(angle)*14,walls:0,life:480});amineTurret.ammo--;playSound('tick');}
 }
 canvas.addEventListener('pointerdown', event => {
@@ -1695,16 +1732,10 @@ function generateForest() {
 function generateAmineGrid() {
     map = Array.from({length: ROWS}, (_, r) => Array.from({length: COLS}, (_, c) => (r === 0 || c === 0 || r === ROWS - 1 || c === COLS - 1 || (r % 2 === 0 && c % 2 === 0)) ? 1 : 0));
     rooms = []; hidingSpots = []; coolingValves = []; fuses = []; employees = []; reservedObjectTiles = new Set(); amineHoles = []; amineFireZones = [];
-    const biomeCenters = [];
-    for (let i = 0; i < 6; i++) {
-        const c = 7 + Math.floor(Math.random() * (COLS - 14)), r = 7 + Math.floor(Math.random() * (ROWS - 14));
-        biomeCenters.push({ c, r }); rooms.push({ type:i % 2 ? 'ash' : 'sinkhole', c, r, width:9, height:7, x:c*TS+TS/2, y:r*TS+TS/2 });
-    }
-    for (const biome of biomeCenters.filter((_, i) => i % 2 === 0)) {
-        for (let i = 0; i < 10; i++) { const c = biome.c - 3 + Math.floor(Math.random()*7), r = biome.r - 2 + Math.floor(Math.random()*5); if (map[r]?.[c] === 0 && !amineHoles.some(h => h.c === c && h.r === r)) amineHoles.push({ c, r, x:c*TS+TS/2, y:r*TS+TS/2, radius:9 }); }
-    }
+    // The Grid is intentionally one open field: hazards are scattered without
+    // named biomes, so the exit and generators are the only landmarks.
     for (let i = 0; i < 32; i++) { const c = 3 + Math.floor(Math.random()*(COLS-6)), r = 3 + Math.floor(Math.random()*(ROWS-6)); if (map[r]?.[c] === 0 && !amineHoles.some(h => Math.hypot(h.c-c,h.r-r)<3)) amineFireZones.push({ x:c*TS+TS/2, y:r*TS+TS/2, radius:52+Math.floor(Math.random()*32) }); }
-    for (let i = 0; i < 32; i++) { const c = 2 + Math.floor(Math.random()*(COLS-4)), r = 2 + Math.floor(Math.random()*(ROWS-4)); if (map[r]?.[c] === 0 && !amineHoles.some(h => h.c === c && h.r === r) && !amineFireZones.some(z => Math.hypot(z.x-(c*TS+TS/2),z.y-(r*TS+TS/2)) < 20)) amineHoles.push({ c, r, x:c*TS+TS/2, y:r*TS+TS/2, radius:9 }); }
+    for (let i = 0; i < 50; i++) { const c = 2 + Math.floor(Math.random()*(COLS-4)), r = 2 + Math.floor(Math.random()*(ROWS-4)); if (map[r]?.[c] === 0 && !amineHoles.some(h => Math.hypot(h.c-c,h.r-r)<2) && !amineFireZones.some(z => Math.hypot(z.x-(c*TS+TS/2),z.y-(r*TS+TS/2)) < 20)) amineHoles.push({ c, r, x:c*TS+TS/2, y:r*TS+TS/2, radius:9 }); }
     rebuildFloors();
     const exitTile = [...floors].sort((a,b) => (b.c+b.r)-(a.c+a.r)).find(tile => !amineHoles.some(h => Math.hypot(h.c-tile.c,h.r-tile.r)<3));
     amineExitGate = exitTile ? { x:exitTile.c*TS+TS/2, y:exitTile.r*TS+TS/2 } : null;
@@ -1726,6 +1757,15 @@ function forestObjectiveComplete() { return currentMapId !== 'forest' || (active
 function updateNoah() {
     if (monster.name !== 'NOAH' || state !== 1) return false;
     if (noahTimer > 0) noahTimer--; if (noahPathTimer > 0) noahPathTimer--; if (noahLightningCooldown > 0) noahLightningCooldown--;
+    if (noahLightningWarning > 0) {
+        noahLightningWarning--;
+        if (noahLightningWarning <= 0) {
+            noahLightningZones.push(...noahLightningPending);
+            noahLightningPending = [];
+            noahLightningFlashes = 3;
+            notify('LIGHTNING STRIKES THE TREES', 'danger');
+        }
+    }
     const lit = isSafeRoom(player.x, player.y) || flareTimer > 0;
     const moveX = (keys.d ? 1 : 0) - (keys.a ? 1 : 0), moveY = (keys.s ? 1 : 0) - (keys.w ? 1 : 0);
     const leadX = player.x + moveX * TS * 4, leadY = player.y + moveY * TS * 4;
@@ -1756,16 +1796,18 @@ function updateNoah() {
         if (noahState === 'hunt' && (noahTimer <= 0 || lit || player.hidden)) { noahState = 'hidden'; noahTimer = 0; monster.path = []; }
         if (!lit && !player.hidden && Math.hypot(player.x-monster.x, player.y-monster.y) < player.r + monster.r) endGame(false, monster);
     }
-    if (!lit && !player.hidden && noahLightningCooldown <= 0 && Math.hypot(player.x-monster.x, player.y-monster.y) < 360) {
+    if (!lit && !player.hidden && noahLightningCooldown <= 0 && noahLightningWarning <= 0 && Math.hypot(player.x-monster.x, player.y-monster.y) < 360) {
         noahLightningCooldown = 720;
-        for (let i = 0; i < 3; i++) { let x = player.x, y = player.y, tries = 0; do { const angle = Math.random() * Math.PI * 2, distance = 38 + Math.random() * 72; x = player.x + Math.cos(angle)*distance; y = player.y + Math.sin(angle)*distance; tries++; } while (tries < 12 && checkWall({ x, y, r:8 })); noahLightningZones.push({ x, y, radius:30, life:300 }); }
-        noahLightningFlashes = 3; notify('LIGHTNING STRIKES THE TREES', 'danger');
+        noahLightningPending = [];
+        for (let i = 0; i < 3; i++) { let x = player.x, y = player.y, tries = 0; do { const angle = Math.random() * Math.PI * 2, distance = 38 + Math.random() * 72; x = player.x + Math.cos(angle)*distance; y = player.y + Math.sin(angle)*distance; tries++; } while (tries < 12 && checkWall({ x, y, r:8 })); noahLightningPending.push({ x, y, radius:30, life:300 }); }
+        noahLightningWarning = 60;
+        notify('LIGHTNING IN 1 SECOND · MOVE', 'warning');
     }
     return true;
 }
 
 function updateAmine() {
-    if (monster.name !== 'AMINE' || currentMapId !== 'amine' || state !== 1) return false;
+    if (monster.name !== 'AMINE' || state !== 1) return false;
     if (amineVisibleTimer>0) amineVisibleTimer--; if (amineFlashCooldown>0) amineFlashCooldown--; if (amineTeleportCooldown>0) amineTeleportCooldown--;
     if (amineFlashCooldown<=0) { amineVisibleTimer=50; amineFlashCooldown=150+Math.floor(Math.random()*180); }
     const dist=Math.hypot(player.x-monster.x,player.y-monster.y);
@@ -1785,6 +1827,11 @@ function updateAmine() {
 function beginAmineTurret() {
     state=11; amineFocus=false; amineTurret={x:TS*1.5,y:ROWS*TS/2,ammo:14}; amineBullets=[]; monster.invisible=false;
     const start=floors.filter(t=>t.c>COLS*.7)[Math.floor(Math.random()*Math.max(1,floors.filter(t=>t.c>COLS*.7).length))]||floors.at(-1); monster.x=start.c*TS+TS/2;monster.y=start.r*TS+TS/2;monster.path=[]; notify('TURRET ONLINE · SHOOT AMINE','unlock');
+}
+function beginAmineFinalChase() {
+    state = 3; amineFocus = false; monster.invisible = false; amineVisibleTimer = 9999;
+    monster.path = []; monster.speed = Math.max(monster.speed, 3.75 + currentDiff * .18); player.speed = player.baseSpeed + .85;
+    notify('EXIT OPEN · AMINE IS EXPOSED', 'unlock'); showMsg('RUN THROUGH THE EXIT · CATCH AMINE', 1800);
 }
 function updateAmineTurret() {
     if(state!==11)return;
@@ -2107,9 +2154,9 @@ function hotelTaskMiniInput(option) {
 function completeHotelTaskAtTarget() {
     const { employee, task } = nearHotelTask || {}; if (!task || task.status !== 'accepted') return false;
     if (task.fake) {
-        task.status = 'failed'; bassamTrapTaskId = task.id; bassamRevealPending = true; bassamFakeTask = null;
+        task.status = 'failed'; bassamTrapTaskId = task.id; bassamRevealPending = true; bassamRelentlessChase = true; bassamState = 'revealed'; bassamAmbushActive = false; bassamFakeTask = null; monster.path = [];
         closeHotelDialogue(); renderHotelTasks(); notify('THE ASSIGNMENT WAS A LIE', 'danger');
-        showMsg('<span style="color:#ff5555">NO ONE IS WAITING HERE</span>', 1100); return true;
+        showMsg('<span style="color:#ff5555">BASSAM IS HUNTING YOU FOR THE REST OF THE SHIFT</span>', 1600); return true;
     }
     startHotelTaskMiniGame(task); return true;
 }
@@ -2249,7 +2296,7 @@ function startGame(diffLevel) {
     if (currentMapId === 'boilerworks') { COLS = 65; ROWS = 49; }
     else if (currentMapId === 'hotel') { COLS = 91; ROWS = 69; }
     else if (currentMapId === 'crimson' || currentMapId === 'forest') { COLS = 93; ROWS = 65; }
-    else if (currentMapId === 'amine') { COLS = 73; ROWS = 53; }
+    else if (currentMapId === 'amine') { COLS = 61; ROWS = 45; }
     else { COLS = 41; ROWS = 33; }
     hotelTaskSerial = 0;
     if (currentMapId === 'boilerworks') generateBoilerworks();
@@ -2278,11 +2325,11 @@ function startGame(diffLevel) {
     nearGen = null; nearValve = null; nearBoiler = false; flashAlpha = 0;
     boilerShutdown = false; boilerReadyShown = false; heatZones = []; heatEventCooldown = currentMapId === 'boilerworks' ? 360 : 0;
     rhysSealCollected = false; rhysTrapArmed = false; goopZones = []; goopShots = []; rhysSpitCooldown = 180; rhysDashTimer = 0; rhysChargeWindup = 0; rhysDashCooldown = 360; rhysEventCooldown = 900; rhysSweepTimer = 0; rhysSweepRadius = 0; rhysPressureZones = [];
-    forestBeaconBattery = null; forestWatchtower = null; forestBeaconActive = false; forestFogTimer = 0; forestFogCooldown = currentMapId === 'forest' ? 720 : 0; noahCharge = null; noahLightningCooldown = 360; noahLightningZones = []; noahLightningFlashes = 0; noahShockTimer = 0;
+    forestBeaconBattery = null; forestWatchtower = null; forestBeaconActive = false; forestFogTimer = 0; forestFogCooldown = currentMapId === 'forest' ? 720 : 0; noahCharge = null; noahLightningCooldown = 360; noahLightningZones = []; noahLightningPending = []; noahLightningWarning = 0; noahLightningFlashes = 0; noahShockTimer = 0;
     amineFocus = false; amineVisibleTimer = 0; amineFlashCooldown = 90; amineTeleportCooldown = 240; amineCallCount = 1; amineCallsRemaining = 0; amineCallActive = false; amineTurret = null; amineBullets = []; amineBurnTimer = 0; luckyBlocks = [];
     document.getElementById('amineCall').style.display='none';
     hotelLockdownTimer = 0; hotelEventCooldown = currentMapId === 'hotel' ? 480 : 0; hotelLockdownActive = false; hotelBlockedDoor = null;
-    bassamState = 'roaming'; bassamRevealPending = false; bassamTrapTaskId = null; bassamFakeTask = null; bassamFakeLine = ''; bassamAmbushActive = false; bassamLostTimer = 0; bassamAmbushCooldown = 900; hotelTaskGame = null; bassamStaffDepartment = ['FRONT DESK','MAINTENANCE','HOUSEKEEPING','KITCHEN'][Math.floor(Math.random() * 4)]; closeHotelDialogue();
+    bassamState = 'roaming'; bassamRevealPending = false; bassamTrapTaskId = null; bassamFakeTask = null; bassamFakeLine = ''; bassamAmbushActive = false; bassamRelentlessChase = false; bassamLostTimer = 0; bassamAmbushCooldown = 900; hotelTaskGame = null; bassamStaffDepartment = ['FRONT DESK','MAINTENANCE','HOUSEKEEPING','KITCHEN'][Math.floor(Math.random() * 4)]; closeHotelDialogue();
     document.getElementById('hotelTaskHUD').style.display = currentMapId === 'hotel' ? 'block' : 'none';
     
     const roundScale = gameMode === 'endless' ? endlessRound - 1 : 0;
@@ -2388,7 +2435,7 @@ function startGame(diffLevel) {
         monster.baseSpeed += 0.10; monster.speed = monster.baseSpeed;
         monster.color = '#18242a'; monster.textColor = '#9ad7dd'; noahState = 'hidden'; noahTimer = 0; noahPathTimer = 0;
     } else if (monsterName === 'AMINE') {
-        monster.baseSpeed += 0.18; monster.speed = monster.baseSpeed; monster.color = '#e8e8e8'; monster.textColor = '#fff'; monster.invisible = currentMapId==='amine';
+        monster.baseSpeed += 0.18; monster.speed = monster.baseSpeed; monster.color = '#e8e8e8'; monster.textColor = '#fff'; monster.invisible = true;
     } else if (monsterName === 'CALEB') {
         empTimer = Math.floor(Math.random() * 600) + 600; 
     }
@@ -2556,6 +2603,9 @@ function endGame(isWin, sourceMonster = monster) {
         tokens += earned;
         stats.wins++; stats.caught++; stats.bestEndless = Math.max(stats.bestEndless, endlessRound);
         if (endlessRound >= 3) unlockCosmetic('spark');
+        if (endlessRound >= 10) unlockCosmetic('smileMask');
+        if (sourceMonster.name === 'BASSAM' && currentMapId === 'hotel' && bassamRelentlessChase) unlockCosmetic('krustyHat');
+        if (currentMapId === 'hotel' && reportedHotelEmployees().length >= hotelEmployeesRequired) unlockCosmetic('spongeMask');
         saveData();
         playSound('success');
         endlessRound++;
@@ -2596,6 +2646,8 @@ function endGame(isWin, sourceMonster = monster) {
         if (sourceMonster.name === 'AMINE') { unlockCosmetic('white'); unlockCosmetic('circle'); }
         if (sourceMonster.name === 'NOAH') { advanceDailyObjective('noah'); if (currentMapId === 'forest') unlockCosmetic('noahCap'); }
         if (sourceMonster.name === 'CALEB') { unlockCosmetic('sepia'); unlockCosmetic('static'); }
+        if (sourceMonster.name === 'BASSAM' && currentMapId === 'hotel' && bassamRelentlessChase) unlockCosmetic('krustyHat');
+        if (currentMapId === 'hotel' && gameMode === 'endless' && reportedHotelEmployees().length >= hotelEmployeesRequired) unlockCosmetic('spongeMask');
         if (gameMode === 'challenge') { stats.challengesCleared++; advanceDailyObjective('challenge'); if (runItemsUsed === 0) unlockCosmetic('cowboyHat'); }
         if (!mapMastery[currentMapId]) mapMastery[currentMapId] = [false, false, false];
         mapMastery[currentMapId][currentDiff] = true;
@@ -2945,6 +2997,7 @@ function update() {
     if (flareTimer > 0) flareTimer--;
     if (jordanSabotageCooldown > 0) jordanSabotageCooldown--;
     if (state===9) { rapidTimer--; if(rapidTimer<=0) failGeneratorTask('RESPONSE ARRAY'); }
+    if (state===10 && simonFlashTimer > 0) simonFlashTimer--;
     if (state===10 && simonPhase==='show') { simonTimer--; if(simonTimer<=0){simonShowIndex++;if(simonShowIndex>=simonRound){simonPhase='input';simonInput=0;}else simonTimer=38;} }
     if (state===11) { updateAmineTurret(); return; }
 
@@ -3489,6 +3542,7 @@ function draw() {
         if (forestBeaconBattery && !forestBeaconBattery.collected) { ctx.fillStyle = '#b8d8ea'; ctx.fillRect(forestBeaconBattery.x-8, forestBeaconBattery.y-6, 16, 12); ctx.fillStyle='#16242c'; ctx.fillRect(forestBeaconBattery.x-3, forestBeaconBattery.y-3, 6, 6); if (forestBreakers.every(breaker => breaker.active) && Math.hypot(player.x-forestBeaconBattery.x, player.y-forestBeaconBattery.y)<38) { ctx.fillStyle='#fff'; ctx.fillText('[E] RANGER BATTERY', forestBeaconBattery.x, forestBeaconBattery.y-18); } }
         if (forestWatchtower) { ctx.strokeStyle = forestBeaconActive ? '#8fffb0' : '#8d7958'; ctx.lineWidth=4; ctx.strokeRect(forestWatchtower.x-16, forestWatchtower.y-16, 32, 32); ctx.fillStyle=forestBeaconActive ? '#9fffc0' : '#c5b185'; ctx.fillText(forestBeaconActive ? 'BEACON ONLINE' : 'WATCHTOWER', forestWatchtower.x, forestWatchtower.y-24); if (forestBeaconBattery?.collected && activeGens >= totalGens && !forestBeaconActive && Math.hypot(player.x-forestWatchtower.x,player.y-forestWatchtower.y)<46) { ctx.fillStyle='#fff'; ctx.fillText('[E] INSTALL BEACON', forestWatchtower.x, forestWatchtower.y+28); } }
     }
+    for (const zone of noahLightningPending) { const pulse = 2 + Math.sin(ambienceClock * .25) * 2; ctx.strokeStyle = 'rgba(255,235,90,.95)'; ctx.lineWidth = 4; ctx.setLineDash([8, 6]); ctx.beginPath(); ctx.arc(zone.x, zone.y, zone.radius + pulse, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); }
     for (const zone of noahLightningZones) { const alpha = Math.min(.7, zone.life / 80); ctx.strokeStyle = `rgba(180,225,255,${alpha})`; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(zone.x, zone.y, zone.radius, 0, Math.PI * 2); ctx.stroke(); ctx.fillStyle = `rgba(120,180,255,${alpha * .18})`; ctx.beginPath(); ctx.arc(zone.x, zone.y, zone.radius, 0, Math.PI * 2); ctx.fill(); }
     if (currentMapId === 'crimson') {
         if (rhysBreakWall && !rhysBreakWall.broken) {
@@ -3742,10 +3796,12 @@ function draw() {
         if (cosmetics.color === 'sepia' && player.boostTimer <= 0 && player.stunTimer <= 0) { ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(player.x-player.r*.3, player.y-2, 2, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(player.x+player.r*.3, player.y-2, 2, 0, Math.PI*2); ctx.fill(); }
         const equippedHat = hatImages[cosmetics.hat];
         if (cosmetics.hat !== 'none' && equippedHat?.complete) { ctx.drawImage(equippedHat, player.x - player.r * 2, player.y - player.r * 2.15, player.r * 4, player.r * 4); }
+        const equippedMask = maskImages[cosmetics.mask];
+        if (cosmetics.mask !== 'none' && equippedMask?.complete) { ctx.drawImage(equippedMask, player.x - player.r * 2, player.y - player.r * 2.15, player.r * 4, player.r * 4); }
     }
     ctx.restore();
 
-    if(currentMapId==='amine'&&amineFocus&&state===1){ctx.fillStyle='#000';ctx.fillRect(0,0,canvas.width,canvas.height);const sx=(monster.x-camera.x)*camera.zoom,sy=(monster.y-camera.y)*camera.zoom;ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(sx,sy,monster.drawRadius*camera.zoom,0,Math.PI*2);ctx.fill();ctx.fillStyle='#111';ctx.beginPath();ctx.arc(sx-4,sy-2,2,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.arc(sx+4,sy-2,2,0,Math.PI*2);ctx.fill();}
+    if(monster.name==='AMINE'&&amineFocus&&state===1){ctx.fillStyle='#000';ctx.fillRect(0,0,canvas.width,canvas.height);const sx=(monster.x-camera.x)*camera.zoom,sy=(monster.y-camera.y)*camera.zoom;ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(sx,sy,monster.drawRadius*camera.zoom,0,Math.PI*2);ctx.fill();ctx.fillStyle='#111';ctx.beginPath();ctx.arc(sx-4,sy-2,2,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.arc(sx+4,sy-2,2,0,Math.PI*2);ctx.fill();}
 
     drawHotelTaskArrows();
 
@@ -3851,7 +3907,7 @@ function draw() {
         ctx.font = '16px Arial'; ctx.fillText(scDelay > 0 ? 'STABILIZING...' : 'TAP ALIGN WHEN THE NEEDLE IS GREEN', cx, cy + 62);
     }
     if(state===9){ctx.fillStyle='rgba(7,3,10,.9)';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.strokeStyle='#ff75d2';ctx.lineWidth=2;ctx.strokeRect(18,18,canvas.width-36,74);ctx.fillStyle='#fff';ctx.font='bold 22px Arial';ctx.textAlign='center';ctx.fillText('RESPONSE ARRAY',canvas.width/2,48);ctx.font='15px Arial';ctx.fillStyle='#ffc1e9';ctx.fillText(`CLICK THE SIGNALS · ${rapidHits}/${rapidRequired}`,canvas.width/2,74);if(rapidTarget){ctx.fillStyle='rgba(255,79,197,.25)';ctx.beginPath();ctx.arc(rapidTarget.x,rapidTarget.y,rapidTarget.r+13,0,Math.PI*2);ctx.fill();ctx.fillStyle='#ff4fc5';ctx.beginPath();ctx.arc(rapidTarget.x,rapidTarget.y,rapidTarget.r,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#fff';ctx.lineWidth=3;ctx.beginPath();ctx.arc(rapidTarget.x,rapidTarget.y,rapidTarget.r,0,Math.PI*2);ctx.stroke();ctx.fillStyle='#fff';ctx.font='bold 19px Arial';ctx.fillText('TAP',rapidTarget.x,rapidTarget.y+7);}}
-    if(state===10){ctx.fillStyle='rgba(0,0,0,.82)';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.fillStyle='#fff';ctx.font='bold 22px Arial';ctx.textAlign='center';ctx.fillText(`COLOR MEMORY · ROUND ${simonRound}/${simonSequence.length}`,canvas.width/2,70);const colors=['#e33','#38f','#3c5','#fd3'],symbols=['▲','●','■','★'],size=100,gap=14,left=canvas.width/2-size-gap/2,top=canvas.height/2-size-gap/2,active=simonPhase==='show'?simonSequence[Math.min(simonShowIndex,simonRound-1)]:-1;for(let i=0;i<4;i++){const x=left+(i%2)*(size+gap),y=top+Math.floor(i/2)*(size+gap);ctx.fillStyle=i===active?'#fff':colors[i];ctx.fillRect(x,y,size,size);ctx.fillStyle=i===active?colors[i]:'#111';ctx.font='bold 30px Arial';ctx.fillText(symbols[i],x+size/2,y+60);}ctx.fillStyle='#ddd';ctx.font='15px Arial';ctx.fillText(simonPhase==='show'?'WATCH THE PATTERN':'REPEAT THE PATTERN',canvas.width/2,top+size*2+gap+38);}
+    if(state===10){ctx.fillStyle='rgba(0,0,0,.82)';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.fillStyle='#fff';ctx.font='bold 22px Arial';ctx.textAlign='center';ctx.fillText(`COLOR MEMORY · ROUND ${simonRound}/${simonSequence.length}`,canvas.width/2,70);const colors=['#e33','#38f','#3c5','#fd3'],symbols=['▲','●','■','★'],size=100,gap=14,left=canvas.width/2-size-gap/2,top=canvas.height/2-size-gap/2,active=simonPhase==='show'?simonSequence[Math.min(simonShowIndex,simonRound-1)]:-1;for(let i=0;i<4;i++){const x=left+(i%2)*(size+gap),y=top+Math.floor(i/2)*(size+gap),flashing=i===simonFlashChoice&&simonFlashTimer>0;ctx.fillStyle=i===active||flashing?'#fff':colors[i];ctx.fillRect(x,y,size,size);ctx.strokeStyle=flashing?'#fff':'rgba(255,255,255,.2)';ctx.lineWidth=flashing?5:1;ctx.strokeRect(x,y,size,size);ctx.fillStyle=i===active||flashing?colors[i]:'#111';ctx.font='bold 30px Arial';ctx.fillText(symbols[i],x+size/2,y+60);}ctx.fillStyle='#ddd';ctx.font='15px Arial';ctx.fillText(simonPhase==='show'?'WATCH THE PATTERN':'REPEAT THE PATTERN',canvas.width/2,top+size*2+gap+38);}
     if(state===11&&amineTurret){ctx.fillStyle='#050505';ctx.fillRect(0,0,canvas.width,canvas.height);const scale=Math.min(canvas.width/(COLS*TS),canvas.height/(ROWS*TS));for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){ctx.fillStyle=map[r][c]===1?'#666':'#191919';ctx.fillRect(c*TS*scale,r*TS*scale,Math.ceil(TS*scale),Math.ceil(TS*scale));}ctx.fillStyle='#5cf';ctx.beginPath();ctx.arc(amineTurret.x*scale,amineTurret.y*scale,8,0,Math.PI*2);ctx.fill();ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(monster.x*scale,monster.y*scale,7,0,Math.PI*2);ctx.fill();for(const b of amineBullets){ctx.fillStyle='#ffdc62';ctx.beginPath();ctx.arc(b.x*scale,b.y*scale,3,0,Math.PI*2);ctx.fill();}ctx.fillStyle='#fff';ctx.font='bold 18px Arial';ctx.textAlign='left';ctx.fillText(`AMMO ${amineTurret.ammo}`,18,28);}
 }
 
@@ -3927,7 +3983,7 @@ function updateMobileSkillCheckButton() {
     button.style.display = active ? 'block' : 'none';
     button.disabled = !active || scDelay > 0;
     button.textContent = scDelay > 0 ? 'READY...' : state === 7 ? 'ALIGN' : 'HIT';
-    const focus=document.getElementById('touchFocus'); if(focus) focus.style.display=currentMapId==='amine'&&monster.name==='AMINE'&&state===1?'block':'none';
+    const focus=document.getElementById('touchFocus'); if(focus) focus.style.display=monster.name==='AMINE'&&state===1?'block':'none';
 }
 
 
@@ -4027,7 +4083,7 @@ function updateMobileSkillCheckButton() {
     });
     const focus=document.getElementById('touchFocus');
     const releaseFocus=event=>{event.preventDefault();amineFocus=false;};
-    focus?.addEventListener('pointerdown',event=>{event.preventDefault();if(currentMapId==='amine'&&monster.name==='AMINE'&&state===1)amineFocus=true;});
+    focus?.addEventListener('pointerdown',event=>{event.preventDefault();if(monster.name==='AMINE'&&state===1)amineFocus=true;});
     focus?.addEventListener('pointerup',releaseFocus); focus?.addEventListener('pointercancel',releaseFocus); focus?.addEventListener('pointerleave',releaseFocus);
 
     document.querySelectorAll('[data-puzzle-key]').forEach(button => {

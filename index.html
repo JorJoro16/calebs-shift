@@ -76,7 +76,7 @@
 
     <div id="cosmeticsMenu" class="menu-panel" style="max-height:80vh; overflow-y:auto;">
         <h2>COLLECTOR'S BOOK</h2>
-        <div class="cosmetic-tabs"><button onclick="setCosmeticTab('colors')">COLORS</button><button onclick="setCosmeticTab('trails')">TRAILS</button><button onclick="setCosmeticTab('hats')">HATS</button></div>
+        <div class="cosmetic-tabs"><button onclick="setCosmeticTab('colors')">COLORS</button><button onclick="setCosmeticTab('trails')">TRAILS</button><button onclick="setCosmeticTab('hats')">HATS</button><button onclick="setCosmeticTab('masks')">MASKS</button></div>
         <div id="cosmeticsContent" style="text-align:left; line-height:1.7;"></div>
         <button onclick="showMenu('mainMenu')">BACK</button>
     </div>
@@ -234,7 +234,7 @@
             <span style="color:#aaa">They can also fake generator markers, alerts, and HUD progress. They never deal damage.</span><br></div></details>
 
             <details class="info-section" data-info-tab="systems"><summary style="color:#d8b4ff;">PROGRESSION</summary><div>
-            <b>Cosmetics:</b> Colors, trails, and hats are cosmetic-only rewards for Hard wins, monster catches, Endless progress, and item-free wins. Hats render in front of the player; Noah’s Cap is earned by beating The Blackwood Forest.<br>
+            <b>Cosmetics:</b> Colors, trails, hats, and masks are cosmetic-only rewards for Hard wins, monster catches, Endless progress, and special challenges. Equip one hat and one mask together; image previews appear in the Collector’s Book.<br>
             <b>Statistics:</b> The Statistics screen records wins, losses, generators, catches, Endless best, fastest win, item use, and favorite monster.<br>
             <b>Inventory:</b> You can carry up to eight consumables. Ground supplies only fit when a slot is free. Custom loadouts choose exact item quantities, up to eight total; Free Carry permits any owned supply.<br>
             <b>Specialist Gear:</b> Signal Scramblers block tracking alerts, Goop Neutralizers clear Rhys hazards, Repair Kits widen the next skill-check zone, and Flares brighten the area but reveal your location.<br></div></details>
@@ -268,7 +268,7 @@
             <b>Events:</b> Hotel Lockdown seals a whole corridor section temporarily. Bassam can impersonate staff and place a false assignment among your real ones.<br></div></details>
             <details class="info-section" data-info-tab="maps"><summary style="color:#ffe06b;">THE CRIMSON CONTAINMENT</summary><div><b>Objective:</b> Repair generators, locate the Crimson Seal through a changing route, then lure Rhys into the containment trap.<br><b>Events:</b> Containment alarms, pressure releases, a sweeping emergency-light circle, and seal resonance. This level does not use power outages.</div></details>
             <details class="info-section" data-info-tab="maps"><summary style="color:#9ad7dd;">THE BLACKWOOD FOREST</summary><div><b>Objective:</b> Repair remote generators, restore two dark cabin breakers, recover the Ranger Beacon battery, then install it at the watchtower to expose Noah. Lit cabins are safe zones because Noah cannot stalk through strong light.<br><b>Events:</b> Fog Roll darkens the woods for a short time. <b>Layout:</b> Procedural clearings, woodland trails, tree barriers, and cabin interiors change each run. Flashbangs scatter Noah to a distant unlit location.</div></details>
-            <details class="info-section" data-info-tab="maps"><summary style="color:#ddd;">THE PARTED GRID</summary><div><b>Objective:</b> Repair every generator, find the exit gate, then use the edge turret to shoot Amine. Hold <b>V</b> or the mobile <b>FOCUS</b> button to hide the map and reveal him.<br><b>Hazards:</b> Falling into biome holes is fatal. Burning zones heavily slow and blur you. Turret bullets travel through walls, while Amine moves faster during the finale.</div></details>
+            <details class="info-section" data-info-tab="maps"><summary style="color:#ddd;">THE PARTED GRID</summary><div><b>Objective:</b> Repair every generator, find the exit gate, then chase the exposed Amine through the open escape route. Hold <b>V</b> or the mobile <b>FOCUS</b> button to hide the map and reveal him.<br><b>Hazards:</b> Falling into random sinkholes is fatal. Burning zones heavily slow and blur you. Amine flashes into view periodically and can teleport nearby.</div></details>
             <details class="info-section" data-info-tab="systems"><summary style="color:#8cd9d0;">MAP INTEL</summary><div>Clear a map on Easy, Normal, and Hard, then buy its Map Intel in the Shop. Press <b>M</b> on desktop or tap <b>MAP</b> on mobile to open the full layout without pausing the danger.</div></details>
             <details class="info-section" data-info-tab="start"><summary style="color:#0ff;">MOBILE CONTROLS</summary><div>
             <b>Joystick:</b> Move freely in any direction.<br>
@@ -299,8 +299,8 @@
             </div>
             <button id="btnShoe" onclick="buyUpgrade('shoe', 50)">50 T</button>
         </div>
-        <div class="shop-item"><div><div>Emergency Battery</div><div class="shop-desc">Press R to restore the lights during an outage.</div></div><button onclick="buyConsumable('battery', 22)">22 T</button></div>
-        <div class="shop-item"><div><div>Breath Filter</div><div class="shop-desc">Your next breath hold lasts longer.</div></div><button onclick="buyConsumable('breathFilter', 16)">16 T</button></div>
+        <div class="shop-item"><div><div>Emergency Battery</div><div class="shop-desc">Press R to restore the lights during an outage.</div></div><span class="shop-actions"><button onclick="buyConsumable('battery', 22)">22 T</button><button class="discard-button" onclick="discardConsumable('battery')">DISCARD</button></span></div>
+        <div class="shop-item"><div><div>Breath Filter</div><div class="shop-desc">Your next breath hold lasts longer.</div></div><span class="shop-actions"><button onclick="buyConsumable('breathFilter', 16)">16 T</button><button class="discard-button" onclick="discardConsumable('breathFilter')">DISCARD</button></span></div>
         <div class="shop-item">
             <div>
                 <div>Hacker Gloves (Tier <span id="hackTier">0</span>/2)</div>
@@ -327,33 +327,33 @@
                 <div>Adrenaline Syringe</div>
                 <div class="shop-desc">Press SPACE for 4s speed boost.</div>
             </div>
-            <button onclick="buyConsumable('adrenaline', 15)">15 T</button>
+            <span class="shop-actions"><button onclick="buyConsumable('adrenaline', 15)">15 T</button><button class="discard-button" onclick="discardConsumable('adrenaline')">DISCARD</button></span>
         </div>
         <div class="shop-item">
             <div>
                 <div>Flashbang</div>
                 <div class="shop-desc">Press F to stun monster for 4s.</div>
             </div>
-            <button onclick="buyConsumable('flashbang', 20)">20 T</button>
+            <span class="shop-actions"><button onclick="buyConsumable('flashbang', 20)">20 T</button><button class="discard-button" onclick="discardConsumable('flashbang')">DISCARD</button></span>
         </div>
         <div class="shop-item">
             <div>
                 <div>Noise Maker</div>
                 <div class="shop-desc">Press N or ♬ to lure the monster away.</div>
             </div>
-            <button onclick="buyConsumable('noiseMaker', 18)">18 T</button>
+            <span class="shop-actions"><button onclick="buyConsumable('noiseMaker', 18)">18 T</button><button class="discard-button" onclick="discardConsumable('noiseMaker')">DISCARD</button></span>
         </div>
         <div class="shop-item">
             <div>
                 <div>Bear Trap</div>
                 <div class="shop-desc">Press T or choose it from Items to place a trap. Monsters are briefly stunned.</div>
             </div>
-            <button onclick="buyConsumable('bearTrap', 24)">24 T</button>
+            <span class="shop-actions"><button onclick="buyConsumable('bearTrap', 24)">24 T</button><button class="discard-button" onclick="discardConsumable('bearTrap')">DISCARD</button></span>
         </div>
-        <div class="shop-item"><div><div>Signal Scrambler</div><div class="shop-desc">Q / Items: blocks tracking alerts briefly. Physical sight still works.</div></div><button onclick="buyConsumable('signalScrambler', 26)">26 T</button></div>
-        <div class="shop-item"><div><div>Goop Neutralizer</div><div class="shop-desc">G / Items: clears nearby goop and pressure hazards in Crimson Containment.</div></div><button onclick="buyConsumable('neutralizer', 14)">14 T</button></div>
-        <div class="shop-item"><div><div>Repair Kit</div><div class="shop-desc">K / Items: makes your next generator skill check easier.</div></div><button onclick="buyConsumable('repairKit', 19)">19 T</button></div>
-        <div class="shop-item"><div><div>Emergency Flare</div><div class="shop-desc">L / Items: brightens the area, but alerts nearby monsters.</div></div><button onclick="buyConsumable('flare', 12)">12 T</button></div>
+        <div class="shop-item"><div><div>Signal Scrambler</div><div class="shop-desc">Q / Items: blocks tracking alerts briefly. Physical sight still works.</div></div><span class="shop-actions"><button onclick="buyConsumable('signalScrambler', 26)">26 T</button><button class="discard-button" onclick="discardConsumable('signalScrambler')">DISCARD</button></span></div>
+        <div class="shop-item"><div><div>Goop Neutralizer</div><div class="shop-desc">G / Items: clears nearby goop and pressure hazards in Crimson Containment.</div></div><span class="shop-actions"><button onclick="buyConsumable('neutralizer', 14)">14 T</button><button class="discard-button" onclick="discardConsumable('neutralizer')">DISCARD</button></span></div>
+        <div class="shop-item"><div><div>Repair Kit</div><div class="shop-desc">K / Items: shortens circuit patterns and widens timing windows on the next generator task.</div></div><span class="shop-actions"><button onclick="buyConsumable('repairKit', 19)">19 T</button><button class="discard-button" onclick="discardConsumable('repairKit')">DISCARD</button></span></div>
+        <div class="shop-item"><div><div>Emergency Flare</div><div class="shop-desc">L / Items: brightens the area, but alerts nearby monsters.</div></div><span class="shop-actions"><button onclick="buyConsumable('flare', 12)">12 T</button><button class="discard-button" onclick="discardConsumable('flare')">DISCARD</button></span></div>
         <button onclick="showMenu('mainMenu')" style="margin-top: 15px; border-color: #ff4444; color: #ff4444;">BACK</button>
     </div>
 

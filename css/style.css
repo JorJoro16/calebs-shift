@@ -39,6 +39,7 @@
         }
         canvas {
             background-color: transparent;
+            filter: brightness(1.04);
             box-shadow: 0 0 30px rgba(0,0,0,1);
             transition: transform 0.05s;
             z-index: 10;
@@ -354,6 +355,8 @@ canvas {
 .info-tabs button, .shop-tabs button { padding:8px 10px; font-size:12px; }
 .active-tab { border-color:#ffd36b !important; color:#ffd36b !important; background:rgba(255,195,70,.16) !important; }
 .shop-carry-status { margin:-5px 0 9px; color:#8ff; font-size:12px; }
+.shop-actions { display:flex; flex-direction:column; align-items:stretch; gap:4px; flex:0 0 auto; margin-left:16px; }
+.discard-button { padding:5px 8px !important; border-color:#a66 !important; color:#e7aaaa !important; font-size:10px !important; }
 .cosmetic-book { padding:14px; border:1px solid #9f8558; border-radius:10px; background:linear-gradient(110deg,rgba(100,72,37,.38),rgba(30,21,15,.8)); box-shadow:inset 0 0 24px rgba(0,0,0,.55); }
 .cosmetic-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
 .cosmetic-card { min-height:175px; padding:10px; border:1px solid rgba(222,198,146,.5); border-radius:8px; background:rgba(10,8,7,.5); }
@@ -375,7 +378,7 @@ canvas {
     }
     .menu-panel h1 { font-size: clamp(26px, 8vw, 38px); }
     .menu-panel button { font-size: 16px; }
-    #gameHUD {
+        #gameHUD {
         top: max(8px, env(safe-area-inset-top));
         left: max(8px, env(safe-area-inset-left));
         padding: 9px 12px;
