@@ -334,6 +334,7 @@ canvas {
 }
 .interact-button { border-color: #0f0; color: #0f0; }
 .boost-button { border-color: #0ff; color: #0ff; }
+.dash-button { border-color: #8ff; color: #8ff; font-size: 12px; }
 .flash-button { border-color: #ff4444; color: #ff4444; }
 .crouch-button { border-color: #ffcc00; color: #ffcc00; }
 .breath-button { border-color: #b8aaff; color: #b8aaff; }
@@ -363,6 +364,7 @@ canvas {
 .cosmetic-preview { height:62px; display:flex; align-items:center; justify-content:center; margin-bottom:8px; border:1px solid rgba(255,255,255,.2); border-radius:6px; background:rgba(0,0,0,.35); font-weight:bold; }
 .cosmetic-preview img { width:58px; height:58px; object-fit:contain; image-rendering:auto; }
 .cosmetic-card small { display:block; min-height:36px; color:#c9bea7; line-height:1.3; }
+.cosmetic-progress { color:#8fffa1; }
 .cosmetic-card button { width:100%; margin-top:8px; padding:7px; font-size:12px; }
 .coming-soon { min-height:160px; display:flex; align-items:center; justify-content:center; color:#d4c09a; border:1px dashed #9f8558; border-radius:8px; text-align:center; }
 

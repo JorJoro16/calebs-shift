@@ -208,7 +208,7 @@
             <b>BASSAM — The Concierge</b><br>Disguises himself as a hotel employee and offers believable but dangerous directions. Genuine employees can help with small tasks and clues.<br><span style="color:#aaa">Counter:</span> Check badges, shadows, and directions before trusting an employee. A fake employee cannot provide a consistent department or safe route.<br><br>
             <b>RHYS — The Contained</b><br>Spits short-range goop that slows you, creates slowing puddles, and charges in a straight line after a brief brace. On Crimson Containment, restore the generators before recovering the seal and arming the vault trap.<br><span style="color:#aaa">Counter:</span> Dodge sideways during the brace, use the Goop Neutralizer, and bait his special charge into the cracked wall.<br></div></details>
             <details class="info-section" data-info-tab="monsters"><summary style="color:#9ad7dd;">NOAH — THE STALKER</summary><div>Invisible for most of the run, Noah closes in nearby, briefly reveals himself, then makes a short intercept burst before fading back into the forest. He can call lightning circles that heavily slow and blur you.<br><span style="color:#aaa">Counter:</span> Stay in lit cabins, break line of sight, move out of lightning circles, and use a Flashbang to scatter him. Audio hooks are intentionally ready but silent until custom files are added.</div></details>
-            <details class="info-section" data-info-tab="monsters"><summary style="color:#ddd;">AMINE — THE PARTED</summary><div>Invisible normally. Hold Focus Vision to hide the map and reveal only Amine. He flashes periodically, teleports behind you, and interrupts generator repairs with escalating calls.<br><span style="color:#aaa">Counter:</span> Alternate normal sight and Focus Vision, deny calls carefully, and reach the exit gate for the turret finale.</div></details>
+            <details class="info-section" data-info-tab="monsters"><summary style="color:#ddd;">AMINE — THE PARTED</summary><div>Invisible normally. Hold Focus Vision to hide the map and reveal only Amine. He flashes periodically, teleports behind you, and interrupts generator repairs with escalating calls.<br><span style="color:#aaa">Counter:</span> Alternate normal sight and Focus Vision, deny calls carefully, and reach the exit gate for the exposed final chase.</div></details>
             
             <details class="info-section" data-info-tab="monsters"><summary style="color:#ff4444;">MUTATIONS</summary><div>
             <b>Speed Demon:</b> Flat speed boost.<br>
@@ -237,7 +237,7 @@
             <b>Cosmetics:</b> Colors, trails, hats, and masks are cosmetic-only rewards for Hard wins, monster catches, Endless progress, and special challenges. Equip one hat and one mask together; image previews appear in the Collector’s Book.<br>
             <b>Statistics:</b> The Statistics screen records wins, losses, generators, catches, Endless best, fastest win, item use, and favorite monster.<br>
             <b>Inventory:</b> You can carry up to eight consumables. Ground supplies only fit when a slot is free. Custom loadouts choose exact item quantities, up to eight total; Free Carry permits any owned supply.<br>
-            <b>Specialist Gear:</b> Signal Scramblers block tracking alerts, Goop Neutralizers clear Rhys hazards, Repair Kits widen the next skill-check zone, and Flares brighten the area but reveal your location.<br></div></details>
+            <b>Specialist Gear:</b> Signal Scramblers block tracking alerts with X, Goop Neutralizers clear Rhys hazards, Repair Kits widen the next skill-check zone, and Flares brighten the area but reveal your location. The permanent Dash Module uses Q and has a six-second cooldown.<br></div></details>
             
             <details class="info-section" data-info-tab="start"><summary style="color:#0f0;">TIPS</summary><div>
             - Use <b>'E'</b> to repair generators.<br>
@@ -265,7 +265,7 @@
             <details class="info-section" data-info-tab="maps"><summary style="color:#d4c09a;">THE ENDLESS HOTEL</summary><div>
             <b>Objective:</b> Repair the hotel generators, complete and report staff assignments, evacuate the employees through the elevator, then catch Bassam.<br>
             <b>Employees:</b> Speak to staff to accept up to two assignments. Complete the work, then return to the same staff member to report it.<br>
-            <b>Events:</b> Hotel Lockdown seals a whole corridor section temporarily. Bassam can impersonate staff and place a false assignment among your real ones.<br></div></details>
+            <b>Events:</b> Hotel Lockdown seals a whole corridor section temporarily. Bassam can impersonate staff and place a false assignment among your real ones. Dialogue and employee tasks pause the hunt; hiding remains usable even while Bassam or multiple monsters are active.<br></div></details>
             <details class="info-section" data-info-tab="maps"><summary style="color:#ffe06b;">THE CRIMSON CONTAINMENT</summary><div><b>Objective:</b> Repair generators, locate the Crimson Seal through a changing route, then lure Rhys into the containment trap.<br><b>Events:</b> Containment alarms, pressure releases, a sweeping emergency-light circle, and seal resonance. This level does not use power outages.</div></details>
             <details class="info-section" data-info-tab="maps"><summary style="color:#9ad7dd;">THE BLACKWOOD FOREST</summary><div><b>Objective:</b> Repair remote generators, restore two dark cabin breakers, recover the Ranger Beacon battery, then install it at the watchtower to expose Noah. Lit cabins are safe zones because Noah cannot stalk through strong light.<br><b>Events:</b> Fog Roll darkens the woods for a short time. <b>Layout:</b> Procedural clearings, woodland trails, tree barriers, and cabin interiors change each run. Flashbangs scatter Noah to a distant unlit location.</div></details>
             <details class="info-section" data-info-tab="maps"><summary style="color:#ddd;">THE PARTED GRID</summary><div><b>Objective:</b> Repair every generator, find the exit gate, then chase the exposed Amine through the open escape route. Hold <b>V</b> or the mobile <b>FOCUS</b> button to hide the map and reveal him.<br><b>Hazards:</b> Falling into random sinkholes is fatal. Burning zones heavily slow and blur you. Amine flashes into view periodically and can teleport nearby.</div></details>
@@ -324,6 +324,13 @@
         </div>
         <div class="shop-item">
             <div>
+                <div>Dash Module</div>
+                <div class="shop-desc">Permanent Q / mobile dash. Six-second cooldown; creates noise.</div>
+            </div>
+            <button id="btnDash" onclick="buyUpgrade('dash', 300)">300 T</button>
+        </div>
+        <div class="shop-item">
+            <div>
                 <div>Adrenaline Syringe</div>
                 <div class="shop-desc">Press SPACE for 4s speed boost.</div>
             </div>
@@ -350,7 +357,7 @@
             </div>
             <span class="shop-actions"><button onclick="buyConsumable('bearTrap', 24)">24 T</button><button class="discard-button" onclick="discardConsumable('bearTrap')">DISCARD</button></span>
         </div>
-        <div class="shop-item"><div><div>Signal Scrambler</div><div class="shop-desc">Q / Items: blocks tracking alerts briefly. Physical sight still works.</div></div><span class="shop-actions"><button onclick="buyConsumable('signalScrambler', 26)">26 T</button><button class="discard-button" onclick="discardConsumable('signalScrambler')">DISCARD</button></span></div>
+        <div class="shop-item"><div><div>Signal Scrambler</div><div class="shop-desc">X / Items: blocks tracking alerts briefly. Physical sight still works.</div></div><span class="shop-actions"><button onclick="buyConsumable('signalScrambler', 26)">26 T</button><button class="discard-button" onclick="discardConsumable('signalScrambler')">DISCARD</button></span></div>
         <div class="shop-item"><div><div>Goop Neutralizer</div><div class="shop-desc">G / Items: clears nearby goop and pressure hazards in Crimson Containment.</div></div><span class="shop-actions"><button onclick="buyConsumable('neutralizer', 14)">14 T</button><button class="discard-button" onclick="discardConsumable('neutralizer')">DISCARD</button></span></div>
         <div class="shop-item"><div><div>Repair Kit</div><div class="shop-desc">K / Items: shortens circuit patterns and widens timing windows on the next generator task.</div></div><span class="shop-actions"><button onclick="buyConsumable('repairKit', 19)">19 T</button><button class="discard-button" onclick="discardConsumable('repairKit')">DISCARD</button></span></div>
         <div class="shop-item"><div><div>Emergency Flare</div><div class="shop-desc">L / Items: brightens the area, but alerts nearby monsters.</div></div><span class="shop-actions"><button onclick="buyConsumable('flare', 12)">12 T</button><button class="discard-button" onclick="discardConsumable('flare')">DISCARD</button></span></div>
@@ -407,6 +414,7 @@
         </div>
         <div class="touch-actions">
             <button id="touchInteract" class="touch-button interact-button" aria-label="Interact">E</button>
+            <button id="touchDash" class="touch-button dash-button" aria-label="Dash" style="display:none;">DASH</button>
             <button id="touchAbilities" class="touch-button boost-button" aria-label="Abilities">◎</button>
             <button id="touchItems" class="touch-button flash-button" aria-label="Items">▣</button>
             <button id="touchSkillCheck" class="touch-button skill-check-button" aria-label="Skill check" style="display:none;">HIT</button>

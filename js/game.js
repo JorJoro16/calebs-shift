@@ -103,7 +103,7 @@ function playSound(type) {
 }
 
 // Versioned local progress with a backup copy and import/export support.
-const GAME_VERSION = '2.8.0';
+const GAME_VERSION = '2.8.1';
 const SAVE_SCHEMA_VERSION = 10;
 const SAVE_KEY = 'br_save_v2';
 const SAVE_BACKUP_KEY = 'br_save_backup_v2';
@@ -145,6 +145,10 @@ function safeStorageGet(key) {
     try { return localStorage.getItem(key); } catch (error) { return null; }
 }
 
+function isMobileClient() {
+    return Boolean(window.matchMedia?.('(pointer: coarse)').matches && Math.min(window.innerWidth, window.innerHeight) < 900);
+}
+
 function boundedInt(value, min, max, fallback = min) {
     const number = Number(value);
     return Number.isFinite(number) ? Math.max(min, Math.min(max, Math.floor(number))) : fallback;
@@ -166,7 +170,7 @@ function normalizeCustomLoadout(value) {
 function normalizeCosmetics(value) {
     const source = value && typeof value === 'object' ? value : {};
     const colors = ['blue', 'crimson', 'violet', 'green', 'amber', 'gold', 'sepia', 'white'];
-    const trails = ['none', 'spark', 'ghost', 'ember', 'static', 'circle'];
+    const trails = ['none', 'spark', 'ghost', 'ember', 'static', 'circle', 'afterimage'];
     const hats = ['none', 'noahCap', 'cowboyHat', 'luffyHat', 'krustyHat'];
     const masks = ['none', 'idiotMask', 'spongeMask', 'jordanMask', 'smileMask'];
     const allCosmetics = [...colors, ...trails, ...hats, ...masks];
@@ -201,8 +205,10 @@ function normalizeStats(value) {
         fastestWin: boundedInt(source.fastestWin, 0, 86400000, 0),
         mostGenerators: boundedInt(source.mostGenerators, 0, 999999, 0),
         itemsUsed: boundedInt(source.itemsUsed, 0, 999999, 0),
+        itemFreeWins: boundedInt(source.itemFreeWins, 0, 999999, 0),
         survivalRuns: boundedInt(source.survivalRuns, 0, 999999, 0),
         challengesCleared: boundedInt(source.challengesCleared, 0, 999999, 0),
+        boilerworksHardStreak: boundedInt(source.boilerworksHardStreak, 0, 3, 0),
         favoriteMonster: favorite,
         encounters
     };
@@ -226,6 +232,7 @@ function normalizeProgress(raw) {
         upgHack: boundedInt(source.upgHack, 0, 2, 0),
         upgQuick: boundedInt(source.upgQuick, 0, 3, 0),
         upgCoin: boundedInt(source.upgCoin, 0, 1, 0),
+        upgDash: boundedInt(source.upgDash, 0, 1, 0),
         invAdrenaline: boundedInt(source.invAdrenaline, 0, 9999, 0),
         invFlashbang: boundedInt(source.invFlashbang, 0, 9999, 0),
         invNoiseMaker: boundedInt(source.invNoiseMaker, 0, 9999, 0),
@@ -264,11 +271,12 @@ function loadProgress() {
         upgHack: safeStorageGet('br_hack'),
         upgQuick: safeStorageGet('br_quick'),
         upgCoin: safeStorageGet('br_coin'),
+        upgDash: safeStorageGet('br_dash'),
         invAdrenaline: safeStorageGet('br_adrenaline'),
         invFlashbang: safeStorageGet('br_flashbang'),
         invNoiseMaker: safeStorageGet('br_noiseMaker'),
         invBearTrap: safeStorageGet('br_bearTrap')
-    }) || { tokens: 0, upgShoe: 0, upgHack: 0, upgQuick: 0, upgCoin: 0, invAdrenaline: 0, invFlashbang: 0, invNoiseMaker: 0, invBattery: 0, invBreathFilter: 0, cosmetics: { color: 'blue', trail: 'none', unlocked: ['blue', 'none'] }, stats: {} };
+    }) || { tokens: 0, upgShoe: 0, upgHack: 0, upgQuick: 0, upgCoin: 0, upgDash: 0, invAdrenaline: 0, invFlashbang: 0, invNoiseMaker: 0, invBattery: 0, invBreathFilter: 0, cosmetics: { color: 'blue', trail: 'none', unlocked: ['blue', 'none'] }, stats: {} };
 }
 
 const loadedProgress = loadProgress();
@@ -277,6 +285,7 @@ let upgShoe = loadedProgress.upgShoe;
 let upgHack = loadedProgress.upgHack;
 let upgQuick = loadedProgress.upgQuick;
 let upgCoin = loadedProgress.upgCoin;
+let upgDash = loadedProgress.upgDash || 0;
 let invAdrenaline = loadedProgress.invAdrenaline;
 let invFlashbang = loadedProgress.invFlashbang;
 let invNoiseMaker = loadedProgress.invNoiseMaker;
@@ -306,7 +315,7 @@ let setVolM = localStorage.getItem('br_volM') || 100;
 let setVolS = localStorage.getItem('br_volS') || 100;
 
 function currentProgress() {
-    return { tokens, upgShoe, upgHack, upgQuick, upgCoin, invAdrenaline, invFlashbang, invNoiseMaker, invBearTrap, invBattery, invBreathFilter, invSignalScrambler, invNeutralizer, invRepairKit, invFlare, cosmetics, stats, unlockedMaps, campaignCleared, selectedLoadout, customLoadouts, mapMastery, mapIntel, daily };
+    return { tokens, upgShoe, upgHack, upgQuick, upgCoin, upgDash, invAdrenaline, invFlashbang, invNoiseMaker, invBearTrap, invBattery, invBreathFilter, invSignalScrambler, invNeutralizer, invRepairKit, invFlare, cosmetics, stats, unlockedMaps, campaignCleared, selectedLoadout, customLoadouts, mapMastery, mapIntel, daily };
 }
 
 function getDateKey(date = new Date()) {
@@ -517,6 +526,7 @@ function saveData() {
         localStorage.setItem('br_hack', upgHack);
         localStorage.setItem('br_quick', upgQuick);
         localStorage.setItem('br_coin', upgCoin);
+        localStorage.setItem('br_dash', upgDash);
         localStorage.setItem('br_adrenaline', invAdrenaline);
         localStorage.setItem('br_flashbang', invFlashbang);
         localStorage.setItem('br_noiseMaker', invNoiseMaker);
@@ -564,6 +574,7 @@ function importSave(event) {
             upgHack = imported.upgHack;
             upgQuick = imported.upgQuick;
             upgCoin = imported.upgCoin;
+            upgDash = imported.upgDash || 0;
             invAdrenaline = imported.invAdrenaline;
             invFlashbang = imported.invFlashbang;
             invNoiseMaker = imported.invNoiseMaker;
@@ -589,7 +600,7 @@ function importSave(event) {
 
 function resetProgress() {
     if (!confirm('Reset all tokens, upgrades, and items? Your previous save will remain in the backup slot.')) return;
-    tokens = 0; upgShoe = 0; upgHack = 0; upgQuick = 0; upgCoin = 0; invAdrenaline = 0; invFlashbang = 0; invNoiseMaker = 0; invBearTrap = 0; invBattery = 0; invBreathFilter = 0; invSignalScrambler = 0; invNeutralizer = 0; invRepairKit = 0; invFlare = 0;
+    tokens = 0; upgShoe = 0; upgHack = 0; upgQuick = 0; upgCoin = 0; upgDash = 0; invAdrenaline = 0; invFlashbang = 0; invNoiseMaker = 0; invBearTrap = 0; invBattery = 0; invBreathFilter = 0; invSignalScrambler = 0; invNeutralizer = 0; invRepairKit = 0; invFlare = 0;
     saveData();
     setSaveStatus('Progress reset; previous save kept as backup');
 }
@@ -626,6 +637,8 @@ function updateMenuData() {
     let btnCoin = document.getElementById('btnCoin');
     if (upgCoin >= 1) { btnCoin.innerText = "MAX"; btnCoin.disabled = true; }
     else { btnCoin.innerText = `150 T`; btnCoin.disabled = false; }
+    const btnDash = document.getElementById('btnDash');
+    if (btnDash) { btnDash.innerText = upgDash ? 'OWNED' : '300 T'; btnDash.disabled = Boolean(upgDash); btnDash.style.color = upgDash ? '#0f0' : ''; }
 }
 
 function renderStats() {
@@ -641,6 +654,19 @@ function selectCosmetic(type, value) {
 }
 
 function setCosmeticTab(tab) { cosmeticTab = tab; renderCosmetics(); }
+
+function cosmeticProgress(id) {
+    const unlocked = cosmetics.unlocked.includes(id);
+    if (unlocked) return 'UNLOCKED';
+    if (id === 'luffyHat') return `${Math.min(stats.generators, 56)}/56 generators repaired`;
+    if (id === 'afterimage') return stats.fastestWin ? `Best: ${(stats.fastestWin / 1000).toFixed(1)}s · target under 60s` : '0/1 under-one-minute win';
+    if (id === 'spongeMask') return `${Math.min(stats.boilerworksHardStreak, 3)}/3 Hard Boilerworks wins in a row`;
+    if (id === 'smileMask') return `${Math.min(stats.bestEndless, 10)}/10 Endless rounds`;
+    if (id === 'spark') return `${Math.min(stats.bestEndless, 3)}/3 Endless rounds`;
+    if (id === 'ghost') return `${Math.min(stats.itemFreeWins, 1)}/1 item-free win`;
+    if (id === 'amber') return stats.fastestWin ? `Best: ${(stats.fastestWin / 1000).toFixed(1)}s · target under 120s` : '0/1 under-two-minute win';
+    return '0/1 completion';
+}
 
 function renderCosmetics() {
     const groups = {
@@ -660,7 +686,8 @@ function renderCosmetics() {
             { id:'ghost', label:'Ghost Trail', desc:'A soft spectral after-trail.', how:'Win without items.', preview:'#b4d7ff' },
             { id:'ember', label:'Ember Trail', desc:'A warm containment glow.', how:'Catch Rhys in Crimson Containment.', preview:'#ffb347' },
             { id:'static', label:'Static Trail', desc:'A broken signal after-trail.', how:'Catch Caleb.', preview:'#d8eef2' },
-            { id:'circle', label:'Orbit Trail', desc:'Fading white circles follow each step.', how:'Catch Amine in The Parted Grid.', preview:'#fff' }
+            { id:'circle', label:'Orbit Trail', desc:'Fading white circles follow each step.', how:'Catch Amine in The Parted Grid.', preview:'#fff' },
+            { id:'afterimage', label:'Afterimage Trail', desc:'Blurred transparent copies follow you while moving.', how:'Win any level in under one minute.', preview:'#bde8ff' }
         ]},
         hats: { type:'hat', items:[
             { id:'none', label:'No Hat', desc:'No headwear equipped.', how:'Available from the start.', preview:'#888' },
@@ -672,14 +699,14 @@ function renderCosmetics() {
         masks: { type:'mask', items:[
             { id:'none', label:'No Mask', desc:'No face covering equipped.', how:'Available from the start.', preview:'#888' },
             { id:'idiotMask', label:'Idiot Mask', desc:'A smile that appears after too many mistakes.', how:'Fail the same generator task three times in one run.', preview:'#fff', image:'idiot-mask.png' },
-            { id:'spongeMask', label:'SpongeBob Mask', desc:'A cheerful face for deeply uncheerful places.', how:'Complete a full Endless Hotel shift while reporting every required employee assignment.', preview:'#f6d34a', image:'spongebob-mask.png' },
+            { id:'spongeMask', label:'SpongeBob Mask', desc:'A cheerful face for deeply uncheerful places.', how:'Complete Boilerworks three times in a row on Hard.', preview:'#f6d34a', image:'spongebob-mask.png' },
             { id:'jordanMask', label:'Jordan Mask', desc:'Jordan’s face, earned through his own color.', how:'Catch Jordan while Green is equipped.', preview:'#6cce77', image:'jordan-mask.png' },
             { id:'smileMask', label:'Smile Mask', desc:'A grin earned through endurance.', how:'Clear Endless Round 10.', preview:'#fff', image:'smile-mask.png' }
         ]}
     };
     const content = document.getElementById('cosmeticsContent'); if (!content) return;
     const group = groups[cosmeticTab] || groups.colors;
-    content.innerHTML = `<div class="cosmetic-book"><div class="cosmetic-grid">${group.items.map(item => { const unlocked = cosmetics.unlocked.includes(item.id); const equipped = cosmetics[group.type] === item.id; const preview = item.image ? `<img src="assets/${item.image}" alt="${item.label} preview">` : `<span style="color:${item.preview}; text-shadow:0 0 14px ${item.preview};">● ${item.label.toUpperCase()}</span>`; return `<div class="cosmetic-card"><div class="cosmetic-preview">${preview}</div><b>${item.label}</b><small>${item.desc}<br><span style="color:#d4c09a">How: ${item.how}</span></small><button ${unlocked ? '' : 'disabled'} onclick="selectCosmetic('${group.type}','${item.id}')">${equipped ? 'EQUIPPED' : unlocked ? 'EQUIP' : 'LOCKED'}</button></div>`; }).join('')}</div></div>`;
+    content.innerHTML = `<div class="cosmetic-book"><div class="cosmetic-grid">${group.items.map(item => { const unlocked = cosmetics.unlocked.includes(item.id); const equipped = cosmetics[group.type] === item.id; const preview = item.image ? `<img src="assets/${item.image}" alt="${item.label} preview">` : `<span style="color:${item.preview}; text-shadow:0 0 14px ${item.preview};">● ${item.label.toUpperCase()}</span>`; return `<div class="cosmetic-card"><div class="cosmetic-preview">${preview}</div><b>${item.label}</b><small>${item.desc}<br><span style="color:#d4c09a">How: ${item.how}</span><br><span class="cosmetic-progress">Progress: ${cosmeticProgress(item.id)}</span></small><button ${unlocked ? '' : 'disabled'} onclick="selectCosmetic('${group.type}','${item.id}')">${equipped ? 'EQUIPPED' : unlocked ? 'EQUIP' : 'LOCKED'}</button></div>`; }).join('')}</div></div>`;
 }
 
 function renderCollection() {
@@ -812,7 +839,7 @@ function setShopTab(tab) {
     shopTab = tab;
     document.querySelectorAll('#shopMenu .shop-item').forEach(item => {
         const text = item.textContent;
-        const upgrade = /Running Shoes|Hacker Gloves|Quick Hands|Lucky Coin/.test(text);
+        const upgrade = /Running Shoes|Hacker Gloves|Quick Hands|Lucky Coin|Dash Module/.test(text);
         item.style.display = tab === 'maps' ? 'none' : ((tab === 'upgrades') === upgrade ? 'flex' : 'none');
     });
     renderMapIntelShop(tab);
@@ -833,6 +860,7 @@ function buyMapIntel(mapId, cost) { if (mapIntel.includes(mapId) || !(mapMastery
 function openShop() { showMenu('shopMenu'); setShopTab(shopTab); }
 
 function buyUpgrade(type, baseCost) {
+    if (type === 'dash' && upgDash) return;
     let cost = baseCost;
     if (type === 'shoe') cost += (upgShoe * 50);
     if (type === 'hack') cost += (upgHack * 75);
@@ -844,6 +872,7 @@ function buyUpgrade(type, baseCost) {
         if (type === 'hack' && upgHack < 2) upgHack++;
         if (type === 'quick' && upgQuick < 3) upgQuick++;
         if (type === 'coin' && upgCoin < 1) upgCoin++;
+        if (type === 'dash' && upgDash < 1) upgDash = 1;
         saveData();
     }
 }
@@ -902,7 +931,7 @@ let rhysSeal = null, rhysChest = null, rhysChestKey = null, rhysBreakWall = null
 let forestCabins = [], forestBreakers = [], forestTrees = [], forestBeaconBattery = null, forestWatchtower = null, forestBeaconActive = false, forestFogTimer = 0, forestFogCooldown = 0, noahState = 'hidden', noahTimer = 0, noahPathTimer = 0, noahCharge = null, noahLightningCooldown = 0, noahLightningZones = [], noahLightningPending = [], noahLightningWarning = 0, noahLightningFlashes = 0, noahShockTimer = 0;
 let amineHoles = [], amineFireZones = [], amineExitGate = null, amineFocus = false, amineVisibleTimer = 0, amineFlashCooldown = 0, amineTeleportCooldown = 0, amineCallCount = 1, amineCallsRemaining = 0, amineCallActive = false, amineTurret = null, amineBullets = [], amineBurnTimer = 0;
 let luckyBlocks = [];
-let playerTrail = [];
+let playerTrail = [], trailLastX = 0, trailLastY = 0;
 let hotelEmployeesRequired = 3, hotelDialogueOpen = false, hotelTaskSerial = 0;
 let nearFuse = null, nearHide = null, nearValve = null, nearBoiler = false, nearEmployee = null, nearElevator = false, nearHotelTask = null, nearRhysSeal = false, nearRhysKey = false, nearRhysChest = false, nearRhysTrap = false;
 let player = { x: 0, y: 0, r: 12, baseSpeed: 3.8, speed: 3.8, boostTimer: 0, stunTimer: 0, crouching: false, breathing: false, breathTimer: 0, breathCooldown: 0, heat: 0, inHeatZone: false, hidden: false, hideTimer: 0, hideCompromised: false };
@@ -918,7 +947,7 @@ let lastSingleMutation = null;
 // AI & Item Variables
 let jordanState = 'saboteur', mimicTimer = 0, stateTimer = 0, jordanSabotageCooldown = 0, bassamState = 'roaming', bassamRevealPending = false, bassamTrapTaskId = null, bassamFakeTask = null, bassamStaffDepartment = 'FRONT DESK', bassamFakeLine = '', bassamAmbushActive = false, bassamRelentlessChase = false, bassamLostTimer = 0, bassamAmbushCooldown = 0;
 let hotelTaskGame = null;
-let empTimer = 0, empWarning = 0, empActive = 0, flashAlpha = 0, scramblerTimer = 0, repairAssist = 0, flareTimer = 0;
+let empTimer = 0, empWarning = 0, empActive = 0, flashAlpha = 0, scramblerTimer = 0, repairAssist = 0, flareTimer = 0, dashCooldown = 0;
 let powerOutageTimer = 0, powerOutageCooldown = 0, flickerTimer = 0, flickerCooldown = 0, emergencyTimer = 0, emergencyCooldown = 0, outageFlickerTimer = 0;
 let noiseTarget = null, noiseTimer = 0, bearTraps = [], heatZones = [], heatEventCooldown = 0;
 let goopZones = [], goopShots = [], rhysSpitCooldown = 0, rhysDashTimer = 0, rhysChargeWindup = 0, rhysDashCooldown = 0, rhysDashTarget = null, rhysEventCooldown = 900, rhysSweepTimer = 0, rhysSweepRadius = 0, rhysPressureZones = [];
@@ -992,6 +1021,17 @@ function useFlare() {
     saveData(); updateHUD(); showMsg('<span style="color:#ffbf70">EMERGENCY FLARE · THEY HEARD IT</span>', 900);
 }
 
+function useDash() {
+    if (!upgDash || (state !== 1 && state !== 3) || player.hidden || player.stunTimer > 0 || dashCooldown > 0 || hotelDialogueOpen) return;
+    let dx = (keys.d ? 1 : 0) - (keys.a ? 1 : 0), dy = (keys.s ? 1 : 0) - (keys.w ? 1 : 0);
+    if (!dx && !dy) return;
+    if (dx && dy) { dx *= .707; dy *= .707; }
+    moveEntity(player, dx * 58, dy * 58);
+    dashCooldown = 360;
+    noiseTarget = { x: player.x, y: player.y }; noiseTimer = 150;
+    playSound('tick'); showMsg('<span style="color:#8ff">DASH</span>', 500); updateHUD();
+}
+
 function carriedSupplyCount() { return runLoadoutRemaining ? Object.values(runLoadoutRemaining).reduce((sum, amount) => sum + amount, 0) : invAdrenaline + invFlashbang + invNoiseMaker + invBearTrap + invBattery + invBreathFilter + invSignalScrambler + invNeutralizer + invRepairKit + invFlare; }
 function addSupply(type) {
     if (!ITEM_DEFINITIONS[type] || carriedSupplyCount() >= 8) return false;
@@ -1030,7 +1070,9 @@ function openLuckyBlock(block) {
 function toggleHide() {
     if (state !== 1 || !nearHide || player.stunTimer > 0) return;
     if (!player.hidden) {
-        const wasSeenEntering = monsterCanSeeUnhiddenPlayer();
+        // Hotel hiding spots are valid counterplay even with Bassam or a
+        // multi-monster roster. Other maps retain the seen-entering warning.
+        const wasSeenEntering = currentMapId === 'hotel' ? false : monsters.some(enemy => monsterCanSeeUnhiddenPlayer(enemy));
         player.hidden = true;
         player.hideTimer = 1200;
         player.hideCompromised = wasSeenEntering;
@@ -1270,7 +1312,8 @@ window.addEventListener('keydown', (e) => {
     if ((state === 1 || state === 3) && k === 'n') useNoiseMaker();
     if ((state === 1 || state === 3) && k === 't') placeBearTrap();
     if ((state === 1 || state === 3) && k === 'r') useBattery();
-    if ((state === 1 || state === 3) && k === 'q') useSignalScrambler();
+    if ((state === 1 || state === 3) && k === 'q') useDash();
+    if ((state === 1 || state === 3) && k === 'x') useSignalScrambler();
     if (state === 1 && k === 'g') useNeutralizer();
     if (state === 1 && k === 'k') useRepairKit();
     if ((state === 1 || state === 3) && k === 'l') useFlare();
@@ -1632,10 +1675,14 @@ function generateHotel() {
         if (!placed) continue;
         rooms.push(placed); carveHotelRoom(placed); connectHotelRooms(parent, placed);
     }
-    // Add a few room-to-room links so each wing has alternate routes, never isolated hall ends.
-    for (let i = 0; i < 4; i++) {
-        const a = rooms[Math.floor(Math.random() * rooms.length)], b = rooms[Math.floor(Math.random() * rooms.length)];
-        if (a !== b && Math.abs(a.c - b.c) + Math.abs(a.r - b.r) < 32) connectHotelRooms(a, b);
+    // Add deliberate loops between nearby wings. The main tree still leaves a
+    // few short dead ends, but important rooms gain alternate routes.
+    for (let i = 0; i < 7; i++) {
+        for (let attempt = 0; attempt < 24; attempt++) {
+            const a = rooms[Math.floor(Math.random() * rooms.length)], b = rooms[Math.floor(Math.random() * rooms.length)];
+            const distance = Math.abs(a.c - b.c) + Math.abs(a.r - b.r);
+            if (a !== b && distance >= 12 && distance < 48) { connectHotelRooms(a, b); break; }
+        }
     }
     for (const room of rooms) {
         room.x = room.c * TS + TS / 2; room.y = room.r * TS + TS / 2;
@@ -2318,8 +2365,8 @@ function startGame(diffLevel) {
         const kit = customLoadouts[Number(selectedLoadout.at(-1)) - 1] || {};
         runLoadoutRemaining = Object.fromEntries(Object.entries(kit).map(([id, amount]) => [id, Math.min(amount, getOwnedItemCount(id))]));
     }
-    playerTrail = [];
-    player.boostTimer = 0; player.stunTimer = 0; player.crouching = false; player.breathing = false; player.breathTimer = 0; player.breathCooldown = 0; player.heat = 0; player.inHeatZone = false; player.hidden = false; player.hideTimer = 0; player.hideCompromised = false;
+    playerTrail = []; trailLastX = player.x; trailLastY = player.y;
+    player.boostTimer = 0; player.stunTimer = 0; player.crouching = false; player.breathing = false; player.breathTimer = 0; player.breathCooldown = 0; player.heat = 0; player.inHeatZone = false; player.hidden = false; player.hideTimer = 0; player.hideCompromised = false; dashCooldown = 0;
     ambienceClock = 0;
     camera.targetZoom = 1.0; camera.zoom = 1.0;
     nearGen = null; nearValve = null; nearBoiler = false; flashAlpha = 0;
@@ -2556,7 +2603,7 @@ function startGame(diffLevel) {
         } else if (!tuneGeneratorAssigned && roll < (currentDiff === 0 ? .42 : currentDiff === 1 ? .58 : .74)) {
             generator.type = 'tune';
             tuneGeneratorAssigned = true;
-        } else if (!rapidGeneratorAssigned && roll < .82) {
+        } else if (!rapidGeneratorAssigned && !isMobileClient() && roll < .82) {
             generator.type = 'rapid'; rapidGeneratorAssigned = true;
         } else if (!simonGeneratorAssigned) {
             generator.type = 'simon'; simonGeneratorAssigned = true;
@@ -2597,15 +2644,18 @@ function endGame(isWin, sourceMonster = monster) {
         showMsg('RESTORE ALL GENERATORS, RECOVER THE SEAL, AND ARM THE TRAP', 1400);
         return;
     }
+    if (isWin && currentMapId === 'boilerworks' && currentDiff === 2) stats.boilerworksHardStreak = Math.min(3, stats.boilerworksHardStreak + 1);
+    else if (!isWin || currentMapId !== 'boilerworks') stats.boilerworksHardStreak = 0;
+    if (stats.boilerworksHardStreak >= 3) unlockCosmetic('spongeMask');
     if (isWin && gameMode === 'endless') {
         const endlessMultiplier = 1 + Math.min(1.5, Math.max(0, endlessRound - 1) * 0.15);
         const earned = Math.floor(rewardTokens * (upgCoin > 0 ? 1.5 : 1) * endlessMultiplier);
         tokens += earned;
         stats.wins++; stats.caught++; stats.bestEndless = Math.max(stats.bestEndless, endlessRound);
+        if (runItemsUsed === 0) stats.itemFreeWins++;
         if (endlessRound >= 3) unlockCosmetic('spark');
         if (endlessRound >= 10) unlockCosmetic('smileMask');
         if (sourceMonster.name === 'BASSAM' && currentMapId === 'hotel' && bassamRelentlessChase) unlockCosmetic('krustyHat');
-        if (currentMapId === 'hotel' && reportedHotelEmployees().length >= hotelEmployeesRequired) unlockCosmetic('spongeMask');
         saveData();
         playSound('success');
         endlessRound++;
@@ -2632,10 +2682,12 @@ function endGame(isWin, sourceMonster = monster) {
         let earned = Math.floor(rewardTokens * (upgCoin > 0 ? 1.5 : 1) * endlessMultiplier);
         tokens += earned;
         stats.wins++; stats.caught++;
+        if (runItemsUsed === 0) stats.itemFreeWins++;
         stats.mostGenerators = Math.max(stats.mostGenerators, totalGens);
         const elapsed = performance.now() - runStartedAt;
         if (!stats.fastestWin || elapsed < stats.fastestWin) stats.fastestWin = elapsed;
         if (elapsed < 120000) unlockCosmetic('amber');
+        if (elapsed < 60000) unlockCosmetic('afterimage');
         if (currentDiff === 2) unlockCosmetic('crimson');
         if (sourceMonster.name === 'MALAKAI') unlockCosmetic('violet');
         if (sourceMonster.name === 'JORDAN') { unlockCosmetic('green'); if (cosmetics.color === 'green') unlockCosmetic('jordanMask'); }
@@ -2647,7 +2699,6 @@ function endGame(isWin, sourceMonster = monster) {
         if (sourceMonster.name === 'NOAH') { advanceDailyObjective('noah'); if (currentMapId === 'forest') unlockCosmetic('noahCap'); }
         if (sourceMonster.name === 'CALEB') { unlockCosmetic('sepia'); unlockCosmetic('static'); }
         if (sourceMonster.name === 'BASSAM' && currentMapId === 'hotel' && bassamRelentlessChase) unlockCosmetic('krustyHat');
-        if (currentMapId === 'hotel' && gameMode === 'endless' && reportedHotelEmployees().length >= hotelEmployeesRequired) unlockCosmetic('spongeMask');
         if (gameMode === 'challenge') { stats.challengesCleared++; advanceDailyObjective('challenge'); if (runItemsUsed === 0) unlockCosmetic('cowboyHat'); }
         if (!mapMastery[currentMapId]) mapMastery[currentMapId] = [false, false, false];
         mapMastery[currentMapId][currentDiff] = true;
@@ -2818,7 +2869,7 @@ function updateHUD() {
     if (itemAllowed('bearTrap') && invBearTrap > 0) invText.push(`Trap: ${invBearTrap} (T)`);
     if (itemAllowed('battery') && invBattery > 0) invText.push(`Battery: ${invBattery} (R)`);
     if (itemAllowed('breathFilter') && invBreathFilter > 0) invText.push(`Filter: ${invBreathFilter}`);
-    if (itemAllowed('signalScrambler') && invSignalScrambler > 0) invText.push(`Scrambler: ${invSignalScrambler} (Q)${scramblerTimer > 0 ? ' ACTIVE' : ''}`);
+    if (itemAllowed('signalScrambler') && invSignalScrambler > 0) invText.push(`Scrambler: ${invSignalScrambler} (X)${scramblerTimer > 0 ? ' ACTIVE' : ''}`);
     if (itemAllowed('neutralizer') && invNeutralizer > 0) invText.push(`Neutralizer: ${invNeutralizer} (G)`);
     if (itemAllowed('repairKit') && invRepairKit > 0) invText.push(`Repair Kit: ${invRepairKit} (K)${repairAssist ? ' READY' : ''}`);
     if (itemAllowed('flare') && invFlare > 0) invText.push(`Flare: ${invFlare} (L)${flareTimer > 0 ? ' LIT' : ''}`);
@@ -2827,6 +2878,7 @@ function updateHUD() {
     if (player.breathing) invText.push(`BREATH: ${Math.ceil(player.breathTimer / 60)}s`);
     if (fuses.some(fuse => !fuse.collected)) invText.push(`Fuses: ${fuses.filter(fuse => !fuse.collected).length}`);
     if (player.hidden) invText.push(`HIDDEN: ${Math.ceil(player.hideTimer / 60)}s`);
+    if (upgDash) invText.push(`Dash: ${dashCooldown > 0 ? `${Math.ceil(dashCooldown / 60)}s` : 'READY'} (Q)`);
     document.getElementById('inventory').innerText = invText.join(' | ');
     
     let mText = monsters.length > 1 ? '[Open roster]' : (monster.activeMutations.length > 0 ? `[${monster.activeMutations.join(', ')}]` : '[None]');
@@ -2988,13 +3040,14 @@ function separateMonsters() {
 }
 
 function update() {
-    if (mobileMenuPaused) return;
+    if (mobileMenuPaused || hotelDialogueOpen) return;
     if (![1,3,5,6,7,9,10,11].includes(state)) return;
 
     if (flashAlpha > 0) flashAlpha -= 0.02;
     ambienceClock++;
     if (scramblerTimer > 0) scramblerTimer--;
     if (flareTimer > 0) flareTimer--;
+    if (dashCooldown > 0) dashCooldown--;
     if (jordanSabotageCooldown > 0) jordanSabotageCooldown--;
     if (state===9) { rapidTimer--; if(rapidTimer<=0) failGeneratorTask('RESPONSE ARRAY'); }
     if (state===10 && simonFlashTimer > 0) simonFlashTimer--;
@@ -3109,9 +3162,13 @@ function update() {
         if (dx !== 0 && dy !== 0) { dx *= 0.707; dy *= 0.707; }
         if (dx !== 0 || dy !== 0) moveEntity(player, dx, dy);
     }
-    if ((state === 1 || state === 3) && !player.hidden && ambienceClock % 3 === 0) {
-        playerTrail.push({ x: player.x, y: player.y });
-        if (playerTrail.length > 22) playerTrail.shift();
+    if ((state === 1 || state === 3) && !player.hidden) {
+        const playerMoving = keys.w || keys.a || keys.s || keys.d || Math.hypot(player.x - trailLastX, player.y - trailLastY) > .25;
+        if (playerMoving && ambienceClock % 2 === 0) {
+            playerTrail.push({ x: player.x, y: player.y });
+            if (playerTrail.length > 24) playerTrail.shift();
+        }
+        trailLastX = player.x; trailLastY = player.y;
     }
 
     nearGen = null; nearFuse = null; nearHide = null; nearValve = null; nearBoiler = false; nearEmployee = null; nearElevator = false; nearHotelTask = null; nearRhysSeal = false; nearRhysKey = false; nearRhysChest = false; nearRhysTrap = false;
@@ -3782,7 +3839,19 @@ function draw() {
 
     if (!player.hidden) {
         const playerColors = { blue:'#00f', crimson:'#d22', violet:'#a64dff', green:'#19c76b', amber:'#e7a21a', gold:'#e9ca35', sepia:'#800', white:'#f6f6f6' };
-        if (cosmetics.trail !== 'none') {
+        if (cosmetics.trail === 'afterimage') {
+            ctx.save();
+            ctx.filter = 'blur(2px)';
+            for (let index = 0; index < playerTrail.length; index += 2) {
+                const point = playerTrail[index];
+                const alpha = Math.max(.035, (index / playerTrail.length) * .24);
+                ctx.globalAlpha = alpha;
+                ctx.fillStyle = playerColors[cosmetics.color] || '#bde8ff';
+                ctx.beginPath(); ctx.arc(point.x, point.y, player.r * (0.78 + index / Math.max(1, playerTrail.length) * .18), 0, Math.PI * 2); ctx.fill();
+            }
+            ctx.restore(); ctx.globalAlpha = 1;
+        }
+        if (cosmetics.trail !== 'none' && cosmetics.trail !== 'afterimage') {
             const trailColor = cosmetics.trail === 'spark' ? 'rgba(255,238,86,.82)' : cosmetics.trail === 'ember' ? 'rgba(255,70,24,.78)' : cosmetics.trail === 'static' ? 'rgba(185,245,255,.65)' : cosmetics.trail === 'circle' ? 'rgba(255,255,255,.78)' : 'rgba(180,210,255,.42)';
             ctx.strokeStyle = trailColor; ctx.lineWidth = cosmetics.trail === 'ghost' ? 10 : cosmetics.trail === 'ember' ? 4 : 6; ctx.lineCap = cosmetics.trail === 'static' ? 'butt' : 'round'; if (cosmetics.trail === 'static') ctx.setLineDash([8, 7]); ctx.beginPath();
             playerTrail.forEach((point, index) => { if (index === 0) ctx.moveTo(point.x, point.y); else ctx.lineTo(point.x, point.y); }); ctx.stroke();
@@ -3794,10 +3863,10 @@ function draw() {
         ctx.fillStyle = player.boostTimer > 0 ? '#0ff' : (player.stunTimer > 0 ? '#ff0' : (playerColors[cosmetics.color] || '#00f'));
         ctx.beginPath(); ctx.arc(player.x, player.y, player.r, 0, Math.PI * 2); ctx.fill();
         if (cosmetics.color === 'sepia' && player.boostTimer <= 0 && player.stunTimer <= 0) { ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(player.x-player.r*.3, player.y-2, 2, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(player.x+player.r*.3, player.y-2, 2, 0, Math.PI*2); ctx.fill(); }
-        const equippedHat = hatImages[cosmetics.hat];
-        if (cosmetics.hat !== 'none' && equippedHat?.complete) { ctx.drawImage(equippedHat, player.x - player.r * 2, player.y - player.r * 2.15, player.r * 4, player.r * 4); }
         const equippedMask = maskImages[cosmetics.mask];
         if (cosmetics.mask !== 'none' && equippedMask?.complete) { ctx.drawImage(equippedMask, player.x - player.r * 2, player.y - player.r * 2.15, player.r * 4, player.r * 4); }
+        const equippedHat = hatImages[cosmetics.hat];
+        if (cosmetics.hat !== 'none' && equippedHat?.complete) { ctx.drawImage(equippedHat, player.x - player.r * 2, player.y - player.r * 2.15, player.r * 4, player.r * 4); }
     }
     ctx.restore();
 
@@ -3972,7 +4041,7 @@ function openMobileActionMenu(kind) {
     } else if (kind === 'items') {
         title.textContent = 'ITEMS';
         const usable = (type, count) => itemAllowed(type) && count > 0 ? '' : 'disabled';
-        content.innerHTML = `<button ${usable('adrenaline', invAdrenaline)} onclick="mobileKey(' '); closeMobileActionMenu()">ADRENALINE (${invAdrenaline})</button><button ${usable('flashbang', invFlashbang)} onclick="mobileKey('f'); closeMobileActionMenu()">FLASHBANG (${invFlashbang})</button><button ${usable('noiseMaker', invNoiseMaker)} onclick="mobileKey('n'); closeMobileActionMenu()">NOISE MAKER (${invNoiseMaker})</button><button ${usable('bearTrap', invBearTrap)} onclick="mobileKey('t'); closeMobileActionMenu()">BEAR TRAP (${invBearTrap})</button><button ${usable('battery', invBattery)} onclick="mobileKey('r'); closeMobileActionMenu()">EMERGENCY BATTERY (${invBattery})</button><button ${usable('signalScrambler', invSignalScrambler)} onclick="mobileKey('q'); closeMobileActionMenu()">SIGNAL SCRAMBLER (${invSignalScrambler})</button><button ${usable('neutralizer', invNeutralizer)} onclick="mobileKey('g'); closeMobileActionMenu()">GOOP NEUTRALIZER (${invNeutralizer})</button><button ${usable('repairKit', invRepairKit)} onclick="mobileKey('k'); closeMobileActionMenu()">REPAIR KIT (${invRepairKit})</button><button ${usable('flare', invFlare)} onclick="mobileKey('l'); closeMobileActionMenu()">EMERGENCY FLARE (${invFlare})</button>`;
+        content.innerHTML = `<button ${usable('adrenaline', invAdrenaline)} onclick="mobileKey(' '); closeMobileActionMenu()">ADRENALINE (${invAdrenaline})</button><button ${usable('flashbang', invFlashbang)} onclick="mobileKey('f'); closeMobileActionMenu()">FLASHBANG (${invFlashbang})</button><button ${usable('noiseMaker', invNoiseMaker)} onclick="mobileKey('n'); closeMobileActionMenu()">NOISE MAKER (${invNoiseMaker})</button><button ${usable('bearTrap', invBearTrap)} onclick="mobileKey('t'); closeMobileActionMenu()">BEAR TRAP (${invBearTrap})</button><button ${usable('battery', invBattery)} onclick="mobileKey('r'); closeMobileActionMenu()">EMERGENCY BATTERY (${invBattery})</button><button ${usable('signalScrambler', invSignalScrambler)} onclick="mobileKey('x'); closeMobileActionMenu()">SIGNAL SCRAMBLER (${invSignalScrambler})</button><button ${usable('neutralizer', invNeutralizer)} onclick="mobileKey('g'); closeMobileActionMenu()">GOOP NEUTRALIZER (${invNeutralizer})</button><button ${usable('repairKit', invRepairKit)} onclick="mobileKey('k'); closeMobileActionMenu()">REPAIR KIT (${invRepairKit})</button><button ${usable('flare', invFlare)} onclick="mobileKey('l'); closeMobileActionMenu()">EMERGENCY FLARE (${invFlare})</button>`;
     }
 }
 
@@ -3984,6 +4053,8 @@ function updateMobileSkillCheckButton() {
     button.disabled = !active || scDelay > 0;
     button.textContent = scDelay > 0 ? 'READY...' : state === 7 ? 'ALIGN' : 'HIT';
     const focus=document.getElementById('touchFocus'); if(focus) focus.style.display=monster.name==='AMINE'&&state===1?'block':'none';
+    const dash=document.getElementById('touchDash'); if(dash) { dash.style.display=upgDash && (state===1 || state===3) ? 'block' : 'none'; dash.disabled=!upgDash || dashCooldown>0; dash.textContent=dashCooldown>0 ? `${Math.ceil(dashCooldown/60)}s` : 'DASH'; }
+    const mapButton=document.getElementById('mapButton'); if(mapButton) mapButton.style.display=mapIntel.includes(currentMapId) && (state===1 || state===3) ? 'block' : 'none';
 }
 
 
@@ -4075,6 +4146,7 @@ function updateMobileSkillCheckButton() {
     }
 
     bindAction('touchInteract', 'e');
+    document.getElementById('touchDash')?.addEventListener('pointerdown', event => { event.preventDefault(); useDash(); });
     document.getElementById('touchAbilities')?.addEventListener('pointerdown', event => { event.preventDefault(); openMobileActionMenu('abilities'); });
     document.getElementById('touchItems')?.addEventListener('pointerdown', event => { event.preventDefault(); openMobileActionMenu('items'); });
     document.getElementById('touchSkillCheck')?.addEventListener('pointerdown', event => {
