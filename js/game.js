@@ -103,7 +103,7 @@ function playSound(type) {
 }
 
 // Versioned local progress with a backup copy and import/export support.
-const GAME_VERSION = '2.9.2';
+const GAME_VERSION = '2.9.3';
 const SAVE_SCHEMA_VERSION = 10;
 const SAVE_KEY = 'br_save_v2';
 const SAVE_BACKUP_KEY = 'br_save_backup_v2';
@@ -1821,6 +1821,16 @@ function generateSubway() {
     subwayPanels = []; subwayTrains = []; subwayTrackRows = []; subwayTrackSegments = []; subwayDecor = []; subwaySigns = []; subwayTrainPaths = []; routeBoard = null;
     subwayTrap = null; subwayControl = null; subwayRouteReady = false; subwayTrapArmed = false; subwayTrainWarning = 0; subwayTrainTriggered = false; subwayCommitTimer = 0; subwayCommitTarget = null;
     const stations = [];
+    const decorFootprints = [];
+    const decorSizes = { bench:[68,30], poster:[40,54], machine:[32,54], column:[32,58], booth:[68,58], crate:[30,26], turnstile:[32,32], luggage:[30,24], control:[60,54] };
+    const addDecor = (kind, x, y, extra = {}) => {
+        const [width, height] = decorSizes[kind] || [30,30];
+        const footprint = { left:x-width/2, right:x+width/2, top:y-height/2, bottom:y+height/2 };
+        // Decorations are cosmetic; skip one rather than ever stacking it over a
+        // booth, another prop, panel, or control room interaction.
+        if (decorFootprints.some(other => footprint.left < other.right + 6 && footprint.right > other.left - 6 && footprint.top < other.bottom + 6 && footprint.bottom > other.top - 6)) return false;
+        decorFootprints.push(footprint); subwayDecor.push({ kind, x, y, ...extra }); return true;
+    };
     const carveRoom = (type, c, r, width, height) => {
         const room = { type, c, r, width, height, x: c * TS + TS / 2, y: r * TS + TS / 2 };
         carveBoilerRect(c, r, width, height); rooms.push(room); return room;
@@ -1846,13 +1856,15 @@ function generateSubway() {
         station.index = index + 1; stations.push(station);
         [-5, -2, 2, 5].forEach(offset => addTrack(point.c - 9, point.r + offset, point.c + 9, point.r + offset, true));
         subwaySigns.push({ x:station.x, y:station.y - 150, text:`PLATFORM ${index + 1} · ${index === stationCount - 1 ? 'LAST LINE' : 'TRANSFER'}` });
-        subwayDecor.push({ kind:'bench', x:station.x - 190, y:station.y - 126 }, { kind:'bench', x:station.x + 190, y:station.y + 126 }, { kind:'poster', x:station.x - 35, y:station.y - 137 }, { kind:'machine', x:station.x + 300, y:station.y - 105 }, { kind:'column', x:station.x - 290, y:station.y }, { kind:'column', x:station.x + 290, y:station.y });
+        addDecor('bench', station.x - 190, station.y - 126); addDecor('bench', station.x + 190, station.y + 126);
+        addDecor('poster', station.x - 35, station.y - 137); addDecor('machine', station.x + 300, station.y - 105);
+        addDecor('column', station.x - 290, station.y); addDecor('column', station.x + 290, station.y);
         const direction = index % 2 ? -1 : 1;
         const booth = carveRoom('ticket_booth', point.c + direction * 13, point.r - 12, 6, 5);
-        booth.station = station; carveBoilerCorridor(booth, station); subwayDecor.push({ kind:'booth', x:booth.x, y:booth.y });
+        booth.station = station; carveBoilerCorridor(booth, station); addDecor('booth', booth.x, booth.y);
         if (Math.random() < .8) {
             const service = carveRoom('service_room', point.c - direction * 14, point.r + 12, 7, 5);
-            service.station = station; carveBoilerCorridor(service, station); subwayDecor.push({ kind:'crate', x:service.x + 42, y:service.y + 18 }); hidingSpots.push({ x:service.x - 42, y:service.y, occupied:false });
+            service.station = station; carveBoilerCorridor(service, station); addDecor('crate', service.x + 42, service.y + 18); hidingSpots.push({ x:service.x - 42, y:service.y, occupied:false });
         }
     });
     // Two parallel lines follow the same bent route.  A player can read the pair as
@@ -1877,7 +1889,7 @@ function generateSubway() {
     carveBoilerCorridor(entryHall, stations[0]);
     const finalStation = stations.at(-1);
     subwayRouteMinX = Math.min(...routeA.map(point => point.x)) * TS; subwayRouteMaxX = Math.max(...routeA.map(point => point.x)) * TS;
-    const control = carveRoom('control_room', finalStation.c + 13, finalStation.r - 12, 7, 6);
+    const control = carveRoom('control_room', finalStation.c + 14, finalStation.r + 13, 7, 6);
     carveBoilerCorridor(control, finalStation);
     rebuildFloors();
 
@@ -1888,10 +1900,8 @@ function generateSubway() {
     const panelCount = Math.min(panelSlots.length, 2 + currentDiff + (Math.random() < .5 ? 1 : 0));
     const panelNames = ['RESTORE PLATFORM SIGNS','ALIGN THE TRACK SWITCH','CLEAR THE SIGNAL RELAY','VERIFY DEPARTURE BOARD','RESET TUNNEL CIRCUIT'];
     subwayPanels = panelSlots.slice(0, panelCount).map((room, index) => ({ x:room.x, y:room.y, room, label:panelNames[index], active:false, r:15, isSubway:true, type:'subway', stage:0, requiredStages:1 }));
-    subwayDecor.push(
-        { kind:'turnstile', x:entryHall.x + 38, y:entryHall.y - 55 }, { kind:'turnstile', x:entryHall.x + 82, y:entryHall.y - 55 },
-        { kind:'luggage', x:entryHall.x - 46, y:entryHall.y + 60 }, { kind:'control', x:control.x, y:control.y }
-    );
+    addDecor('turnstile', entryHall.x + 38, entryHall.y - 55); addDecor('turnstile', entryHall.x + 82, entryHall.y - 55);
+    addDecor('luggage', entryHall.x - 46, entryHall.y + 60); addDecor('control', control.x, control.y);
     subwayTrainPaths.forEach((path, pathIndex) => subwayTrains.push({ path, pathIndex, point:pathIndex ? path.length - 1 : 0, direction:pathIndex ? -1 : 1, x:path[pathIndex ? path.length-1 : 0].x*TS+TS/2, y:path[pathIndex ? path.length-1 : 0].y*TS+TS/2, speed:2.7+Math.random()*.5, length:TS*4.3, active:true, cooldown:0, trapTrain:false, soundCooldown:0, axis:'x' }));
     reserveObjectTile(Math.floor(subwayControl.x / TS), Math.floor(subwayControl.y / TS), 1);
     subwayPanels.forEach(panel => reserveObjectTile(Math.floor(panel.x / TS), Math.floor(panel.y / TS), 1));
@@ -1974,6 +1984,9 @@ function updateSubwayTrains() {
             ? Math.abs(entity.y - train.y) < 24 && Math.abs(entity.x - train.x) < train.length / 2
             : Math.abs(entity.x - train.x) < 24 && Math.abs(entity.y - train.y) < train.length / 2;
         if (hit(player)) { endGame(false, monster); return; }
+        // Passing trains are environmental danger for the player only.  They do
+        // not shove AI into walls or accidentally solve the Last Line objective.
+        if (!train.trapTrain) continue;
         for (const enemy of monsters) {
             if (!hit(enemy)) continue;
             if (train.trapTrain && subwayTrapArmed && enemy === monster) {
@@ -1981,7 +1994,6 @@ function updateSubwayTrains() {
                 setTimeout(() => { if (state === 8) endGame(true, enemy); }, 2200);
                 return;
             }
-            if (train.axis === 'x') enemy.x += train.direction * 28; else enemy.y += train.direction * 28; enemy.path = [];
         }
     }
     if (subwayTrapArmed && !subwayTrainTriggered && subwayCommitTimer <= 0 && subwayTrap && Math.abs(player.y - subwayTrap.y) < 42 && Math.abs(player.x - subwayTrap.x) < 130 && Math.hypot(player.x - monster.x, player.y - monster.y) < 310 && getLineOfSight(monster.x, monster.y, player.x, player.y)) {
@@ -2635,7 +2647,7 @@ function startGame(diffLevel) {
     } else if (currentMapId === 'amine' && gameMode !== 'survival') {
         monsterName = 'AMINE';
     } else if (currentMapId === 'subway' && gameMode !== 'survival') {
-        const subwayRoster = ['NIZAR', 'CALEB', 'MALAKAI', 'JORDAN', 'AESON'];
+        const subwayRoster = ['NIZAR', 'CALEB', 'MALAKAI', 'AESON'];
         monsterName = subwayRoster[Math.floor(Math.random() * subwayRoster.length)];
     } else if (currentMapId === 'boilerworks' && gameMode !== 'survival') {
         if (rand < 0.58) monsterName = 'AESON';
@@ -2653,6 +2665,8 @@ function startGame(diffLevel) {
         else if (rand > 0.25) monsterName = 'MALAKAI';
     }
     if (gameMode === 'survival' && survivalConfig) monsterName = survivalConfig.names[0];
+    // Jordan's generator-mimic loop does not belong in a no-generator rail map.
+    if (currentMapId === 'subway' && monsterName === 'JORDAN') monsterName = 'NIZAR';
 
     const monsterTiles = floors.filter(tile => {
         const x = tile.c * TS + TS / 2, y = tile.r * TS + TS / 2;
@@ -2761,11 +2775,12 @@ function startGame(diffLevel) {
     const requestedCount = modeMonsterCount();
     const survivalNames = survivalConfig?.names || [];
     for (let i = 1; i < requestedCount; i++) {
-        const name = gameMode === 'survival'
+        let name = gameMode === 'survival'
             ? survivalNames[i % survivalNames.length]
             : currentMapId === 'boilerworks'
                 ? ['JORDAN', 'CALEB', 'MALAKAI'][(endlessRound + i - 1) % 3]
                 : ['CALEB', 'MALAKAI', 'JORDAN'][(endlessRound + i - 1) % 3];
+        if (currentMapId === 'subway' && name === 'JORDAN') name = ['NIZAR', 'CALEB', 'MALAKAI', 'AESON'][i % 4];
         monsters.push(createExtraMonster(name, diffData, i));
     }
     
