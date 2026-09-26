@@ -3241,6 +3241,11 @@ function update() {
     updateHeat();
     const inAmineFire=currentMapId==='amine'&&amineFireZones.some(zone=>Math.hypot(player.x-zone.x,player.y-zone.y)<zone.radius); amineBurnTimer=inAmineFire?18:Math.max(0,amineBurnTimer-1);
     if(currentMapId==='amine'&&amineHoles.some(hole=>Math.hypot(player.x-hole.x,player.y-hole.y)<hole.radius+player.r*.4)){endGame(false,monster);return;}
+    // The open Amine gate is a physical exit: walking into it is enough to
+    // start the exposed final sequence. E remains supported as a fallback.
+    if (currentMapId === 'amine' && state === 1 && activeGens >= totalGens && amineExitGate && Math.hypot(player.x - amineExitGate.x, player.y - amineExitGate.y) < 62) {
+        beginAmineFinalChase();
+    }
     if(amineBurnTimer>0){heatOverlay||=document.getElementById('heatOverlay');if(heatOverlay){heatOverlay.style.opacity='.72';heatOverlay.style.backdropFilter=setOptimization?'blur(2px)':'blur(7px)';}}
     for (const zone of noahLightningZones) zone.life--;
     noahLightningZones = noahLightningZones.filter(zone => zone.life > 0);
