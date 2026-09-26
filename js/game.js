@@ -103,7 +103,7 @@ function playSound(type) {
 }
 
 // Versioned local progress with a backup copy and import/export support.
-const GAME_VERSION = '2.9.1';
+const GAME_VERSION = '2.9.2';
 const SAVE_SCHEMA_VERSION = 10;
 const SAVE_KEY = 'br_save_v2';
 const SAVE_BACKUP_KEY = 'br_save_backup_v2';
@@ -933,7 +933,7 @@ let hotelElevator = null, hotelLockdownTimer = 0, hotelEventCooldown = 0, hotelL
 let rhysSeal = null, rhysChest = null, rhysChestKey = null, rhysBreakWall = null, rhysTrap = null, rhysRoute = 'search', rhysSealCollected = false, rhysTrapArmed = false;
 let forestCabins = [], forestBreakers = [], forestTrees = [], forestBeaconBattery = null, forestWatchtower = null, forestBeaconActive = false, forestFogTimer = 0, forestFogCooldown = 0, noahState = 'hidden', noahTimer = 0, noahPathTimer = 0, noahCharge = null, noahLightningCooldown = 0, noahLightningZones = [], noahLightningPending = [], noahLightningWarning = 0, noahLightningFlashes = 0, noahShockTimer = 0;
 let amineHoles = [], amineFireZones = [], amineExitGate = null, amineFocus = false, amineVisibleTimer = 0, amineFlashCooldown = 0, amineTeleportCooldown = 0, amineCallCount = 1, amineCallsRemaining = 0, amineCallActive = false, amineTurret = null, amineBullets = [], amineBurnTimer = 0;
-let subwayPanels = [], subwayTrains = [], subwayTrackRows = [], subwayTrackSegments = [], subwayTrap = null, subwayControl = null, subwayRouteReady = false, subwayTrapArmed = false, subwayTrainWarning = 0, subwayTrainTriggered = false, subwayDecor = [], subwaySigns = [], subwayCommitTimer = 0, subwayCommitTarget = null, subwayRouteMinX = 0, subwayRouteMaxX = 0;
+let subwayPanels = [], subwayTrains = [], subwayTrackRows = [], subwayTrackSegments = [], subwayTrap = null, subwayControl = null, subwayRouteReady = false, subwayTrapArmed = false, subwayTrainWarning = 0, subwayTrainTriggered = false, subwayDecor = [], subwaySigns = [], subwayCommitTimer = 0, subwayCommitTarget = null, subwayRouteMinX = 0, subwayRouteMaxX = 0, subwayTrainPaths = [];
 let routeBoard = null;
 const subwayTrainAudio = new Audio('assets/cs-train-sound.mp3');
 subwayTrainAudio.preload = 'auto';
@@ -1818,62 +1818,71 @@ function generateAmineGrid() {
 function generateSubway() {
     map = Array.from({ length: ROWS }, () => Array(COLS).fill(1));
     rooms = []; hidingSpots = []; coolingValves = []; fuses = []; employees = []; reservedObjectTiles = new Set();
-    subwayPanels = []; subwayTrains = []; subwayTrackRows = []; subwayTrackSegments = []; subwayDecor = []; subwaySigns = []; routeBoard = null;
+    subwayPanels = []; subwayTrains = []; subwayTrackRows = []; subwayTrackSegments = []; subwayDecor = []; subwaySigns = []; subwayTrainPaths = []; routeBoard = null;
     subwayTrap = null; subwayControl = null; subwayRouteReady = false; subwayTrapArmed = false; subwayTrainWarning = 0; subwayTrainTriggered = false; subwayCommitTimer = 0; subwayCommitTarget = null;
-
-    const baseRow = 28 + (Math.random() < .5 ? -5 : 5);
-    const stationCount = 2 + (Math.random() < .58 ? 1 : 0);
-    const stationColumns = stationCount === 2 ? [24, 86] : [18, 59, 101];
     const stations = [];
     const carveRoom = (type, c, r, width, height) => {
         const room = { type, c, r, width, height, x: c * TS + TS / 2, y: r * TS + TS / 2 };
         carveBoilerRect(c, r, width, height); rooms.push(room); return room;
     };
-    const addTrackSegment = (row, start, end, active = false) => subwayTrackSegments.push({ row, start, end, active });
-    for (let index = 0; index < stationCount; index++) {
-        const c = stationColumns[index], station = carveRoom(`platform_${index + 1}`, c, baseRow, 19, 18);
+    const addTrack = (x1, y1, x2, y2, active = true) => {
+        subwayTrackSegments.push({ x1, y1, x2, y2, active });
+        const dx = Math.sign(x2 - x1), dy = Math.sign(y2 - y1), steps = Math.max(Math.abs(x2 - x1), Math.abs(y2 - y1));
+        for (let step = 0; step <= steps; step++) for (const side of [-1, 0, 1]) {
+            const c = x1 + dx * step + (dy ? side : 0), r = y1 + dy * step + (dx ? side : 0);
+            if (map[r]?.[c] !== undefined) map[r][c] = 0;
+        }
+    };
+    // Stations deliberately form an elbow.  Two-station runs still turn; three-station
+    // runs make a full transfer bend, so every seed has more than a straight hallway.
+    const stationCount = Math.random() < .56 ? 3 : 2;
+    const leftC = 20 + Math.floor(Math.random() * 7), transferC = 58 + Math.floor(Math.random() * 8);
+    const upperR = 18 + Math.floor(Math.random() * 8), lowerR = 45 + Math.floor(Math.random() * 8);
+    const stationPoints = stationCount === 3
+        ? (Math.random() < .5 ? [{c:leftC,r:upperR},{c:transferC,r:upperR},{c:transferC,r:lowerR}] : [{c:leftC,r:lowerR},{c:transferC,r:lowerR},{c:transferC,r:upperR}])
+        : (Math.random() < .5 ? [{c:leftC,r:upperR},{c:82 + Math.floor(Math.random()*7),r:lowerR}] : [{c:leftC,r:lowerR},{c:82 + Math.floor(Math.random()*7),r:upperR}]);
+    stationPoints.forEach((point, index) => {
+        const station = carveRoom(`platform_${index + 1}`, point.c, point.r, 19, 17);
         station.index = index + 1; stations.push(station);
-        const rows = [baseRow - 5, baseRow - 2, baseRow + 2, baseRow + 5];
-        rows.forEach(row => { if (!subwayTrackRows.includes(row)) subwayTrackRows.push(row); addTrackSegment(row, c - 9, c + 9, row === baseRow - 2 || row === baseRow + 2); });
-        subwaySigns.push({ x: station.x, y: station.y - 152, text: `PLATFORM ${index + 1} · ${index === stationCount - 1 ? 'LAST LINE' : 'TRANSFER'}` });
-        subwayDecor.push(
-            { kind:'bench', x:station.x - 220, y:station.y - 132 }, { kind:'bench', x:station.x + 190, y:station.y + 132 },
-            { kind:'poster', x:station.x - 55, y:station.y - 142 }, { kind:'machine', x:station.x + 315, y:station.y - 110 },
-            { kind:'barrier', x:station.x - 318, y:station.y + 110 }
-        );
-        const boothOffset = Math.random() < .5 ? -1 : 1;
-        const booth = carveRoom('ticket_booth', c + boothOffset * 13, baseRow - 13, 6, 5);
-        booth.station = station; subwayDecor.push({ kind:'booth', x:booth.x, y:booth.y });
-        if (Math.random() < .75) {
-            const service = carveRoom('service_room', c + boothOffset * 15, baseRow + 13, 7, 5);
-            service.station = station; subwayDecor.push({ kind:'crate', x:service.x + 42, y:service.y + 18 });
-            hidingSpots.push({ x:service.x - 42, y:service.y, occupied:false });
+        [-5, -2, 2, 5].forEach(offset => addTrack(point.c - 9, point.r + offset, point.c + 9, point.r + offset, true));
+        subwaySigns.push({ x:station.x, y:station.y - 150, text:`PLATFORM ${index + 1} · ${index === stationCount - 1 ? 'LAST LINE' : 'TRANSFER'}` });
+        subwayDecor.push({ kind:'bench', x:station.x - 190, y:station.y - 126 }, { kind:'bench', x:station.x + 190, y:station.y + 126 }, { kind:'poster', x:station.x - 35, y:station.y - 137 }, { kind:'machine', x:station.x + 300, y:station.y - 105 }, { kind:'column', x:station.x - 290, y:station.y }, { kind:'column', x:station.x + 290, y:station.y });
+        const direction = index % 2 ? -1 : 1;
+        const booth = carveRoom('ticket_booth', point.c + direction * 13, point.r - 12, 6, 5);
+        booth.station = station; carveBoilerCorridor(booth, station); subwayDecor.push({ kind:'booth', x:booth.x, y:booth.y });
+        if (Math.random() < .8) {
+            const service = carveRoom('service_room', point.c - direction * 14, point.r + 12, 7, 5);
+            service.station = station; carveBoilerCorridor(service, station); subwayDecor.push({ kind:'crate', x:service.x + 42, y:service.y + 18 }); hidingSpots.push({ x:service.x - 42, y:service.y, occupied:false });
         }
-    }
-    // Only the two inner rails continue through the tunnels; outer rails are
-    // platform sidings, which makes each station read like a real four-track stop.
+    });
+    // Two parallel lines follow the same bent route.  A player can read the pair as
+    // separate tracks, while trains use the polylines below to travel and reverse.
+    const routeA = [], routeB = [];
     for (let index = 0; index < stations.length - 1; index++) {
-        const left = stations[index], right = stations[index + 1];
-        for (const row of [baseRow - 2, baseRow + 2]) {
-            for (let c = left.c + 9; c <= right.c - 9; c++) { map[row][c] = 0; map[row + (row < baseRow ? -1 : 1)][c] = 0; }
-            addTrackSegment(row, left.c + 9, right.c - 9, true);
-        }
-        const midpoint = Math.floor((left.c + right.c) / 2);
-        for (let r = baseRow - 8; r <= baseRow + 8; r++) map[r][midpoint] = 0;
-        const tunnelRoom = { type:'two_track_tunnel', c:midpoint, r:baseRow, width:Math.max(8, right.c - left.c - 18), height:5, x:midpoint*TS+TS/2, y:baseRow*TS+TS/2 };
-        rooms.push(tunnelRoom);
+        const from = stations[index], to = stations[index + 1];
+        const fromY = from.r - 2, toY = to.r - 2;
+        const exitX = from.c + 9, entryX = to.c - 9;
+        const turnX = index % 2 ? from.c - 13 : to.c;
+        const a = [{x:exitX,y:fromY},{x:turnX,y:fromY},{x:turnX,y:toY},{x:entryX,y:toY}];
+        // Offset the second line on both the horizontal and vertical legs.  Keeping
+        // the turn offset is what makes a tunnel visibly read as two tracks.
+        const b = [{x:exitX,y:fromY+4},{x:turnX+4,y:fromY+4},{x:turnX+4,y:toY+4},{x:entryX,y:toY+4}];
+        for (const path of [a, b]) for (let point = 0; point < path.length - 1; point++) addTrack(path[point].x, path[point].y, path[point + 1].x, path[point + 1].y, true);
+        if (!routeA.length) routeA.push(...a); else routeA.push(...a.slice(1));
+        if (!routeB.length) routeB.push(...b); else routeB.push(...b.slice(1));
+        rooms.push({ type:'two_track_tunnel', c:turnX, r:Math.round((fromY + toY) / 2), width:Math.max(5, Math.abs(exitX-entryX)), height:Math.max(5, Math.abs(fromY-toY)), x:turnX*TS+TS/2, y:Math.round((fromY+toY)/2)*TS+TS/2, subwayTunnel:true });
     }
-    const entryHall = carveRoom('ticket_hall', stations[0].c - 12, baseRow, 7, 8);
+    subwayTrainPaths = [routeA, routeB];
+    const entryHall = carveRoom('ticket_hall', stations[0].c - 13, stations[0].r, 7, 8);
     carveBoilerCorridor(entryHall, stations[0]);
     const finalStation = stations.at(-1);
-    subwayRouteMinX = (stations[0].c - 9) * TS;
-    subwayRouteMaxX = (finalStation.c + 9) * TS;
-    const control = carveRoom('control_room', finalStation.c + 12, baseRow - 13, 7, 6);
+    subwayRouteMinX = Math.min(...routeA.map(point => point.x)) * TS; subwayRouteMaxX = Math.max(...routeA.map(point => point.x)) * TS;
+    const control = carveRoom('control_room', finalStation.c + 13, finalStation.r - 12, 7, 6);
     carveBoilerCorridor(control, finalStation);
     rebuildFloors();
 
     subwayControl = { x: control.x, y: control.y };
-    const trapRow = baseRow + 2;
+    const trapRow = finalStation.r + 2;
     subwayTrap = { x: finalStation.x, y: trapRow * TS + TS / 2, row:trapRow, escapeTop:{x:finalStation.x + 110,y:(trapRow - 3)*TS + TS/2}, escapeBottom:{x:finalStation.x + 110,y:(trapRow + 3)*TS + TS/2} };
     const panelSlots = [...rooms.filter(room => ['ticket_booth','service_room'].includes(room.type)), ...stations, entryHall].sort(() => Math.random() - .5);
     const panelCount = Math.min(panelSlots.length, 2 + currentDiff + (Math.random() < .5 ? 1 : 0));
@@ -1881,11 +1890,9 @@ function generateSubway() {
     subwayPanels = panelSlots.slice(0, panelCount).map((room, index) => ({ x:room.x, y:room.y, room, label:panelNames[index], active:false, r:15, isSubway:true, type:'subway', stage:0, requiredStages:1 }));
     subwayDecor.push(
         { kind:'turnstile', x:entryHall.x + 38, y:entryHall.y - 55 }, { kind:'turnstile', x:entryHall.x + 82, y:entryHall.y - 55 },
-        { kind:'luggage', x:entryHall.x - 46, y:entryHall.y + 60 }, { kind:'control', x:control.x, y:control.y },
-        { kind:'stopped_train', x:stations[0].x - 55, y:(baseRow - 5)*TS + TS/2, length:TS*5 },
-        { kind:'stopped_train', x:finalStation.x + 55, y:(baseRow + 5)*TS + TS/2, length:TS*5 }
+        { kind:'luggage', x:entryHall.x - 46, y:entryHall.y + 60 }, { kind:'control', x:control.x, y:control.y }
     );
-    for (const row of [baseRow - 2, baseRow + 2]) { const direction = row < baseRow ? 1 : -1; subwayTrains.push({ row, x:direction > 0 ? subwayRouteMinX : subwayRouteMaxX, direction, speed:3.1 + Math.random()*.7, length:TS*4.6, active:Math.random()<.6, cooldown:180+Math.floor(Math.random()*360), trapTrain:false, soundCooldown:0 }); }
+    subwayTrainPaths.forEach((path, pathIndex) => subwayTrains.push({ path, pathIndex, point:pathIndex ? path.length - 1 : 0, direction:pathIndex ? -1 : 1, x:path[pathIndex ? path.length-1 : 0].x*TS+TS/2, y:path[pathIndex ? path.length-1 : 0].y*TS+TS/2, speed:2.7+Math.random()*.5, length:TS*4.3, active:true, cooldown:0, trapTrain:false, soundCooldown:0, axis:'x' }));
     reserveObjectTile(Math.floor(subwayControl.x / TS), Math.floor(subwayControl.y / TS), 1);
     subwayPanels.forEach(panel => reserveObjectTile(Math.floor(panel.x / TS), Math.floor(panel.y / TS), 1));
 }
@@ -1944,7 +1951,7 @@ function armSubwayTrap() {
 
 function playSubwayTrainSound(train) {
     if (!audioUnlocked || !train || train.soundCooldown > 0 || setVolM == 0 || setVolS == 0) return;
-    const close = Math.abs(train.x - player.x) < 380 && Math.abs(train.row * TS + TS / 2 - player.y) < 180;
+    const close = Math.hypot(train.x - player.x, train.y - player.y) < 410;
     if (!close) return;
     try { const sound = subwayTrainAudio.cloneNode(); sound.volume = Math.min(.65, (setVolM / 100) * (setVolS / 100) * .65); sound.play().catch(() => {}); } catch (_) {}
     train.soundCooldown = 360;
@@ -1954,12 +1961,18 @@ function updateSubwayTrains() {
     if (currentMapId !== 'subway' || !(state === 1 || state === 3)) return;
     for (const train of subwayTrains) {
         if (train.soundCooldown > 0) train.soundCooldown--;
-        if (!train.active) { train.cooldown--; if (train.cooldown <= 0) { train.active = true; train.direction = Math.random() < .5 ? 1 : -1; train.x = train.direction > 0 ? subwayRouteMinX : subwayRouteMaxX; train.cooldown = 600; } continue; }
-        train.x += train.speed * train.direction;
-        if (train.x < subwayRouteMinX - TS || train.x > subwayRouteMaxX + TS) { train.active = false; train.cooldown = 480 + Math.floor(Math.random() * 300); continue; }
+        if (!train.active || !train.path?.length) continue;
+        const nextIndex = train.point + train.direction;
+        if (!train.path[nextIndex]) { train.direction *= -1; continue; }
+        const target = { x:train.path[nextIndex].x * TS + TS / 2, y:train.path[nextIndex].y * TS + TS / 2 };
+        const dx = target.x - train.x, dy = target.y - train.y, distance = Math.hypot(dx, dy);
+        train.axis = Math.abs(dx) >= Math.abs(dy) ? 'x' : 'y';
+        if (distance <= train.speed) { train.x = target.x; train.y = target.y; train.point = nextIndex; }
+        else { train.x += dx / distance * train.speed; train.y += dy / distance * train.speed; }
         playSubwayTrainSound(train);
-        const trainY = train.row * TS + TS / 2;
-        const hit = entity => Math.abs(entity.y - trainY) < 23 && entity.x > train.x - train.length / 2 && entity.x < train.x + train.length / 2;
+        const hit = entity => train.axis === 'x'
+            ? Math.abs(entity.y - train.y) < 24 && Math.abs(entity.x - train.x) < train.length / 2
+            : Math.abs(entity.x - train.x) < 24 && Math.abs(entity.y - train.y) < train.length / 2;
         if (hit(player)) { endGame(false, monster); return; }
         for (const enemy of monsters) {
             if (!hit(enemy)) continue;
@@ -1968,7 +1981,7 @@ function updateSubwayTrains() {
                 setTimeout(() => { if (state === 8) endGame(true, enemy); }, 2200);
                 return;
             }
-            enemy.x += train.direction * 28; enemy.path = [];
+            if (train.axis === 'x') enemy.x += train.direction * 28; else enemy.y += train.direction * 28; enemy.path = [];
         }
     }
     if (subwayTrapArmed && !subwayTrainTriggered && subwayCommitTimer <= 0 && subwayTrap && Math.abs(player.y - subwayTrap.y) < 42 && Math.abs(player.x - subwayTrap.x) < 130 && Math.hypot(player.x - monster.x, player.y - monster.y) < 310 && getLineOfSight(monster.x, monster.y, player.x, player.y)) {
@@ -1980,7 +1993,8 @@ function updateSubwayTrains() {
     if (subwayTrapArmed && subwayCommitTimer > 0 && !subwayTrainTriggered && Math.hypot(monster.x - subwayTrap.x, monster.y - subwayTrap.y) < 50 && Math.abs(monster.y - subwayTrap.y) < 27) {
         subwayTrainWarning = 90;
         subwayTrainTriggered = true;
-        subwayTrains.push({ row: subwayTrap.row, x: subwayRouteMinX, direction: 1, speed: 7.2, length: TS * 5.2, active: true, cooldown: 0, trapTrain: true, soundCooldown: 0 });
+        const trapPath = [{x:subwayTrap.x / TS - 10,y:subwayTrap.row},{x:subwayTrap.x / TS + 10,y:subwayTrap.row}];
+        subwayTrains.push({ path:trapPath, point:0, direction:1, x:trapPath[0].x*TS+TS/2, y:trapPath[0].y*TS+TS/2, speed:7.2, length:TS*5.2, active:true, trapTrain:true, soundCooldown:0, axis:'x' });
         notify('LAST LINE APPROACHING · GET OFF THE TRACK', 'danger');
     }
     if (subwayTrainWarning > 0) subwayTrainWarning--;
@@ -3041,7 +3055,7 @@ function toggleMapOverlay() {
         if (amineExitGate) { mapCtx.fillStyle = activeGens >= totalGens ? '#7dffdc' : '#566a65'; mapCtx.fillRect(amineExitGate.x / TS * scale - 3, amineExitGate.y / TS * scale - 5, 6, 10); }
     }
     if (currentMapId === 'subway') {
-        subwayTrackSegments.forEach(segment => { mapCtx.fillStyle = segment.active ? '#303b42' : '#20262a'; mapCtx.fillRect(segment.start * scale, segment.row * scale, (segment.end - segment.start) * scale, Math.max(2, scale)); });
+        subwayTrackSegments.forEach(segment => { mapCtx.strokeStyle = segment.active ? '#c4a767' : '#7a6846'; mapCtx.lineWidth = Math.max(2, scale); mapCtx.beginPath(); mapCtx.moveTo((segment.x1+.5)*scale,(segment.y1+.5)*scale); mapCtx.lineTo((segment.x2+.5)*scale,(segment.y2+.5)*scale); mapCtx.stroke(); });
         subwayPanels.forEach(panel => { mapCtx.fillStyle = panel.active ? '#4f4' : '#e3b44d'; mapCtx.fillRect(panel.x / TS * scale - 2, panel.y / TS * scale - 2, 4, 4); });
         if (subwayControl) { mapCtx.fillStyle = subwayTrapArmed ? '#f55' : '#7ec8e3'; mapCtx.fillRect(subwayControl.x / TS * scale - 3, subwayControl.y / TS * scale - 3, 6, 6); }
         if (subwayTrap) { mapCtx.fillStyle = '#ff6b6b'; mapCtx.fillRect(subwayTrap.x / TS * scale - 3, subwayTrap.y / TS * scale - 3, 6, 6); }
@@ -3728,13 +3742,15 @@ function draw() {
     }
 
     for (const room of rooms) {
+        if (currentMapId === 'subway' && room.subwayTunnel) continue;
         const roomColor = currentMapId === 'boilerworks'
             ? (room.type === 'boiler' ? 'rgba(255,80,20,0.3)' : room.type === 'maintenance' ? 'rgba(80,180,220,0.22)' : room.type === 'cooling' ? 'rgba(40,190,220,0.2)' : room.type === 'control' ? 'rgba(160,100,220,0.2)' : room.type === 'storage' ? 'rgba(180,180,180,0.16)' : 'rgba(160,100,50,0.18)')
             : currentMapId === 'hotel'
                 ? ({ lobby:'rgba(190,150,90,0.34)', guest:'rgba(125,90,125,0.24)', laundry:'rgba(80,180,210,0.24)', conference:'rgba(180,140,60,0.25)', kitchen:'rgba(200,100,60,0.24)', service:'rgba(80,150,105,0.24)', office:'rgba(120,100,180,0.24)', elevator:'rgba(210,210,220,0.3)', storage:'rgba(140,140,140,0.2)' }[room.type] || 'rgba(90,70,90,0.22)')
                 : currentMapId === 'crimson'
                     ? ({ intake:'rgba(180,80,55,.24)', archive:'rgba(140,35,48,.28)', medical:'rgba(170,95,95,.25)', storage:'rgba(110,80,65,.27)', processing:'rgba(215,145,48,.22)', security:'rgba(90,110,145,.26)', maintenance:'rgba(150,130,55,.25)', containment:'rgba(205,55,45,.31)', vault:'rgba(150,35,65,.32)', service:'rgba(105,65,70,.24)', trap:'rgba(240,200,70,.24)' }[room.type] || 'rgba(120,35,45,.22)')
-                    : currentMapId === 'forest' ? (room.lit ? 'rgba(255,220,100,.28)' : 'rgba(42,28,20,.6)')
+                : currentMapId === 'forest' ? (room.lit ? 'rgba(255,220,100,.28)' : 'rgba(42,28,20,.6)')
+                : currentMapId === 'subway' ? (room.type.startsWith('platform_') ? 'rgba(81,94,102,.78)' : room.type === 'ticket_hall' ? 'rgba(91,79,62,.68)' : 'rgba(56,67,74,.76)')
                 : (room.type === 'safe' ? 'rgba(40,110,255,0.28)' : room.type === 'maintenance' ? 'rgba(255,190,40,0.22)' : room.type === 'storage' ? 'rgba(180,180,180,0.16)' : 'rgba(80,80,80,0.14)');
         ctx.fillStyle = roomColor;
         const roomWidth = room.width || 3, roomHeight = room.height || 3;
@@ -3744,7 +3760,7 @@ function draw() {
         ctx.strokeRect((room.c - Math.floor(roomWidth / 2)) * TS, (room.r - Math.floor(roomHeight / 2)) * TS, TS * roomWidth, TS * roomHeight);
         ctx.fillStyle = room.type === 'safe' ? '#fff0a0' : currentMapId === 'boilerworks' && room.type === 'boiler' ? '#ff9a66' : currentMapId === 'hotel' ? '#f1d9c4' : currentMapId === 'crimson' ? '#ffd0ad' : '#ddd';
         ctx.font = 'bold 9px Arial'; ctx.textAlign = 'center';
-        ctx.fillText(room.type.toUpperCase(), room.x, room.y - 24);
+        if (currentMapId !== 'subway') ctx.fillText(room.type.toUpperCase(), room.x, room.y - 24);
     }
 
     if (currentMapId === 'forest') {
@@ -3752,10 +3768,14 @@ function draw() {
     }
     if (currentMapId === 'subway') {
         for (const segment of subwayTrackSegments) {
-            const y = segment.row * TS + TS / 2, start = segment.start * TS, end = segment.end * TS;
-            ctx.strokeStyle = '#0a0c0e'; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(start, y - 10); ctx.lineTo(end, y - 10); ctx.moveTo(start, y + 10); ctx.lineTo(end, y + 10); ctx.stroke();
-            ctx.strokeStyle = segment.active ? '#b59a61' : '#7a6846'; ctx.lineWidth = 3;
-            for (let x = start; x < end; x += 18) { ctx.beginPath(); ctx.moveTo(x, y - 16); ctx.lineTo(x, y + 16); ctx.stroke(); }
+            const x1 = segment.x1 * TS + TS / 2, y1 = segment.y1 * TS + TS / 2, x2 = segment.x2 * TS + TS / 2, y2 = segment.y2 * TS + TS / 2;
+            const vertical = Math.abs(y2-y1) > Math.abs(x2-x1), offset = 10;
+            ctx.strokeStyle = '#080a0b'; ctx.lineWidth = 5; ctx.beginPath();
+            if (vertical) { ctx.moveTo(x1-offset,y1);ctx.lineTo(x2-offset,y2);ctx.moveTo(x1+offset,y1);ctx.lineTo(x2+offset,y2); }
+            else { ctx.moveTo(x1,y1-offset);ctx.lineTo(x2,y2-offset);ctx.moveTo(x1,y1+offset);ctx.lineTo(x2,y2+offset); } ctx.stroke();
+            ctx.strokeStyle = segment.active ? '#c4a767' : '#7a6846';ctx.lineWidth=3;
+            const length=Math.hypot(x2-x1,y2-y1), steps=Math.floor(length/18);
+            for(let i=0;i<=steps;i++){const t=i*18/length,x=x1+(x2-x1)*t,y=y1+(y2-y1)*t;ctx.beginPath();if(vertical){ctx.moveTo(x-16,y);ctx.lineTo(x+16,y);}else{ctx.moveTo(x,y-16);ctx.lineTo(x,y+16);}ctx.stroke();}
         }
         for (const item of subwayDecor) {
             ctx.save(); ctx.translate(item.x, item.y);
@@ -3764,7 +3784,7 @@ function draw() {
             else if (item.kind === 'turnstile') { ctx.strokeStyle='#aebac0'; ctx.lineWidth=4; ctx.beginPath(); ctx.moveTo(-13,0);ctx.lineTo(13,0);ctx.moveTo(0,-13);ctx.lineTo(0,13);ctx.stroke(); }
             else if (item.kind === 'poster') { ctx.fillStyle='#c9b178';ctx.fillRect(-18,-25,36,50);ctx.fillStyle='#5b2631';ctx.fillRect(-12,-18,24,30); }
             else if (item.kind === 'barrier') { ctx.strokeStyle='#ffc94d';ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(-18,-14);ctx.lineTo(18,14);ctx.moveTo(-18,14);ctx.lineTo(18,-14);ctx.stroke(); }
-            else if (item.kind === 'stopped_train') { ctx.fillStyle='#30353a';ctx.fillRect(-item.length/2,-23,item.length,46);ctx.fillStyle='#111';for(let x=-item.length/2+12;x<item.length/2-5;x+=27)ctx.fillRect(x,-14,17,18);ctx.fillStyle='#725d43';ctx.fillRect(-item.length/2+5,16,item.length-10,4); }
+            else if (item.kind === 'column') { ctx.fillStyle='#657078';ctx.fillRect(-11,-26,22,52);ctx.fillStyle='#9aa5aa';ctx.fillRect(-15,-30,30,6); }
             else if (item.kind === 'booth') { ctx.fillStyle='#5c4b38';ctx.fillRect(-32,-27,64,54);ctx.fillStyle='#1c2d35';ctx.fillRect(-24,-19,48,22);ctx.fillStyle='#ead39e';ctx.fillRect(-12,9,24,4); }
             else if (item.kind === 'control') { ctx.fillStyle='#2b4c59';ctx.fillRect(-28,-25,56,50);ctx.fillStyle='#8be6ff';ctx.fillRect(-19,-16,38,15);ctx.fillStyle='#e7bc4a';ctx.beginPath();ctx.arc(0,11,6,0,Math.PI*2);ctx.fill(); }
             else { ctx.fillStyle=item.kind==='luggage'?'#714832':'#4f4b45';ctx.fillRect(-13,-10,26,20); }
@@ -3774,7 +3794,7 @@ function draw() {
         for (const panel of subwayPanels) { ctx.fillStyle=panel.active?'#46d876':'#d7a943';ctx.fillRect(panel.x-13,panel.y-19,26,38);ctx.fillStyle='#091018';ctx.fillRect(panel.x-8,panel.y-13,16,11);if (nearSubwayPanel === panel && state===1) {ctx.fillStyle='#fff';ctx.font='bold 10px Arial';ctx.fillText('[E] '+panel.label,panel.x,panel.y-30);} }
         if (subwayControl) { ctx.fillStyle=subwayTrapArmed?'#52ec79':'#7ea7c1';ctx.fillRect(subwayControl.x-21,subwayControl.y-18,42,36);ctx.fillStyle='#101820';ctx.fillRect(subwayControl.x-15,subwayControl.y-12,30,13);if(nearSubwayControl&&state===1){ctx.fillStyle='#fff';ctx.font='bold 10px Arial';ctx.fillText('[E] '+(subwayTrapArmed?'LAST LINE ARMED':'ARM LAST LINE'),subwayControl.x,subwayControl.y-29);} }
         if (subwayTrap) { ctx.strokeStyle=subwayTrapArmed?'#ff4e4e':'#77624b';ctx.lineWidth=3;ctx.strokeRect(subwayTrap.x-16,subwayTrap.y-18,32,36);if(subwayTrainWarning>0){ctx.fillStyle=ambienceClock%10<5?'#ff3333':'#fff';ctx.beginPath();ctx.arc(subwayTrap.x,subwayTrap.y-34,8,0,Math.PI*2);ctx.fill();} }
-        for (const train of subwayTrains.filter(train=>train.active)) { const y=train.row*TS+TS/2; ctx.fillStyle=train.trapTrain?'#9d2222':'#45515a';ctx.fillRect(train.x-train.length/2,y-26,train.length,52);ctx.fillStyle='#111';for(let x=train.x-train.length/2+14;x<train.x+train.length/2-6;x+=28)ctx.fillRect(x,y-15,17,19);ctx.fillStyle='#e7d6a1';ctx.fillRect(train.x+(train.direction>0?train.length/2-6:-train.length/2),y-12,6,24); }
+        for (const train of subwayTrains.filter(train=>train.active)) { ctx.save();ctx.translate(train.x,train.y);if(train.axis==='y')ctx.rotate(Math.PI/2);ctx.fillStyle=train.trapTrain?'#9d2222':'#45515a';ctx.fillRect(-train.length/2,-26,train.length,52);ctx.fillStyle='#111';for(let x=-train.length/2+14;x<train.length/2-6;x+=28)ctx.fillRect(x,-15,17,19);ctx.fillStyle='#e7d6a1';ctx.fillRect(train.direction>0?train.length/2-6:-train.length/2,-12,6,24);ctx.restore(); }
     }
     if(currentMapId==='amine'){
         for(const zone of amineFireZones){ctx.fillStyle='rgba(255,70,10,.3)';ctx.beginPath();ctx.arc(zone.x,zone.y,zone.radius,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#ff6b20';ctx.stroke();}
