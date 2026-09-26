@@ -103,7 +103,7 @@ function playSound(type) {
 }
 
 // Versioned local progress with a backup copy and import/export support.
-const GAME_VERSION = '2.9.3';
+const GAME_VERSION = '2.9.4';
 const SAVE_SCHEMA_VERSION = 10;
 const SAVE_KEY = 'br_save_v2';
 const SAVE_BACKUP_KEY = 'br_save_backup_v2';
@@ -1956,7 +1956,7 @@ function getRouteBoardLayout() {
 function armSubwayTrap() {
     if (!subwayObjectiveComplete()) { notify('RESTORE ALL THREE SIGNAL PANELS FIRST', 'warning'); return; }
     subwayTrapArmed = true; subwayRouteReady = true; subwayTrainWarning = 0; subwayTrainTriggered = false;
-    notify('LAST LINE ARMED · LURE THE HUNTER ONTO PLATFORM 2 TRACK', 'danger'); updateHUD();
+    notify('RAILS LIVE · BAIT THE HUNTER INTO AN ONCOMING TRAIN', 'danger'); updateHUD();
 }
 
 function playSubwayTrainSound(train) {
@@ -1984,32 +1984,21 @@ function updateSubwayTrains() {
             ? Math.abs(entity.y - train.y) < 24 && Math.abs(entity.x - train.x) < train.length / 2
             : Math.abs(entity.x - train.x) < 24 && Math.abs(entity.y - train.y) < train.length / 2;
         if (hit(player)) { endGame(false, monster); return; }
-        // Passing trains are environmental danger for the player only.  They do
-        // not shove AI into walls or accidentally solve the Last Line objective.
-        if (!train.trapTrain) continue;
+        // No marked kill zone: the hunter must actually be chasing close behind
+        // when it crosses an oncoming train.
+        const baitedHunter = enemy => subwayTrapArmed && enemy === monster
+            && Math.hypot(enemy.x - player.x, enemy.y - player.y) < 275
+            && getLineOfSight(enemy.x, enemy.y, player.x, player.y);
+        if (!train.trapTrain && !baitedHunter(monster)) continue;
         for (const enemy of monsters) {
             if (!hit(enemy)) continue;
-            if (train.trapTrain && subwayTrapArmed && enemy === monster) {
+            if ((train.trapTrain || baitedHunter(enemy)) && subwayTrapArmed && enemy === monster) {
                 subwayTrainTriggered = true; state = 8; enemy.stunTimer = 999; showStoryLine('THE LAST LINE DOES NOT STOP.', 2200);
                 setTimeout(() => { if (state === 8) endGame(true, enemy); }, 2200);
                 return;
             }
         }
     }
-    if (subwayTrapArmed && !subwayTrainTriggered && subwayCommitTimer <= 0 && subwayTrap && Math.abs(player.y - subwayTrap.y) < 42 && Math.abs(player.x - subwayTrap.x) < 130 && Math.hypot(player.x - monster.x, player.y - monster.y) < 310 && getLineOfSight(monster.x, monster.y, player.x, player.y)) {
-        subwayCommitTimer = 210;
-        subwayCommitTarget = { x: subwayTrap.x + 145, y: subwayTrap.y };
-        monster.path = [];
-        notify('HUNTER COMMITTED · GET TO THE SIDE EXIT', 'danger');
-    }
-    if (subwayTrapArmed && subwayCommitTimer > 0 && !subwayTrainTriggered && Math.hypot(monster.x - subwayTrap.x, monster.y - subwayTrap.y) < 50 && Math.abs(monster.y - subwayTrap.y) < 27) {
-        subwayTrainWarning = 90;
-        subwayTrainTriggered = true;
-        const trapPath = [{x:subwayTrap.x / TS - 10,y:subwayTrap.row},{x:subwayTrap.x / TS + 10,y:subwayTrap.row}];
-        subwayTrains.push({ path:trapPath, point:0, direction:1, x:trapPath[0].x*TS+TS/2, y:trapPath[0].y*TS+TS/2, speed:7.2, length:TS*5.2, active:true, trapTrain:true, soundCooldown:0, axis:'x' });
-        notify('LAST LINE APPROACHING · GET OFF THE TRACK', 'danger');
-    }
-    if (subwayTrainWarning > 0) subwayTrainWarning--;
 }
 
 function setupForestBeacon() {
@@ -3073,7 +3062,6 @@ function toggleMapOverlay() {
         subwayTrackSegments.forEach(segment => { mapCtx.strokeStyle = segment.active ? '#c4a767' : '#7a6846'; mapCtx.lineWidth = Math.max(2, scale); mapCtx.beginPath(); mapCtx.moveTo((segment.x1+.5)*scale,(segment.y1+.5)*scale); mapCtx.lineTo((segment.x2+.5)*scale,(segment.y2+.5)*scale); mapCtx.stroke(); });
         subwayPanels.forEach(panel => { mapCtx.fillStyle = panel.active ? '#4f4' : '#e3b44d'; mapCtx.fillRect(panel.x / TS * scale - 2, panel.y / TS * scale - 2, 4, 4); });
         if (subwayControl) { mapCtx.fillStyle = subwayTrapArmed ? '#f55' : '#7ec8e3'; mapCtx.fillRect(subwayControl.x / TS * scale - 3, subwayControl.y / TS * scale - 3, 6, 6); }
-        if (subwayTrap) { mapCtx.fillStyle = '#ff6b6b'; mapCtx.fillRect(subwayTrap.x / TS * scale - 3, subwayTrap.y / TS * scale - 3, 6, 6); }
     }
     generators.forEach(generator => { mapCtx.fillStyle = generator.active ? '#4f4' : '#fc5'; mapCtx.fillRect(generator.x / TS * scale - 2, generator.y / TS * scale - 2, 4, 4); });
     mapCtx.fillStyle = '#4cf'; mapCtx.beginPath(); mapCtx.arc(player.x / TS * scale, player.y / TS * scale, 4, 0, Math.PI * 2); mapCtx.fill();
@@ -3102,7 +3090,7 @@ function updateHUD() {
         objective.textContent = falseObjective
             ? 'Objective signal corrupted · CHECK THE LANDMARKS'
             : currentMapId === 'subway'
-                ? `Last Line: ${activeGens}/${totalGens} signal panels · ${!subwayObjectiveComplete() ? 'RESTORE THE ROUTE' : !subwayTrapArmed ? 'FIND RAIL CONTROL' : subwayTrainTriggered ? 'TRAIN INBOUND · GET CLEAR' : 'LURE THE HUNTER ONTO PLATFORM 2 TRACK'}`
+                ? `Last Line: ${activeGens}/${totalGens} signal panels · ${!subwayObjectiveComplete() ? 'RESTORE THE ROUTE' : !subwayTrapArmed ? 'FIND RAIL CONTROL' : subwayTrainTriggered ? 'TRAIN INBOUND · GET CLEAR' : 'BAIT THE HUNTER INTO A TRAIN'}`
             : currentMapId === 'boilerworks'
                 ? `Cooling valves: ${coolingValves.filter(valve => valve.active).length}/${coolingValves.length || 3}${boilerReadyShown ? ' · FIND THE BOILER' : ''}`
                 : currentMapId === 'hotel'
@@ -3808,7 +3796,6 @@ function draw() {
         for (const sign of subwaySigns) { ctx.fillStyle='#111b23';ctx.fillRect(sign.x-82,sign.y-12,164,24);ctx.strokeStyle='#c7d5df';ctx.lineWidth=1;ctx.strokeRect(sign.x-82,sign.y-12,164,24);ctx.fillStyle='#e7f1f7';ctx.font='bold 10px Arial';ctx.textAlign='center';ctx.fillText(sign.text,sign.x,sign.y+4); }
         for (const panel of subwayPanels) { ctx.fillStyle=panel.active?'#46d876':'#d7a943';ctx.fillRect(panel.x-13,panel.y-19,26,38);ctx.fillStyle='#091018';ctx.fillRect(panel.x-8,panel.y-13,16,11);if (nearSubwayPanel === panel && state===1) {ctx.fillStyle='#fff';ctx.font='bold 10px Arial';ctx.fillText('[E] '+panel.label,panel.x,panel.y-30);} }
         if (subwayControl) { ctx.fillStyle=subwayTrapArmed?'#52ec79':'#7ea7c1';ctx.fillRect(subwayControl.x-21,subwayControl.y-18,42,36);ctx.fillStyle='#101820';ctx.fillRect(subwayControl.x-15,subwayControl.y-12,30,13);if(nearSubwayControl&&state===1){ctx.fillStyle='#fff';ctx.font='bold 10px Arial';ctx.fillText('[E] '+(subwayTrapArmed?'LAST LINE ARMED':'ARM LAST LINE'),subwayControl.x,subwayControl.y-29);} }
-        if (subwayTrap) { ctx.strokeStyle=subwayTrapArmed?'#ff4e4e':'#77624b';ctx.lineWidth=3;ctx.strokeRect(subwayTrap.x-16,subwayTrap.y-18,32,36);if(subwayTrainWarning>0){ctx.fillStyle=ambienceClock%10<5?'#ff3333':'#fff';ctx.beginPath();ctx.arc(subwayTrap.x,subwayTrap.y-34,8,0,Math.PI*2);ctx.fill();} }
         for (const train of subwayTrains.filter(train=>train.active)) { ctx.save();ctx.translate(train.x,train.y);if(train.axis==='y')ctx.rotate(Math.PI/2);ctx.fillStyle=train.trapTrain?'#9d2222':'#45515a';ctx.fillRect(-train.length/2,-26,train.length,52);ctx.fillStyle='#111';for(let x=-train.length/2+14;x<train.length/2-6;x+=28)ctx.fillRect(x,-15,17,19);ctx.fillStyle='#e7d6a1';ctx.fillRect(train.direction>0?train.length/2-6:-train.length/2,-12,6,24);ctx.restore(); }
     }
     if(currentMapId==='amine'){
