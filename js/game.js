@@ -103,7 +103,7 @@ function playSound(type) {
 }
 
 // Versioned local progress with a backup copy and import/export support.
-const GAME_VERSION = '2.8.1';
+const GAME_VERSION = '2.9.0';
 const SAVE_SCHEMA_VERSION = 10;
 const SAVE_KEY = 'br_save_v2';
 const SAVE_BACKUP_KEY = 'br_save_backup_v2';
@@ -114,7 +114,8 @@ const MAP_DEFINITIONS = {
     hotel: { id: 'hotel', name: 'THE ENDLESS HOTEL', description: 'Carpeted wings, guest rooms, employees, and Bassam.', campaignOrder: 2 },
     crimson: { id: 'crimson', name: 'THE CRIMSON CONTAINMENT', description: 'Break the seal route, survive Rhys, and trap him.', campaignOrder: 3 },
     forest: { id: 'forest', name: 'THE BLACKWOOD FOREST', description: 'Dark trails, powered cabins, and Noah the Stalker.', campaignOrder: 4 },
-    amine: { id: 'amine', name: 'THE PARTED GRID', description: 'A burning grid where closing your eyes reveals Amine.', campaignOrder: 5 }
+    amine: { id: 'amine', name: 'THE PARTED GRID', description: 'A burning grid where closing your eyes reveals Amine.', campaignOrder: 5 },
+    subway: { id: 'subway', name: 'THE LAST LINE', description: 'Restore the route, arm the rails, and lure the hunter into the last train.', campaignOrder: 6 }
 };
 
 const LOADOUT_DEFINITIONS = {
@@ -187,7 +188,7 @@ function normalizeCosmetics(value) {
 
 function normalizeStats(value) {
     const source = value && typeof value === 'object' ? value : {};
-    const names = ['CALEB', 'MALAKAI', 'JORDAN', 'AESON', 'BASSAM', 'RHYS', 'NOAH', 'AMINE'];
+    const names = ['CALEB', 'MALAKAI', 'JORDAN', 'AESON', 'BASSAM', 'RHYS', 'NOAH', 'AMINE', 'NIZAR'];
     const encounters = {};
     names.forEach(name => encounters[name] = boundedInt(source.encounters?.[name], 0, 999999, 0));
     const encounteredNames = names.filter(name => encounters[name] > 0);
@@ -720,7 +721,8 @@ function renderCollection() {
         ['BASSAM', 'The Concierge', unlockedMaps.includes('hotel') ? 'Employee-disguise predator' : 'Unlock the Endless Hotel'],
         ['RHYS', 'The Contained', unlockedMaps.includes('crimson') ? 'Goop-spitting dash predator' : 'Unlock Crimson Containment'],
         ['NOAH', 'The Stalker', unlockedMaps.includes('forest') ? 'Invisible lightning hunter' : 'Unlock Blackwood Forest'],
-        ['AMINE', 'The Parted', unlockedMaps.includes('amine') ? 'Focus-vision predator' : 'Unlock the Parted Grid']
+        ['AMINE', 'The Parted', unlockedMaps.includes('amine') ? 'Focus-vision predator' : 'Unlock the Parted Grid'],
+        ['NIZAR', 'The Controller', unlockedMaps.includes('subway') ? 'Route and rail hunter' : 'Unlock the Last Line']
     ];
     const mutationRows = ['Speed Demon','Phantom','Frenzy','Camouflage','Giant','Gloom','Reinforced','Lethargy','Resilient','Scrambler','Hexed','Hallucinations','All-Seeing','Locked In','Echo','False Objective','Watcher','Panic','Heavy Footfall','Afterimage'];
     content.innerHTML = `<b>MONSTERS</b>${monsterRows.map(row => `<div class="collection-row"><strong>${row[0]}</strong><span>${row[1]} · ${row[2]}</span></div>`).join('')}<br><b>MAPS</b>${Object.values(MAP_DEFINITIONS).map(mapDef => `<div class="collection-row"><strong>${mapDef.name}</strong><span>${unlockedMaps.includes(mapDef.id) ? 'UNLOCKED' : 'LOCKED'}</span></div>`).join('')}<br><b>MUTATIONS</b><div class="collection-tags">${mutationRows.map(name => `<span>${name}</span>`).join('')}</div>`;
@@ -808,6 +810,7 @@ function startSurvival() {
     if (document.getElementById('survivalRhys')?.checked) names.push('RHYS');
     if (document.getElementById('survivalNoah')?.checked) names.push('NOAH');
     if (document.getElementById('survivalAmine')?.checked) names.push('AMINE');
+    if (document.getElementById('survivalNizar')?.checked) names.push('NIZAR');
     if (names.length === 0) { showMsg('SELECT AT LEAST ONE MONSTER', 1600); return; }
     gameMode = 'survival';
     endlessRound = 1;
@@ -930,10 +933,14 @@ let hotelElevator = null, hotelLockdownTimer = 0, hotelEventCooldown = 0, hotelL
 let rhysSeal = null, rhysChest = null, rhysChestKey = null, rhysBreakWall = null, rhysTrap = null, rhysRoute = 'search', rhysSealCollected = false, rhysTrapArmed = false;
 let forestCabins = [], forestBreakers = [], forestTrees = [], forestBeaconBattery = null, forestWatchtower = null, forestBeaconActive = false, forestFogTimer = 0, forestFogCooldown = 0, noahState = 'hidden', noahTimer = 0, noahPathTimer = 0, noahCharge = null, noahLightningCooldown = 0, noahLightningZones = [], noahLightningPending = [], noahLightningWarning = 0, noahLightningFlashes = 0, noahShockTimer = 0;
 let amineHoles = [], amineFireZones = [], amineExitGate = null, amineFocus = false, amineVisibleTimer = 0, amineFlashCooldown = 0, amineTeleportCooldown = 0, amineCallCount = 1, amineCallsRemaining = 0, amineCallActive = false, amineTurret = null, amineBullets = [], amineBurnTimer = 0;
+let subwayPanels = [], subwayTrains = [], subwayTrackRows = [], subwayTrap = null, subwayControl = null, subwayRouteReady = false, subwayTrapArmed = false, subwayTrainWarning = 0, subwayTrainTriggered = false, subwayDecor = [], subwaySigns = [];
+const subwayTrainAudio = new Audio('assets/cs-train-sound.mp3');
+subwayTrainAudio.preload = 'auto';
 let luckyBlocks = [];
 let playerTrail = [], trailLastX = 0, trailLastY = 0;
 let hotelEmployeesRequired = 3, hotelDialogueOpen = false, hotelTaskSerial = 0;
 let nearFuse = null, nearHide = null, nearValve = null, nearBoiler = false, nearEmployee = null, nearElevator = false, nearHotelTask = null, nearRhysSeal = false, nearRhysKey = false, nearRhysChest = false, nearRhysTrap = false;
+let nearSubwayPanel = null, nearSubwayControl = false;
 let player = { x: 0, y: 0, r: 12, baseSpeed: 3.8, speed: 3.8, boostTimer: 0, stunTimer: 0, crouching: false, breathing: false, breathTimer: 0, breathCooldown: 0, heat: 0, inHeatZone: false, hidden: false, hideTimer: 0, hideCompromised: false };
 let monster = { name: '', x: 0, y: 0, r: 14, drawRadius: 14, speed: 2.2, baseSpeed: 2.2, color: '', textColor: '', activeMutations: [], isReinforced: false, hasGloom: false, isResilient: false, hasScrambler: false, hasHexed: false, hasHallucinations: false, hasLockedIn: false, hasEcho: false, hasFalseObjective: false, hasWatcher: false, hasPanic: false, hasHeavyFootfall: false, hasAfterimage: false, allSeeing: false, heatAlertTimer: 0, heatAlertX: 0, heatAlertY: 0, stunTimer: 0, lastTargetC: -1, lastTargetR: -1 };
 let monsters = [];
@@ -1248,6 +1255,10 @@ function activateCoolingValve() {
 }
 
 function finishGeneratorInteraction() {
+    if (currentGen?.isSubway) {
+        completeSubwayPanel(currentGen);
+        return;
+    }
     if (currentGen.type === 'multi' && currentGen.stage < currentGen.requiredStages - 1) {
         currentGen.stage++;
         playSound('success');
@@ -1323,6 +1334,13 @@ window.addEventListener('keydown', (e) => {
         const lucky = luckyBlocks.find(block => !block.opened && Math.hypot(player.x-block.x,player.y-block.y)<36);
         if (lucky) { openLuckyBlock(lucky); return; }
         if (currentMapId === 'amine' && activeGens >= totalGens && amineExitGate && Math.hypot(player.x-amineExitGate.x,player.y-amineExitGate.y)<44) { beginAmineFinalChase(); return; }
+        if (currentMapId === 'subway' && nearSubwayControl) { armSubwayTrap(); return; }
+        if (currentMapId === 'subway' && nearSubwayPanel) {
+            currentGen = nearSubwayPanel;
+            clearMovementKeys();
+            beginCircuitPuzzle();
+            return;
+        }
         const lootIndex = groundLoot.findIndex(loot => Math.hypot(player.x - loot.x, player.y - loot.y) < 34);
         if (lootIndex >= 0) {
             if (!addSupply(groundLoot[lootIndex].type)) { notify('INVENTORY FULL · 8/8 SUPPLIES', 'warning'); return; }
@@ -1787,6 +1805,115 @@ function generateAmineGrid() {
     const exitTile = [...floors].sort((a,b) => (b.c+b.r)-(a.c+a.r)).find(tile => !amineHoles.some(h => Math.hypot(h.c-tile.c,h.r-tile.r)<3));
     amineExitGate = exitTile ? { x:exitTile.c*TS+TS/2, y:exitTile.r*TS+TS/2 } : null;
     if (amineExitGate) reserveObjectTile(Math.floor(amineExitGate.x/TS), Math.floor(amineExitGate.y/TS), 2);
+}
+
+function generateSubway() {
+    map = Array.from({ length: ROWS }, () => Array(COLS).fill(1));
+    rooms = []; hidingSpots = []; coolingValves = []; fuses = []; employees = []; reservedObjectTiles = new Set();
+    subwayPanels = []; subwayTrains = []; subwayTrackRows = [22, 34]; subwayDecor = []; subwaySigns = [];
+    subwayTrap = null; subwayControl = null; subwayRouteReady = false; subwayTrapArmed = false; subwayTrainWarning = 0; subwayTrainTriggered = false;
+
+    const carveRoom = (type, c, r, width, height) => {
+        const room = { type, c, r, width, height, x: c * TS + TS / 2, y: r * TS + TS / 2 };
+        carveBoilerRect(c, r, width, height); rooms.push(room); return room;
+    };
+    const concourse = carveRoom('concourse', 17, 28, 13, 11);
+    const ticketHall = carveRoom('ticket_hall', 17, 12, 10, 7);
+    const service = carveRoom('service_tunnel', 17, 45, 10, 7);
+    const northPlatform = carveRoom('north_platform', 50, 17, 25, 7);
+    const southPlatform = carveRoom('south_platform', 50, 40, 25, 7);
+    const depot = carveRoom('train_depot', 42, 28, 9, 8);
+    const control = carveRoom('control_room', 70, 29, 9, 7);
+    const maintenance = carveRoom('maintenance', 35, 47, 9, 7);
+    carveBoilerCorridor(concourse, ticketHall); carveBoilerCorridor(concourse, service);
+    carveBoilerCorridor(concourse, depot); carveBoilerCorridor(depot, northPlatform); carveBoilerCorridor(depot, southPlatform);
+    carveBoilerCorridor(depot, control); carveBoilerCorridor(service, maintenance); carveBoilerCorridor(maintenance, southPlatform);
+    // The rails are fully walkable, but trains make them dangerous. Two crossings
+    // and the maintenance loop ensure the final lure never has only one exit.
+    for (const row of subwayTrackRows) for (let c = 29; c < COLS - 3; c++) map[row][c] = 0;
+    for (const c of [38, 61]) for (let r = 17; r <= 40; r++) map[r][c] = 0;
+    rebuildFloors();
+
+    subwayControl = { x: control.x, y: control.y };
+    subwayTrap = { x: 61 * TS + TS / 2, y: 34 * TS + TS / 2, row: 34, escapeTop: { x: 61 * TS + TS / 2, y: 32 * TS + TS / 2 }, escapeBottom: { x: 61 * TS + TS / 2, y: 36 * TS + TS / 2 } };
+    const panelRooms = [ticketHall, service, maintenance];
+    const panelNames = ['RESTORE PLATFORM SIGNS', 'ALIGN THE TRACK SWITCH', 'CLEAR THE SIGNAL RELAY'];
+    subwayPanels = panelRooms.map((room, index) => ({ x: room.x, y: room.y, room, label: panelNames[index], active: false, r: 15, isSubway: true, type: 'subway', stage: 0, requiredStages: 2 }));
+    subwaySigns = [
+        { x: ticketHall.x, y: ticketHall.y - 52, text: 'PLATFORMS 1–2  →' },
+        { x: northPlatform.x, y: northPlatform.y - 48, text: 'PLATFORM 1 · OUTBOUND' },
+        { x: southPlatform.x, y: southPlatform.y - 48, text: 'PLATFORM 2 · LAST LINE' },
+        { x: control.x, y: control.y - 48, text: 'RAIL CONTROL' }
+    ];
+    subwayDecor = [
+        ...[northPlatform, southPlatform].flatMap(platform => [
+            { kind:'bench', x:platform.x - 180, y:platform.y }, { kind:'bench', x:platform.x + 145, y:platform.y },
+            { kind:'poster', x:platform.x - 35, y:platform.y - 88 }, { kind:'machine', x:platform.x + 270, y:platform.y + 70 }
+        ]),
+        { kind:'turnstile', x:concourse.x + 80, y:concourse.y - 70 }, { kind:'turnstile', x:concourse.x + 120, y:concourse.y - 70 },
+        { kind:'stopped_train', x:48 * TS, y:26 * TS + TS / 2, length:TS * 5 }, { kind:'stopped_train', x:72 * TS, y:38 * TS + TS / 2, length:TS * 4 },
+        { kind:'crate', x:maintenance.x + 65, y:maintenance.y + 30 }, { kind:'luggage', x:ticketHall.x - 70, y:ticketHall.y + 50 }, { kind:'barrier', x:subwayTrap.x - 68, y:subwayTrap.y - 42 }
+    ];
+    hidingSpots.push({ x: service.x - 80, y: service.y, occupied:false }, { x: maintenance.x + 72, y: maintenance.y - 28, occupied:false });
+    const idleRow = subwayTrackRows[0];
+    subwayTrains.push({ row: idleRow, x: 31 * TS, direction: 1, speed: 3.5, length: TS * 4.5, active: true, cooldown: 420, trapTrain: false, soundCooldown: 0 });
+    reserveObjectTile(Math.floor(subwayControl.x / TS), Math.floor(subwayControl.y / TS), 1);
+    subwayPanels.forEach(panel => reserveObjectTile(Math.floor(panel.x / TS), Math.floor(panel.y / TS), 1));
+}
+
+function subwayObjectiveComplete() { return currentMapId === 'subway' && subwayPanels.length > 0 && subwayPanels.every(panel => panel.active); }
+
+function completeSubwayPanel(panel) {
+    if (!panel || panel.active) return;
+    panel.active = true; activeGens = subwayPanels.filter(item => item.active).length;
+    currentGen = null; generatorFailureStreak = 0; generatorFailureTarget = null; repairAssist = 0; state = 1;
+    playSound('success'); notify(`${panel.label} · ONLINE`, 'unlock');
+    if (subwayObjectiveComplete()) notify('ALL SIGNALS ONLINE · FIND RAIL CONTROL', 'unlock');
+    updateHUD();
+}
+
+function armSubwayTrap() {
+    if (!subwayObjectiveComplete()) { notify('RESTORE ALL THREE SIGNAL PANELS FIRST', 'warning'); return; }
+    subwayTrapArmed = true; subwayRouteReady = true; subwayTrainWarning = 0; subwayTrainTriggered = false;
+    notify('LAST LINE ARMED · LURE THE HUNTER ONTO PLATFORM 2 TRACK', 'danger'); updateHUD();
+}
+
+function playSubwayTrainSound(train) {
+    if (!audioUnlocked || !train || train.soundCooldown > 0 || setVolM == 0 || setVolS == 0) return;
+    const close = Math.abs(train.x - player.x) < 380 && Math.abs(train.row * TS + TS / 2 - player.y) < 180;
+    if (!close) return;
+    try { const sound = subwayTrainAudio.cloneNode(); sound.volume = Math.min(.65, (setVolM / 100) * (setVolS / 100) * .65); sound.play().catch(() => {}); } catch (_) {}
+    train.soundCooldown = 360;
+}
+
+function updateSubwayTrains() {
+    if (currentMapId !== 'subway' || !(state === 1 || state === 3)) return;
+    for (const train of subwayTrains) {
+        if (train.soundCooldown > 0) train.soundCooldown--;
+        if (!train.active) { train.cooldown--; if (train.cooldown <= 0) { train.active = true; train.direction = Math.random() < .5 ? 1 : -1; train.x = train.direction > 0 ? 28 * TS : (COLS - 3) * TS; train.cooldown = 600; } continue; }
+        train.x += train.speed * train.direction;
+        if (train.x < 27 * TS || train.x > (COLS - 2) * TS) { train.active = false; train.cooldown = 480 + Math.floor(Math.random() * 300); continue; }
+        playSubwayTrainSound(train);
+        const trainY = train.row * TS + TS / 2;
+        const hit = entity => Math.abs(entity.y - trainY) < 23 && entity.x > train.x - train.length / 2 && entity.x < train.x + train.length / 2;
+        if (hit(player)) { endGame(false, monster); return; }
+        for (const enemy of monsters) {
+            if (!hit(enemy)) continue;
+            if (train.trapTrain && subwayTrapArmed && enemy === monster) {
+                subwayTrainTriggered = true; state = 8; enemy.stunTimer = 999; showStoryLine('THE LAST LINE DOES NOT STOP.', 2200);
+                setTimeout(() => { if (state === 8) endGame(true, enemy); }, 2200);
+                return;
+            }
+            enemy.x += train.direction * 28; enemy.path = [];
+        }
+    }
+    if (subwayTrapArmed && !subwayTrainTriggered && Math.hypot(monster.x - subwayTrap.x, monster.y - subwayTrap.y) < 42 && Math.abs(monster.y - subwayTrap.y) < 25) {
+        subwayTrainWarning = 90;
+        subwayTrainTriggered = true;
+        subwayTrains.push({ row: subwayTrap.row, x: 28 * TS, direction: 1, speed: 7.2, length: TS * 5.2, active: true, cooldown: 0, trapTrain: true, soundCooldown: 0 });
+        notify('LAST LINE APPROACHING · GET OFF THE TRACK', 'danger');
+    }
+    if (subwayTrainWarning > 0) subwayTrainWarning--;
 }
 
 function setupForestBeacon() {
@@ -2312,6 +2439,7 @@ function createExtraMonster(name, diffData, index) {
     if (name === 'RHYS') { enemy.baseSpeed += 0.16; enemy.speed = enemy.baseSpeed; enemy.color = '#d8bd32'; enemy.textColor = '#ffe878'; }
     if (name === 'NOAH') { enemy.baseSpeed += 0.10; enemy.speed = enemy.baseSpeed; enemy.color = '#18242a'; enemy.textColor = '#9ad7dd'; }
     if (name === 'AMINE') { enemy.baseSpeed += 0.18; enemy.speed = enemy.baseSpeed; enemy.color = '#e8e8e8'; enemy.textColor = '#fff'; }
+    if (name === 'NIZAR') { enemy.baseSpeed += 0.14; enemy.speed = enemy.baseSpeed; enemy.color = '#37546a'; enemy.textColor = '#9cd6ff'; }
     const count = gameMode === 'survival' ? (survivalConfig?.mutations || 0) : Math.min(3, Math.floor((endlessRound - 1) / 2));
     const pool = ['Speed Demon', 'Giant', 'Reinforced', 'Resilient', 'All-Seeing'];
     for (let i = 0; i < count; i++) {
@@ -2344,6 +2472,7 @@ function startGame(diffLevel) {
     else if (currentMapId === 'hotel') { COLS = 91; ROWS = 69; }
     else if (currentMapId === 'crimson' || currentMapId === 'forest') { COLS = 93; ROWS = 65; }
     else if (currentMapId === 'amine') { COLS = 61; ROWS = 45; }
+    else if (currentMapId === 'subway') { COLS = 82; ROWS = 58; }
     else { COLS = 41; ROWS = 33; }
     hotelTaskSerial = 0;
     if (currentMapId === 'boilerworks') generateBoilerworks();
@@ -2351,11 +2480,12 @@ function startGame(diffLevel) {
     else if (currentMapId === 'crimson') generateCrimsonContainment();
     else if (currentMapId === 'forest') generateForest();
     else if (currentMapId === 'amine') generateAmineGrid();
+    else if (currentMapId === 'subway') generateSubway();
     else { generateMaze(); generateSpecialRooms(); }
     if (currentMapId !== 'hotel') hotelElevator = null;
     if (currentMapId !== 'boilerworks') { centralBoiler = null; coolingValves = []; }
     
-    const spawnRoom = (currentMapId === 'boilerworks' || currentMapId === 'hotel' || currentMapId === 'crimson' || currentMapId === 'forest') ? rooms[0] : null;
+    const spawnRoom = (currentMapId === 'boilerworks' || currentMapId === 'hotel' || currentMapId === 'crimson' || currentMapId === 'forest' || currentMapId === 'subway') ? rooms[0] : null;
     player.x = spawnRoom?.x || (MAZE_LEFT + 1.5) * TS; player.y = spawnRoom?.y || (MAZE_TOP + 1.5) * TS;
     if(currentMapId==='amine'){const safeStart=floors.find(t=>t.c<9&&t.r<9&&!amineHoles.some(h=>h.c===t.c&&h.r===t.r)&&!amineFireZones.some(z=>Math.hypot(z.x-(t.c*TS+TS/2),z.y-(t.r*TS+TS/2))<z.radius+30))||floors[0];player.x=safeStart.c*TS+TS/2;player.y=safeStart.r*TS+TS/2;}
     player.baseSpeed = 3.85 * (1 + (upgShoe * 0.05));
@@ -2420,6 +2550,9 @@ function startGame(diffLevel) {
         monsterName = 'NOAH';
     } else if (currentMapId === 'amine' && gameMode !== 'survival') {
         monsterName = 'AMINE';
+    } else if (currentMapId === 'subway' && gameMode !== 'survival') {
+        const subwayRoster = ['NIZAR', 'CALEB', 'MALAKAI', 'JORDAN', 'AESON'];
+        monsterName = subwayRoster[Math.floor(Math.random() * subwayRoster.length)];
     } else if (currentMapId === 'boilerworks' && gameMode !== 'survival') {
         if (rand < 0.58) monsterName = 'AESON';
         else if (rand < 0.78) monsterName = 'JORDAN';
@@ -2483,6 +2616,8 @@ function startGame(diffLevel) {
         monster.color = '#18242a'; monster.textColor = '#9ad7dd'; noahState = 'hidden'; noahTimer = 0; noahPathTimer = 0;
     } else if (monsterName === 'AMINE') {
         monster.baseSpeed += 0.18; monster.speed = monster.baseSpeed; monster.color = '#e8e8e8'; monster.textColor = '#fff'; monster.invisible = true;
+    } else if (monsterName === 'NIZAR') {
+        monster.baseSpeed += 0.14; monster.speed = monster.baseSpeed; monster.color = '#37546a'; monster.textColor = '#9cd6ff';
     } else if (monsterName === 'CALEB') {
         empTimer = Math.floor(Math.random() * 600) + 600; 
     }
@@ -2550,6 +2685,14 @@ function startGame(diffLevel) {
         monsters.push(createExtraMonster(name, diffData, i));
     }
     
+    if (currentMapId === 'subway') {
+        // These are signal panels, not generators. Keeping the shared counter
+        // lets existing HUD/save/stat systems remain stable without presenting
+        // generator gameplay on this map.
+        generators = subwayPanels;
+        totalGens = subwayPanels.length;
+        activeGens = 0;
+    } else {
     totalGens = Math.floor(Math.random() * (diffData.gMax - diffData.gMin + 1)) + diffData.gMin;
     if (currentMapId === 'hotel') totalGens = Math.max(4, Math.min(7, totalGens + 1));
     if (currentMapId === 'crimson') totalGens = Math.max(5, Math.min(7, totalGens + 1));
@@ -2616,6 +2759,7 @@ function startGame(diffLevel) {
     }
     // Decoys never count toward the power objective.
     totalGens = generators.filter(generator => !generator.isFalse).length;
+    }
     setupForestBeacon();
     spawnGroundLoot();
     spawnLuckyBlocks();
@@ -2713,7 +2857,8 @@ function endGame(isWin, sourceMonster = monster) {
         }
         saveData();
         playSound('success');
-        document.getElementById('endDesc').innerHTML = `You caught ${sourceMonster.name}.<br>${(elapsed / 1000).toFixed(1)}s · ${activeGens}/${totalGens} generators · ${runItemsUsed} items used<br>+${earned} Tokens${gameMode === 'endless' ? ` · x${endlessMultiplier.toFixed(2)} Endless` : ''}`;
+        const progressLabel = currentMapId === 'subway' ? `${activeGens}/${totalGens} signal panels` : `${activeGens}/${totalGens} generators`;
+        document.getElementById('endDesc').innerHTML = `You caught ${sourceMonster.name}.<br>${(elapsed / 1000).toFixed(1)}s · ${progressLabel} · ${runItemsUsed} items used<br>+${earned} Tokens${gameMode === 'endless' ? ` · x${endlessMultiplier.toFixed(2)} Endless` : ''}`;
     } else {
         stats.losses++; stats.timesCaught++;
         saveData();
@@ -2743,6 +2888,10 @@ function returnToMainMenu() {
 function checkPhase() {
     updateHUD();
     if (activeGens >= totalGens) {
+        if (currentMapId === 'subway') {
+            notify('SIGNALS RESTORED · FIND THE RAIL CONTROL ROOM', 'unlock');
+            return;
+        }
         if (currentMapId === 'boilerworks') {
             if (coolingValves.length < 3 || coolingValves.some(valve => !valve.active)) {
                 showMsg(`<span style="color:#ffcc00">GENERATORS ONLINE</span><br>ACTIVATE ${coolingValves.filter(valve => !valve.active).length} COOLING VALVE(S)`, 1300);
@@ -2821,6 +2970,12 @@ function toggleMapOverlay() {
         amineHoles.forEach(hole => { mapCtx.fillStyle = '#000'; mapCtx.fillRect(hole.c * scale, hole.r * scale, Math.ceil(scale), Math.ceil(scale)); });
         if (amineExitGate) { mapCtx.fillStyle = activeGens >= totalGens ? '#7dffdc' : '#566a65'; mapCtx.fillRect(amineExitGate.x / TS * scale - 3, amineExitGate.y / TS * scale - 5, 6, 10); }
     }
+    if (currentMapId === 'subway') {
+        subwayTrackRows.forEach(row => { mapCtx.fillStyle = '#15191d'; mapCtx.fillRect(27 * scale, row * scale, (COLS - 29) * scale, Math.max(2, scale)); });
+        subwayPanels.forEach(panel => { mapCtx.fillStyle = panel.active ? '#4f4' : '#e3b44d'; mapCtx.fillRect(panel.x / TS * scale - 2, panel.y / TS * scale - 2, 4, 4); });
+        if (subwayControl) { mapCtx.fillStyle = subwayTrapArmed ? '#f55' : '#7ec8e3'; mapCtx.fillRect(subwayControl.x / TS * scale - 3, subwayControl.y / TS * scale - 3, 6, 6); }
+        if (subwayTrap) { mapCtx.fillStyle = '#ff6b6b'; mapCtx.fillRect(subwayTrap.x / TS * scale - 3, subwayTrap.y / TS * scale - 3, 6, 6); }
+    }
     generators.forEach(generator => { mapCtx.fillStyle = generator.active ? '#4f4' : '#fc5'; mapCtx.fillRect(generator.x / TS * scale - 2, generator.y / TS * scale - 2, 4, 4); });
     mapCtx.fillStyle = '#4cf'; mapCtx.beginPath(); mapCtx.arc(player.x / TS * scale, player.y / TS * scale, 4, 0, Math.PI * 2); mapCtx.fill();
 }
@@ -2840,13 +2995,15 @@ function drawHotelTaskArrows() {
 
 function updateHUD() {
     const shownGens = hallucinationHudTimer > 0 ? `${Math.max(0, activeGens + (ambienceClock % 2 ? 1 : -1))}/${totalGens}` : `${activeGens}/${totalGens}`;
-    document.getElementById('genCount').innerText = monsters.some(enemy => enemy.hasScrambler) ? "?/?" : shownGens;
+    document.getElementById('genCount').innerText = currentMapId === 'subway' ? `Signals: ${activeGens}/${totalGens}` : (monsters.some(enemy => enemy.hasScrambler) ? "?/?" : shownGens);
     const objective = document.getElementById('mapObjective');
     if (objective) {
         const objectiveGens = monsters.some(enemy => enemy.hasScrambler) ? '?/?' : `${activeGens}/${totalGens}`;
         const falseObjective = monster.hasFalseObjective && Math.floor(ambienceClock / 180) % 2 === 1;
         objective.textContent = falseObjective
             ? 'Objective signal corrupted · CHECK THE LANDMARKS'
+            : currentMapId === 'subway'
+                ? `Last Line: ${activeGens}/${totalGens} signal panels · ${!subwayObjectiveComplete() ? 'RESTORE THE ROUTE' : !subwayTrapArmed ? 'FIND RAIL CONTROL' : subwayTrainTriggered ? 'TRAIN INBOUND · GET CLEAR' : 'LURE THE HUNTER ONTO PLATFORM 2 TRACK'}`
             : currentMapId === 'boilerworks'
                 ? `Cooling valves: ${coolingValves.filter(valve => valve.active).length}/${coolingValves.length || 3}${boilerReadyShown ? ' · FIND THE BOILER' : ''}`
                 : currentMapId === 'hotel'
@@ -3141,6 +3298,9 @@ function update() {
         empActive = 0; empWarning = 0;
     }
 
+    updateSubwayTrains();
+    if (state === 4 || state === 8) return;
+
     if (player.stunTimer > 0) {
         player.stunTimer--;
     } else if (!player.hidden && !hotelDialogueOpen) {
@@ -3171,7 +3331,7 @@ function update() {
         trailLastX = player.x; trailLastY = player.y;
     }
 
-    nearGen = null; nearFuse = null; nearHide = null; nearValve = null; nearBoiler = false; nearEmployee = null; nearElevator = false; nearHotelTask = null; nearRhysSeal = false; nearRhysKey = false; nearRhysChest = false; nearRhysTrap = false;
+    nearGen = null; nearFuse = null; nearHide = null; nearValve = null; nearBoiler = false; nearEmployee = null; nearElevator = false; nearHotelTask = null; nearRhysSeal = false; nearRhysKey = false; nearRhysChest = false; nearRhysTrap = false; nearSubwayPanel = null; nearSubwayControl = false;
     if (state === 1 && player.stunTimer <= 0) {
         for (let g of generators) {
             if (!g.active && Math.hypot(player.x - g.x, player.y - g.y) < player.r + g.r + 15) {
@@ -3187,6 +3347,10 @@ function update() {
             nearRhysKey = Boolean(rhysChestKey && Math.hypot(player.x-rhysChestKey.x, player.y-rhysChestKey.y) < 34);
             nearRhysChest = Boolean(rhysChest && Math.hypot(player.x-rhysChest.x, player.y-rhysChest.y) < 38);
             nearRhysTrap = Boolean(rhysTrap && Math.hypot(player.x-rhysTrap.x, player.y-rhysTrap.y) < 44);
+        }
+        if (currentMapId === 'subway') {
+            nearSubwayPanel = subwayPanels.find(panel => !panel.active && Math.hypot(player.x - panel.x, player.y - panel.y) < 38) || null;
+            nearSubwayControl = Boolean(subwayControl && Math.hypot(player.x - subwayControl.x, player.y - subwayControl.y) < 46);
         }
         if (currentMapId === 'hotel') {
             nearEmployee = employees.find(employee => !employee.evacuated && Math.hypot(player.x - employee.x, player.y - employee.y) < 34) || null;
@@ -3467,10 +3631,10 @@ function draw() {
     for (let r = 0; r < ROWS; r++) {
         for (let c = 0; c < COLS; c++) {
             if (map[r][c] === 1) {
-                ctx.fillStyle = currentMapId === 'boilerworks' ? '#171a1d' : currentMapId === 'hotel' ? '#211a20' : currentMapId === 'crimson' ? '#241012' : currentMapId === 'forest' ? '#17351c' : currentMapId === 'amine' ? '#494949' : '#2d2216'; ctx.fillRect(c * TS, r * TS, TS, TS);
+                ctx.fillStyle = currentMapId === 'boilerworks' ? '#171a1d' : currentMapId === 'hotel' ? '#211a20' : currentMapId === 'crimson' ? '#241012' : currentMapId === 'forest' ? '#17351c' : currentMapId === 'amine' ? '#494949' : currentMapId === 'subway' ? '#15191d' : '#2d2216'; ctx.fillRect(c * TS, r * TS, TS, TS);
                 if (!setOptimization) { ctx.strokeStyle = currentMapId === 'boilerworks' ? '#0b0d0f' : currentMapId === 'hotel' ? '#0e0a10' : currentMapId === 'crimson' ? '#100506' : '#181109'; ctx.strokeRect(c * TS, r * TS, TS, TS); }
             } else {
-                ctx.fillStyle = currentMapId === 'boilerworks' ? '#4b4540' : currentMapId === 'hotel' ? ((r + c) % 2 ? '#5b4850' : '#65505a') : currentMapId === 'crimson' ? ((r + c) % 2 ? '#6f2429' : '#7d2b30') : currentMapId === 'forest' ? ((r + c) % 2 ? '#326d36' : '#39793d') : currentMapId === 'amine' ? ((r+c)%2?'#292426':'#332a2d') : '#8b7355'; ctx.fillRect(c * TS, r * TS, TS, TS);
+                ctx.fillStyle = currentMapId === 'boilerworks' ? '#4b4540' : currentMapId === 'hotel' ? ((r + c) % 2 ? '#5b4850' : '#65505a') : currentMapId === 'crimson' ? ((r + c) % 2 ? '#6f2429' : '#7d2b30') : currentMapId === 'forest' ? ((r + c) % 2 ? '#326d36' : '#39793d') : currentMapId === 'amine' ? ((r+c)%2?'#292426':'#332a2d') : currentMapId === 'subway' ? ((r + c) % 2 ? '#31383d' : '#3a4247') : '#8b7355'; ctx.fillRect(c * TS, r * TS, TS, TS);
                 if (!setOptimization && currentMapId === 'boilerworks' && (r + c) % 7 === 0) {
                     ctx.fillStyle = 'rgba(180,120,55,0.2)'; ctx.fillRect(c * TS + 5, r * TS + 7, TS - 10, 3);
                 }
@@ -3501,6 +3665,30 @@ function draw() {
 
     if (currentMapId === 'forest') {
         for (const tree of forestTrees) { ctx.fillStyle = '#1a4523'; ctx.beginPath(); ctx.arc(tree.x, tree.y, tree.radius, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = '#0b2511'; ctx.lineWidth = 3; ctx.stroke(); ctx.fillStyle = 'rgba(110,180,84,.26)'; ctx.beginPath(); ctx.arc(tree.x - tree.radius * .25, tree.y - tree.radius * .3, tree.radius * .48, 0, Math.PI * 2); ctx.fill(); }
+    }
+    if (currentMapId === 'subway') {
+        for (const row of subwayTrackRows) {
+            const y = row * TS + TS / 2;
+            ctx.strokeStyle = '#0a0c0e'; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(27 * TS, y - 10); ctx.lineTo((COLS - 2) * TS, y - 10); ctx.moveTo(27 * TS, y + 10); ctx.lineTo((COLS - 2) * TS, y + 10); ctx.stroke();
+            ctx.strokeStyle = '#8c7347'; ctx.lineWidth = 3;
+            for (let x = 28 * TS; x < (COLS - 2) * TS; x += 18) { ctx.beginPath(); ctx.moveTo(x, y - 16); ctx.lineTo(x, y + 16); ctx.stroke(); }
+        }
+        for (const item of subwayDecor) {
+            ctx.save(); ctx.translate(item.x, item.y);
+            if (item.kind === 'bench') { ctx.fillStyle='#684d36'; ctx.fillRect(-34,-8,68,16); ctx.fillStyle='#222'; ctx.fillRect(-28,8,5,13); ctx.fillRect(23,8,5,13); }
+            else if (item.kind === 'machine') { ctx.fillStyle='#273b48'; ctx.fillRect(-14,-26,28,52); ctx.fillStyle='#7fe7ff'; ctx.fillRect(-8,-18,16,16); }
+            else if (item.kind === 'turnstile') { ctx.strokeStyle='#aebac0'; ctx.lineWidth=4; ctx.beginPath(); ctx.moveTo(-13,0);ctx.lineTo(13,0);ctx.moveTo(0,-13);ctx.lineTo(0,13);ctx.stroke(); }
+            else if (item.kind === 'poster') { ctx.fillStyle='#c9b178';ctx.fillRect(-18,-25,36,50);ctx.fillStyle='#5b2631';ctx.fillRect(-12,-18,24,30); }
+            else if (item.kind === 'barrier') { ctx.strokeStyle='#ffc94d';ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(-18,-14);ctx.lineTo(18,14);ctx.moveTo(-18,14);ctx.lineTo(18,-14);ctx.stroke(); }
+            else if (item.kind === 'stopped_train') { ctx.fillStyle='#30353a';ctx.fillRect(-item.length/2,-23,item.length,46);ctx.fillStyle='#111';for(let x=-item.length/2+12;x<item.length/2-5;x+=27)ctx.fillRect(x,-14,17,18);ctx.fillStyle='#725d43';ctx.fillRect(-item.length/2+5,16,item.length-10,4); }
+            else { ctx.fillStyle=item.kind==='luggage'?'#714832':'#4f4b45';ctx.fillRect(-13,-10,26,20); }
+            ctx.restore();
+        }
+        for (const sign of subwaySigns) { ctx.fillStyle='#111b23';ctx.fillRect(sign.x-82,sign.y-12,164,24);ctx.strokeStyle='#c7d5df';ctx.lineWidth=1;ctx.strokeRect(sign.x-82,sign.y-12,164,24);ctx.fillStyle='#e7f1f7';ctx.font='bold 10px Arial';ctx.textAlign='center';ctx.fillText(sign.text,sign.x,sign.y+4); }
+        for (const panel of subwayPanels) { ctx.fillStyle=panel.active?'#46d876':'#d7a943';ctx.fillRect(panel.x-13,panel.y-19,26,38);ctx.fillStyle='#091018';ctx.fillRect(panel.x-8,panel.y-13,16,11);if (nearSubwayPanel === panel && state===1) {ctx.fillStyle='#fff';ctx.font='bold 10px Arial';ctx.fillText('[E] '+panel.label,panel.x,panel.y-30);} }
+        if (subwayControl) { ctx.fillStyle=subwayTrapArmed?'#52ec79':'#7ea7c1';ctx.fillRect(subwayControl.x-21,subwayControl.y-18,42,36);ctx.fillStyle='#101820';ctx.fillRect(subwayControl.x-15,subwayControl.y-12,30,13);if(nearSubwayControl&&state===1){ctx.fillStyle='#fff';ctx.font='bold 10px Arial';ctx.fillText('[E] '+(subwayTrapArmed?'LAST LINE ARMED':'ARM LAST LINE'),subwayControl.x,subwayControl.y-29);} }
+        if (subwayTrap) { ctx.strokeStyle=subwayTrapArmed?'#ff4e4e':'#77624b';ctx.lineWidth=3;ctx.strokeRect(subwayTrap.x-16,subwayTrap.y-18,32,36);if(subwayTrainWarning>0){ctx.fillStyle=ambienceClock%10<5?'#ff3333':'#fff';ctx.beginPath();ctx.arc(subwayTrap.x,subwayTrap.y-34,8,0,Math.PI*2);ctx.fill();} }
+        for (const train of subwayTrains.filter(train=>train.active)) { const y=train.row*TS+TS/2; ctx.fillStyle=train.trapTrain?'#9d2222':'#45515a';ctx.fillRect(train.x-train.length/2,y-26,train.length,52);ctx.fillStyle='#111';for(let x=train.x-train.length/2+14;x<train.x+train.length/2-6;x+=28)ctx.fillRect(x,y-15,17,19);ctx.fillStyle='#e7d6a1';ctx.fillRect(train.x+(train.direction>0?train.length/2-6:-train.length/2),y-12,6,24); }
     }
     if(currentMapId==='amine'){
         for(const zone of amineFireZones){ctx.fillStyle='rgba(255,70,10,.3)';ctx.beginPath();ctx.arc(zone.x,zone.y,zone.radius,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#ff6b20';ctx.stroke();}
@@ -3704,6 +3892,7 @@ function draw() {
         if (Math.hypot(player.x - loot.x, player.y - loot.y) < 34) { ctx.fillStyle = '#fff'; ctx.font = 'bold 10px Arial'; ctx.textAlign = 'center'; ctx.fillText(`[E] ${ITEM_DEFINITIONS[loot.type].toUpperCase()}`, loot.x, loot.y - 15); }
     }
     for (let g of generators) {
+        if (g.isSubway) continue;
         if (g.active || g.repairFlash > 0) {
             const glow = g.repairFlash > 0 ? 0.35 + (g.repairFlash / 45) * 0.35 : 0.16;
             const glowRadius = g.repairFlash > 0 ? 34 : 24;
@@ -3937,7 +4126,7 @@ function draw() {
         let cx = canvas.width/2, cy = canvas.height/2;
         ctx.fillStyle = 'rgba(0,0,0,0.72)'; ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.fillStyle = '#ffcc00'; ctx.textAlign = 'center'; ctx.font = '24px Arial';
-        ctx.fillText(`CIRCUIT REPAIR · STAGE ${circuitStage + 1}/${currentGen.requiredStages}`, cx, cy - 55);
+        ctx.fillText(`${currentGen?.isSubway ? 'SIGNAL SWITCH' : 'CIRCUIT REPAIR'} · STAGE ${circuitStage + 1}/${currentGen.requiredStages}`, cx, cy - 55);
         ctx.fillStyle = '#fff'; ctx.font = '18px Arial'; ctx.fillText('Enter the wire sequence', cx, cy - 20);
         ctx.font = '38px Arial'; ctx.fillText(circuitSequence.map(key => key.toUpperCase()).join('  '), cx, cy + 35);
         ctx.font = '16px Arial'; ctx.fillText('Use the W A S D buttons', cx, cy + 78);
