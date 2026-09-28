@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.9.8
+
+- Opened the Parted Grid connector mouths into wider three-way junctions and reduced random fire zones from 32 to 16.
+- Made Level 0 safe rooms and powered Forest cabins reliably protected, including against extra monsters in Survival and Endless modes.
+- Added timed Forest arrows for unlit breaker cabins and the watchtower, fixed the Forest completion daily objective, and bumped the offline cache to `calebs-shift-v62`.
+
 ## 2.9.7
 
 - Replaced the Parted Grid's open pillar field with repeated authored PillarRoom geometry from the Developer Studio export, joined by cardinal corridors.

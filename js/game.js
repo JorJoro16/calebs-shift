@@ -103,7 +103,7 @@ function playSound(type) {
 }
 
 // Versioned local progress with a backup copy and import/export support.
-const GAME_VERSION = '2.9.7';
+const GAME_VERSION = '2.9.8';
 const SAVE_SCHEMA_VERSION = 10;
 const SAVE_KEY = 'br_save_v2';
 const SAVE_BACKUP_KEY = 'br_save_backup_v2';
@@ -1570,7 +1570,7 @@ let reservedObjectTiles = new Set(), hotelDoorTiles = [], hotelBlockedDoor = nul
 let centralBoiler = null, boilerShutdown = false, boilerReadyShown = false;
 let hotelElevator = null, hotelLockdownTimer = 0, hotelEventCooldown = 0, hotelLockdownActive = false;
 let rhysSeal = null, rhysChest = null, rhysChestKey = null, rhysBreakWall = null, rhysTrap = null, rhysRoute = 'search', rhysSealCollected = false, rhysTrapArmed = false;
-let forestCabins = [], forestBreakers = [], forestTrees = [], forestBeaconBattery = null, forestWatchtower = null, forestBeaconActive = false, forestFogTimer = 0, forestFogCooldown = 0, noahState = 'hidden', noahTimer = 0, noahPathTimer = 0, noahCharge = null, noahLightningCooldown = 0, noahLightningZones = [], noahLightningPending = [], noahLightningWarning = 0, noahLightningFlashes = 0, noahShockTimer = 0;
+let forestCabins = [], forestBreakers = [], forestTrees = [], forestBeaconBattery = null, forestWatchtower = null, forestBeaconActive = false, forestFogTimer = 0, forestFogCooldown = 0, forestGuideTimer = 0, forestGuideCooldown = 1200, forestGuideMode = 'cabins', noahState = 'hidden', noahTimer = 0, noahPathTimer = 0, noahCharge = null, noahLightningCooldown = 0, noahLightningZones = [], noahLightningPending = [], noahLightningWarning = 0, noahLightningFlashes = 0, noahShockTimer = 0;
 let amineHoles = [], amineFireZones = [], amineExitGate = null, amineFocus = false, amineVisibleTimer = 0, amineFlashCooldown = 0, amineTeleportCooldown = 0, amineCallCount = 1, amineCallsRemaining = 0, amineCallActive = false, amineTurret = null, amineBullets = [], amineBurnTimer = 0, amineRoad = null;
 let subwayPanels = [], subwayTrains = [], subwayTrackRows = [], subwayTrackSegments = [], subwayTrap = null, subwayControl = null, subwayRouteReady = false, subwayTrapArmed = false, subwayTrainWarning = 0, subwayTrainTriggered = false, subwayDecor = [], subwaySigns = [], subwayCommitTimer = 0, subwayCommitTarget = null, subwayRouteMinX = 0, subwayRouteMaxX = 0, subwayTrainPaths = [];
 let routeBoard = null;
@@ -2505,6 +2505,13 @@ function generateAmineGrid() {
         const c = originC + localC, r = originR + localR;
         if (map[r]?.[c] !== undefined) map[r][c] = 0;
     };
+    const carveThreeWayEntrance = (c, r, horizontal) => {
+        if (horizontal) {
+            for (const offset of [-1, 0, 1]) if (map[r + offset]?.[c] !== undefined) map[r + offset][c] = 0;
+        } else {
+            for (const offset of [-1, 0, 1]) if (map[r]?.[c + offset] !== undefined) map[r][c + offset] = 0;
+        }
+    };
     const stampRoom = (originC, originR) => {
         for (const [c, r] of PARTED_GRID_ROOM_TEMPLATE.floors) carveTemplateCell(originC, originR, c, r);
         // Walls remain solid in the base map, but keeping them explicit here
@@ -2524,10 +2531,14 @@ function generateAmineGrid() {
             if (column < originColumns.length - 1) {
                 const y = originR + PARTED_GRID_ROOM_TEMPLATE.connections.east[1];
                 for (let c = originC + 7; c <= originColumns[column + 1]; c++) if (map[y]?.[c] !== undefined) map[y][c] = 0;
+                carveThreeWayEntrance(originC + 7, y, true);
+                carveThreeWayEntrance(originColumns[column + 1] - 1, y, true);
             }
             if (row < originRows.length - 1) {
                 const x = originC + PARTED_GRID_ROOM_TEMPLATE.connections.south[0];
                 for (let r = originR + 7; r <= originRows[row + 1]; r++) if (map[r]?.[x] !== undefined) map[r][x] = 0;
+                carveThreeWayEntrance(x, originR + 7, false);
+                carveThreeWayEntrance(x, originRows[row + 1] - 1, false);
             }
         }
     }
@@ -2535,7 +2546,7 @@ function generateAmineGrid() {
     // Preserve the old random Parted Grid hazards, but only place them on the
     // authored floor/corridor cells and keep the opening room safe enough to
     // understand on spawn.
-    for (let i = 0; i < 32; i++) {
+    for (let i = 0; i < 16; i++) {
         const candidates = floors.filter(tile => tile.c > 8 && tile.r > 2 && !amineFireZones.some(zone => Math.hypot(zone.x - (tile.c * TS + TS / 2), zone.y - (tile.r * TS + TS / 2)) < zone.radius + 20));
         const tile = candidates[Math.floor(Math.random() * Math.max(1, candidates.length))];
         if (tile) amineFireZones.push({ x:tile.c * TS + TS / 2, y:tile.r * TS + TS / 2, radius:52 + Math.floor(Math.random() * 32) });
@@ -2748,6 +2759,22 @@ function setupForestBeacon() {
     const tile = candidates[Math.floor(Math.random() * Math.max(1, candidates.length))] || floors.at(-1);
     forestWatchtower = tile ? { x: tile.c * TS + TS / 2, y: tile.r * TS + TS / 2 } : null;
     if (forestWatchtower) reserveObjectTile(Math.floor(forestWatchtower.x / TS), Math.floor(forestWatchtower.y / TS), 2);
+}
+
+function updateForestGuidance() {
+    if (currentMapId !== 'forest' || state !== 1) return;
+    const cabinsNeedingLight = forestBreakers.filter(breaker => !breaker.active);
+    const nextMode = cabinsNeedingLight.length ? 'cabins' : 'watchtower';
+    if (forestGuideMode !== nextMode) {
+        forestGuideMode = nextMode;
+        forestGuideTimer = 0;
+        forestGuideCooldown = nextMode === 'cabins' ? 1200 : 600;
+    }
+    if (forestGuideTimer > 0) { forestGuideTimer--; return; }
+    if (forestGuideCooldown > 0) { forestGuideCooldown--; return; }
+    forestGuideTimer = nextMode === 'cabins' ? 300 : 180;
+    forestGuideCooldown = nextMode === 'cabins' ? 900 : 420;
+    notify(nextMode === 'cabins' ? 'CABIN LIGHTS MARKED' : 'WATCHTOWER MARKED', 'info', 900);
 }
 
 function forestObjectiveComplete() { return currentMapId !== 'forest' || (activeGens >= totalGens && forestBreakers.every(breaker => breaker.active) && forestBeaconActive); }
@@ -3173,9 +3200,17 @@ function getRoomAt(x, y) {
     }) || null;
 }
 
-function isSafeRoom(x, y) {
+function isProtectedRoom(x, y) {
     const room = getRoomAt(x, y);
-    return safeRoomsReliable && (room?.type === 'safe' || (currentMapId === 'forest' && room?.type === 'cabin' && room.lit));
+    return room?.type === 'safe' || (currentMapId === 'forest' && room?.type === 'cabin' && room.lit);
+}
+
+function isSafeRoom(x, y) {
+    if (!isProtectedRoom(x, y)) return false;
+    // Level 0 safe rooms and powered Forest cabins are always dependable.
+    // Other map-specific safe-room reliability modifiers can still apply.
+    if (currentMapId === 'level0' || currentMapId === 'forest') return true;
+    return safeRoomsReliable;
 }
 
 function monsterCanSeeUnhiddenPlayer(enemy = monster) {
@@ -3476,7 +3511,7 @@ function startGame(diffLevel) {
     nearGen = null; nearValve = null; nearBoiler = false; flashAlpha = 0;
     boilerShutdown = false; boilerReadyShown = false; heatZones = []; heatEventCooldown = currentMapId === 'boilerworks' ? 360 : 0;
     rhysSealCollected = false; rhysTrapArmed = false; goopZones = []; goopShots = []; rhysSpitCooldown = 180; rhysDashTimer = 0; rhysChargeWindup = 0; rhysDashCooldown = 360; rhysEventCooldown = 900; rhysSweepTimer = 0; rhysSweepRadius = 0; rhysPressureZones = [];
-    forestBeaconBattery = null; forestWatchtower = null; forestBeaconActive = false; forestFogTimer = 0; forestFogCooldown = currentMapId === 'forest' ? 720 : 0; noahCharge = null; noahLightningCooldown = 360; noahLightningZones = []; noahLightningPending = []; noahLightningWarning = 0; noahLightningFlashes = 0; noahShockTimer = 0;
+    forestBeaconBattery = null; forestWatchtower = null; forestBeaconActive = false; forestFogTimer = 0; forestFogCooldown = currentMapId === 'forest' ? 720 : 0; forestGuideTimer = 0; forestGuideCooldown = currentMapId === 'forest' ? 1200 : 0; forestGuideMode = 'cabins'; noahCharge = null; noahLightningCooldown = 360; noahLightningZones = []; noahLightningPending = []; noahLightningWarning = 0; noahLightningFlashes = 0; noahShockTimer = 0;
     amineFocus = false; amineVisibleTimer = 0; amineFlashCooldown = 90; amineTeleportCooldown = 240; amineCallCount = 1; amineCallsRemaining = 0; amineCallActive = false; amineTurret = null; amineBullets = []; amineBurnTimer = 0; amineRoad = null; luckyBlocks = [];
     document.getElementById('amineCall').style.display='none';
     hotelLockdownTimer = 0; hotelEventCooldown = currentMapId === 'hotel' ? 480 : 0; hotelLockdownActive = false; hotelBlockedDoor = null;
@@ -3765,6 +3800,7 @@ function endGame(isWin, sourceMonster = monster) {
         showMsg('RESTORE ALL GENERATORS, RECOVER THE SEAL, AND ARM THE TRAP', 1400);
         return;
     }
+    if (isWin && currentMapId === 'forest') advanceDailyObjective('forest');
     if (isWin && currentMapId === 'boilerworks' && currentDiff === 2) stats.boilerworksHardStreak = Math.min(3, stats.boilerworksHardStreak + 1);
     else if (!isWin || currentMapId !== 'boilerworks') stats.boilerworksHardStreak = 0;
     if (stats.boilerworksHardStreak >= 3) unlockCosmetic('spongeMask');
@@ -3969,6 +4005,37 @@ function drawHotelTaskArrows() {
     });
 }
 
+function drawForestGuidanceArrows() {
+    if (currentMapId !== 'forest' || state !== 1 || forestGuideTimer <= 0) return;
+    const targets = forestGuideMode === 'cabins'
+        ? forestBreakers.filter(breaker => !breaker.active).map((breaker, index) => ({ x:breaker.cabin.x, y:breaker.cabin.y, label:`CABIN ${index + 1}` }))
+        : forestWatchtower ? [{ x:forestWatchtower.x, y:forestWatchtower.y, label:'WATCHTOWER' }] : [];
+    const worldToScreen = (x, y) => [(x - camera.x) * camera.zoom, (y - camera.y) * camera.zoom];
+    const centerX = canvas.width / 2, centerY = canvas.height / 2;
+    targets.forEach((target, index) => {
+        let [sx, sy] = worldToScreen(target.x, target.y);
+        const onScreen = sx > 34 && sx < canvas.width - 34 && sy > 34 && sy < canvas.height - 34;
+        const angle = Math.atan2(sy - centerY, sx - centerX);
+        if (!onScreen) {
+            const radius = Math.min(canvas.width, canvas.height) * .40 - index * 22;
+            sx = centerX + Math.cos(angle) * radius;
+            sy = centerY + Math.sin(angle) * radius;
+        } else {
+            sy -= 22;
+        }
+        sx = Math.max(32, Math.min(canvas.width - 32, sx));
+        sy = Math.max(30, Math.min(canvas.height - 30, sy));
+        ctx.save();
+        ctx.translate(sx, sy);
+        ctx.rotate(angle);
+        ctx.fillStyle = forestGuideMode === 'cabins' ? '#ffe36b' : '#9fffc0';
+        ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = 12;
+        ctx.beginPath(); ctx.moveTo(16, 0); ctx.lineTo(-10, -10); ctx.lineTo(-10, 10); ctx.closePath(); ctx.fill();
+        ctx.restore();
+        ctx.fillStyle = '#fff4bd'; ctx.font = 'bold 10px Arial'; ctx.textAlign = 'center'; ctx.fillText(target.label, sx, sy + 23);
+    });
+}
+
 function updateHUD() {
     const shownGens = hallucinationHudTimer > 0 ? `${Math.max(0, activeGens + (ambienceClock % 2 ? 1 : -1))}/${totalGens}` : `${activeGens}/${totalGens}`;
     document.getElementById('genCount').innerText = currentMapId === 'subway' ? `Signals: ${activeGens}/${totalGens}` : (monsters.some(enemy => enemy.hasScrambler) ? "?/?" : shownGens);
@@ -4105,12 +4172,16 @@ function findPath(sc, sr, tc, tr) {
 
 function moveMonsterAlongPath(spd, enemy = monster) {
     if (enemy.path.length > 0) {
+        const oldX = enemy.x, oldY = enemy.y;
         let target = enemy.path[0], tx = target.c * TS + TS/2, ty = target.r * TS + TS/2;
         if (Math.hypot(tx - enemy.x, ty - enemy.y) < spd) {
             enemy.x = tx; enemy.y = ty; enemy.path.shift();
         } else {
             let ang = Math.atan2(ty - enemy.y, tx - enemy.x);
             moveEntity(enemy, Math.cos(ang) * spd, Math.sin(ang) * spd);
+        }
+        if (monsters.includes(enemy) && isProtectedRoom(enemy.x, enemy.y)) {
+            enemy.x = oldX; enemy.y = oldY; enemy.path = [];
         }
     }
 }
@@ -4165,8 +4236,11 @@ function separateMonsters() {
             const dx = b.x - a.x, dy = b.y - a.y, distance = Math.hypot(dx, dy);
             if (distance > 0 && distance < 30) {
                 const push = (30 - distance) * 0.5;
+                const aX = a.x, aY = a.y, bX = b.x, bY = b.y;
                 moveEntity(a, -dx / distance * push, -dy / distance * push);
                 moveEntity(b, dx / distance * push, dy / distance * push);
+                if (isProtectedRoom(a.x, a.y)) { a.x = aX; a.y = aY; }
+                if (isProtectedRoom(b.x, b.y)) { b.x = bX; b.y = bY; }
             }
         }
     }
@@ -4232,6 +4306,7 @@ function update() {
     updateAesonEvents();
     updateRhysEvents();
     updateForestEvent();
+    updateForestGuidance();
     updateHotelEvents();
     updateHotelEmployees();
     if (monsters.some(enemy => enemy.hasHallucinations) && state === 1 && Math.random() < 0.0025) {
@@ -4540,10 +4615,12 @@ function update() {
                 moveMonsterAlongPath(getMonsterSpeed());
                 if (Math.hypot(monster.x - monster.heatAlertX, monster.y - monster.heatAlertY) < 24) monster.heatAlertTimer = 0;
             } else if (monster.isPhantom) {
+                const oldX = monster.x, oldY = monster.y;
                 let ang = Math.atan2(player.y - monster.y, player.x - monster.x);
                 const phantomSpeed = getMonsterSpeed();
                 monster.x += Math.cos(ang) * phantomSpeed;
                 monster.y += Math.sin(ang) * phantomSpeed;
+                if (isProtectedRoom(monster.x, monster.y)) { monster.x = oldX; monster.y = oldY; }
             } else {
                 if (canSeePlayer) {
                     let pC = Math.floor(player.x/TS), pR = Math.floor(player.y/TS);
@@ -5060,6 +5137,7 @@ function draw() {
     if(monster.name==='AMINE'&&amineFocus&&state===1){ctx.fillStyle='#000';ctx.fillRect(0,0,canvas.width,canvas.height);const sx=(monster.x-camera.x)*camera.zoom,sy=(monster.y-camera.y)*camera.zoom;ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(sx,sy,monster.drawRadius*camera.zoom,0,Math.PI*2);ctx.fill();ctx.fillStyle='#111';ctx.beginPath();ctx.arc(sx-4,sy-2,2,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.arc(sx+4,sy-2,2,0,Math.PI*2);ctx.fill();}
 
     drawHotelTaskArrows();
+    drawForestGuidanceArrows();
 
     if (flareTimer > 0 && (state === 1 || state === 3) && Math.hypot(monster.x - player.x, monster.y - player.y) > 260) {
         const angle = Math.atan2(monster.y - player.y, monster.x - player.x), radius = Math.min(canvas.width, canvas.height) * .42;
