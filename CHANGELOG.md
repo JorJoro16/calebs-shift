@@ -1,5 +1,19 @@
 # Changelog
 
+## 2.9.7
+
+- Replaced the Parted Grid's open pillar field with repeated authored PillarRoom geometry from the Developer Studio export, joined by cardinal corridors.
+- Preserved randomized fire zones, sinkholes, generator placement, and the Amine call/teleport pressure on the new authored layout.
+- Replaced the old Amine turret screen with a road pursuit: steer a turret car, dodge moving roadblocks, fire around cover, survive temporary invisibility, and avoid overheating the turret with eight repetitive shots.
+- Updated Parted Grid guidance and bumped the offline cache to `calebs-shift-v61`.
+
+## 2.9.6
+
+- Added the hidden Developer Studio, unlocked with `Shift + O + P` and the developer code.
+- Added a 2D room-authoring canvas with floor, wall, decoration, spawn, connection, selection, eraser, undo, redo, and play-test tools.
+- Added room naming and description prompts, separate local room storage, room collections, JSON import/export, color controls, and a simple wall-collision preview.
+- Bumped the offline cache to `calebs-shift-v60`.
+
 ## 2.5.3
 
 - Disabled power outages and emergency-light events in Blackwood Forest.

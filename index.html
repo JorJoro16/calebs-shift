@@ -66,7 +66,64 @@
         <button onclick="showMenu('loadoutsMenu')">LOADOUTS</button>
         <button onclick="showMenu('cosmeticsMenu')">COSMETICS BOOK</button>
         <button onclick="showMenu('settingsMenu')">SETTINGS</button>
+        <button id="developerStudioButton" class="developer-menu-button" onclick="openDeveloperStudio()" style="display:none;">DEVELOPER STUDIO</button>
     </div>
+
+    <div id="developerUnlockDialog" class="developer-dialog-backdrop" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="developerUnlockTitle">
+        <div class="developer-dialog-card">
+            <h2 id="developerUnlockTitle">DEVELOPER ACCESS</h2>
+            <p>Enter the developer code to add the room-building studio to the main menu.</p>
+            <input id="developerCodeInput" class="developer-text-input" type="password" autocomplete="off" spellcheck="false" placeholder="Developer code">
+            <div id="developerUnlockError" class="developer-dialog-error" aria-live="polite"></div>
+            <div class="developer-dialog-actions"><button onclick="submitDeveloperUnlock()">UNLOCK</button><button onclick="closeDeveloperUnlock()" class="developer-secondary-button">CANCEL</button></div>
+        </div>
+    </div>
+
+    <div id="developerRoomDialog" class="developer-dialog-backdrop" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="developerRoomTitle">
+        <div class="developer-dialog-card developer-room-dialog-card">
+            <h2 id="developerRoomTitle">SAVE ROOM</h2>
+            <p>Give this room a name and a short description. You can change both later.</p>
+            <label>What is the name of this room?<input id="developerRoomNameInput" class="developer-text-input" type="text" maxlength="80" autocomplete="off" placeholder="Example: Platform 01"></label>
+            <label>What is the description?<textarea id="developerRoomDescriptionInput" class="developer-text-input developer-textarea" maxlength="500" placeholder="What makes this room important or different?"></textarea></label>
+            <div id="developerRoomError" class="developer-dialog-error" aria-live="polite"></div>
+            <div class="developer-dialog-actions"><button onclick="submitDeveloperRoomDetails()">CONTINUE</button><button onclick="closeDeveloperRoomDialog()" class="developer-secondary-button">CANCEL</button></div>
+        </div>
+    </div>
+
+    <section id="developerStudio" class="developer-studio" style="display:none;" aria-label="Developer Studio">
+        <header class="developer-studio-header">
+            <div><span class="developer-eyebrow">CALEB'S SHIFT · AUTHORING TOOL</span><h2>DEVELOPER STUDIO</h2></div>
+            <div class="developer-header-actions"><button onclick="newDeveloperRoom()">NEW ROOM</button><button onclick="saveDeveloperRoom()" class="developer-primary-button">SAVE</button><button onclick="closeDeveloperStudio()" class="developer-danger-button">EXIT</button></div>
+        </header>
+        <div class="developer-studio-body">
+            <aside class="developer-sidebar developer-room-sidebar">
+                <div class="developer-sidebar-heading"><span>ROOMS</span><button onclick="newDeveloperRoom()" aria-label="Create new room">+</button></div>
+                <div id="developerRoomList" class="developer-room-list"></div>
+                <div class="developer-sidebar-tools"><button onclick="exportDeveloperRoom()">EXPORT CURRENT</button><button onclick="exportDeveloperRooms()">EXPORT ALL</button><button onclick="document.getElementById('developerRoomFileInput').click()">IMPORT ROOM</button><input id="developerRoomFileInput" type="file" accept="application/json,.json" style="display:none" onchange="importDeveloperRoom(event)"></div>
+            </aside>
+            <main class="developer-workspace">
+                <div class="developer-toolbar" role="toolbar" aria-label="Room tools">
+                    <button data-dev-tool="select" class="active-dev-tool">SELECT</button>
+                    <button data-dev-tool="floor">FLOOR</button>
+                    <button data-dev-tool="wall">WALL</button>
+                    <button data-dev-tool="decoration">DECOR</button>
+                    <button data-dev-tool="spawn">SPAWN</button>
+                    <button data-dev-tool="connection">CONNECT</button>
+                    <button data-dev-tool="eraser">ERASER</button>
+                    <span class="developer-toolbar-separator"></span>
+                    <button onclick="developerUndo()">UNDO</button><button onclick="developerRedo()">REDO</button><button onclick="developerFitCanvas()">FIT</button><button onclick="developerPlaytest()">PLAY TEST</button>
+                </div>
+                <div class="developer-canvas-wrap"><canvas id="developerCanvas" width="960" height="600" tabindex="0" aria-label="2D room canvas"></canvas><div id="developerCanvasHint" class="developer-canvas-hint">Create a room, then choose a tool and place objects here.</div></div>
+                <div class="developer-statusbar"><span id="developerToolStatus">SELECT · Click an object to inspect it.</span><span id="developerDirtyStatus">UNSAVED</span></div>
+            </main>
+            <aside class="developer-sidebar developer-inspector-sidebar">
+                <div class="developer-inspector-section"><div class="developer-sidebar-heading"><span>ROOM DETAILS</span></div><div id="developerRoomSummary" class="developer-room-summary">No room selected.</div><button onclick="openDeveloperRoomDialog()" style="margin-top:8px; width:100%; font-size:10px;">EDIT NAME / DESCRIPTION</button></div>
+                <div class="developer-inspector-section"><div class="developer-sidebar-heading"><span>ROOM COLORS</span></div><label class="developer-color-row">FLOOR <input id="developerFloorColor" type="color" value="#5d594d"></label><label class="developer-color-row">WALL <input id="developerWallColor" type="color" value="#262625"></label><label class="developer-color-row">ACCENT <input id="developerAccentColor" type="color" value="#d4c09a"></label></div>
+                <div class="developer-inspector-section"><div class="developer-sidebar-heading"><span>TOOL OPTIONS</span></div><label id="developerDecorationOption" class="developer-option-row">DECORATION<select id="developerDecorationType"><option value="bench">Bench</option><option value="locker">Locker</option><option value="column">Column</option><option value="poster">Poster</option><option value="lamp">Lamp</option><option value="crate">Crate</option><option value="sign">Sign</option></select></label><label id="developerSpawnOption" class="developer-option-row">SPAWN TYPE<select id="developerSpawnType"><option value="player">Player</option><option value="generator">Generator</option><option value="nizar">Nizar</option><option value="monster">Monster</option><option value="item">Item</option><option value="exit">Exit</option></select></label><label id="developerConnectionOption" class="developer-option-row">CONNECTION<select id="developerConnectionDirection"><option value="north">North</option><option value="east">East</option><option value="south">South</option><option value="west">West</option></select></label><p class="developer-help-text">Floor and wall tools draw rectangles. Decor, spawn, and connection tools place one marker per click. Select an object and press Delete to remove it.</p></div>
+                <div class="developer-inspector-section"><div class="developer-sidebar-heading"><span>SELECTED OBJECT</span></div><div id="developerSelectionSummary" class="developer-selection-summary">Nothing selected.</div><button id="developerDeleteButton" onclick="deleteDeveloperSelection()" class="developer-secondary-button" disabled>DELETE SELECTED</button></div>
+            </aside>
+        </div>
+    </section>
 
     <div id="statsMenu" class="menu-panel">
         <h2>RUN RECORDS</h2>
@@ -269,7 +326,7 @@
             <b>Events:</b> Hotel Lockdown seals a whole corridor section temporarily. Bassam can impersonate staff and place a false assignment among your real ones. Dialogue and employee tasks pause the hunt; hiding remains usable even while Bassam or multiple monsters are active.<br></div></details>
             <details class="info-section" data-info-tab="maps"><summary style="color:#ffe06b;">THE CRIMSON CONTAINMENT</summary><div><b>Objective:</b> Repair generators, locate the Crimson Seal through a changing route, then lure Rhys into the containment trap.<br><b>Events:</b> Containment alarms, pressure releases, a sweeping emergency-light circle, and seal resonance. This level does not use power outages.</div></details>
             <details class="info-section" data-info-tab="maps"><summary style="color:#9ad7dd;">THE BLACKWOOD FOREST</summary><div><b>Objective:</b> Repair remote generators, restore two dark cabin breakers, recover the Ranger Beacon battery, then install it at the watchtower to expose Noah. Lit cabins are safe zones because Noah cannot stalk through strong light.<br><b>Events:</b> Fog Roll darkens the woods for a short time. <b>Layout:</b> Procedural clearings, woodland trails, tree barriers, and cabin interiors change each run. Flashbangs scatter Noah to a distant unlit location.</div></details>
-            <details class="info-section" data-info-tab="maps"><summary style="color:#ddd;">THE PARTED GRID</summary><div><b>Objective:</b> Repair every generator, find the exit gate, then chase the exposed Amine through the open escape route. Hold <b>V</b> or the mobile <b>FOCUS</b> button to hide the map and reveal him.<br><b>Hazards:</b> Falling into random sinkholes is fatal. Burning zones heavily slow and blur you. Amine flashes into view periodically and can teleport nearby.</div></details>
+            <details class="info-section" data-info-tab="maps"><summary style="color:#ddd;">THE PARTED GRID</summary><div><b>Objective:</b> Repair every generator, find the exit gate, then pursue Amine in the turret car. Steer around roadblocks and fire carefully—eight repetitive shots jam the turret, and Amine can vanish from the road for short periods.<br><b>Hazards:</b> Falling into random sinkholes is fatal. Burning zones heavily slow and blur you. Before the final pursuit, Amine flashes into view, teleports nearby, and interrupts repairs with calls.</div></details>
             <details class="info-section" data-info-tab="maps"><summary style="color:#9cd6ff;">THE LAST LINE</summary><div><b>Objective:</b> Restore a random number of Route Boards, arm the rail control, then lure the hunter onto the marked trap track. The arriving train can kill you too.<br><b>Features:</b> Each run assembles two or three four-track stations, two-track tunnels, ticket booths, service rooms, stopped cars, moving trains, and different objective locations. Route Boards are tap/click puzzles that rotate track pieces into one connected line.</div></details>
             <details class="info-section" data-info-tab="systems"><summary style="color:#8cd9d0;">MAP INTEL</summary><div>Clear a map on Easy, Normal, and Hard, then buy its Map Intel in the Shop. Press <b>M</b> on desktop or tap <b>MAP</b> on mobile to open the full layout without pausing the danger.</div></details>
             <details class="info-section" data-info-tab="start"><summary style="color:#0ff;">MOBILE CONTROLS</summary><div>
@@ -422,6 +479,12 @@
             <button id="touchSkillCheck" class="touch-button skill-check-button" aria-label="Skill check" style="display:none;">HIT</button>
             <button id="touchFocus" class="touch-button focus-button" aria-label="Focus vision" style="display:none;">FOCUS</button>
         </div>
+    </div>
+
+    <div id="amineRoadControls" aria-label="Amine road chase controls" style="display:none;">
+        <button id="amineRoadLeft" aria-label="Steer left">◀</button>
+        <button id="amineRoadFire" aria-label="Fire turret">FIRE</button>
+        <button id="amineRoadRight" aria-label="Steer right">▶</button>
     </div>
 
     <div id="mobileActionMenu" class="mobile-action-menu" style="display:none;">

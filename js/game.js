@@ -103,10 +103,13 @@ function playSound(type) {
 }
 
 // Versioned local progress with a backup copy and import/export support.
-const GAME_VERSION = '2.9.4';
+const GAME_VERSION = '2.9.7';
 const SAVE_SCHEMA_VERSION = 10;
 const SAVE_KEY = 'br_save_v2';
 const SAVE_BACKUP_KEY = 'br_save_backup_v2';
+const DEVELOPER_UNLOCK_CODE = '00CaLeB00ShI1ft';
+const DEVELOPER_UNLOCK_KEY = 'cs_developer_studio_unlocked_v1';
+const DEVELOPER_ROOMS_KEY = 'cs_developer_rooms_v1';
 
 const MAP_DEFINITIONS = {
     level0: { id: 'level0', name: 'LEVEL 0 — THE MAZE', description: 'The original shifting maze.', campaignOrder: 0 },
@@ -728,7 +731,288 @@ function renderCollection() {
     content.innerHTML = `<b>MONSTERS</b>${monsterRows.map(row => `<div class="collection-row"><strong>${row[0]}</strong><span>${row[1]} · ${row[2]}</span></div>`).join('')}<br><b>MAPS</b>${Object.values(MAP_DEFINITIONS).map(mapDef => `<div class="collection-row"><strong>${mapDef.name}</strong><span>${unlockedMaps.includes(mapDef.id) ? 'UNLOCKED' : 'LOCKED'}</span></div>`).join('')}<br><b>MUTATIONS</b><div class="collection-tags">${mutationRows.map(name => `<span>${name}</span>`).join('')}</div>`;
 }
 
+// Developer Studio is intentionally stored outside the normal player save. It
+// is an authoring workspace, not progression, so importing/exporting rooms can
+// never overwrite tokens, inventory, cosmetics, or campaign progress.
+const DEVELOPER_GRID_SIZE = 32;
+const DEVELOPER_CANVAS_WIDTH = 960;
+const DEVELOPER_CANVAS_HEIGHT = 600;
+const developerCanvas = document.getElementById('developerCanvas');
+const developerContext = developerCanvas?.getContext('2d');
+let developerStudioOpen = false;
+let developerRoomDialogAction = null;
+let developerUnlockDialogOpen = false;
+let developerChordArmed = false;
+let developerRooms = loadDeveloperRooms();
+const developerState = {
+    room: null,
+    selectedId: null,
+    tool: 'select',
+    dirty: false,
+    pointer: null,
+    preview: null,
+    undo: [],
+    redo: [],
+    playtesting: false,
+    testPlayer: null
+};
+
+function developerId(prefix = 'object') {
+    return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
+}
+
+function developerNumber(value, min, max, fallback) {
+    const number = Number(value);
+    return Number.isFinite(number) ? Math.max(min, Math.min(max, number)) : fallback;
+}
+
+function developerColor(value, fallback) {
+    return /^#[0-9a-f]{6}$/i.test(String(value || '')) ? String(value) : fallback;
+}
+
+function developerText(value, max) {
+    return String(value || '').replace(/[\u0000-\u001f]/g, '').trim().slice(0, max);
+}
+
+function escapeDeveloperHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, character => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[character]));
+}
+
+function normalizeDeveloperObject(raw, roomWidth, roomHeight) {
+    if (!raw || typeof raw !== 'object') return null;
+    const types = ['floor', 'wall', 'decoration', 'spawn', 'connection'];
+    if (!types.includes(raw.type)) return null;
+    const point = {
+        id: developerText(raw.id, 60) || developerId('object'),
+        type: raw.type,
+        subtype: developerText(raw.subtype, 30),
+        x: developerNumber(raw.x, 0, roomWidth, 0),
+        y: developerNumber(raw.y, 0, roomHeight, 0),
+        width: developerNumber(raw.width, 8, roomWidth, 32),
+        height: developerNumber(raw.height, 8, roomHeight, 32),
+        color: developerColor(raw.color, raw.type === 'wall' ? '#262625' : '#887d62')
+    };
+    if (raw.type === 'spawn') point.subtype = ['player','generator','nizar','monster','item','exit'].includes(point.subtype) ? point.subtype : 'player';
+    if (raw.type === 'decoration') point.subtype = ['bench','locker','column','poster','lamp','crate','sign'].includes(point.subtype) ? point.subtype : 'crate';
+    if (raw.type === 'connection') point.subtype = ['north','east','south','west'].includes(point.subtype) ? point.subtype : 'east';
+    if (raw.type === 'floor' || raw.type === 'wall' || raw.type === 'decoration') {
+        point.width = Math.min(point.width, roomWidth - point.x);
+        point.height = Math.min(point.height, roomHeight - point.y);
+    }
+    return point;
+}
+
+function normalizeDeveloperRoom(raw) {
+    if (!raw || typeof raw !== 'object') return null;
+    const source = raw.room && typeof raw.room === 'object' ? raw.room : raw;
+    const width = developerNumber(source.width, 320, 2400, DEVELOPER_CANVAS_WIDTH);
+    const height = developerNumber(source.height, 240, 1800, DEVELOPER_CANVAS_HEIGHT);
+    const room = {
+        format: 'calebs-shift-room',
+        version: 1,
+        id: developerText(source.id, 80) || developerId('room'),
+        name: developerText(source.name, 80),
+        description: developerText(source.description, 500),
+        width,
+        height,
+        floorColor: developerColor(source.floorColor, '#5d594d'),
+        wallColor: developerColor(source.wallColor, '#262625'),
+        accentColor: developerColor(source.accentColor, '#d4c09a'),
+        createdAt: source.createdAt || new Date().toISOString(),
+        updatedAt: source.updatedAt || new Date().toISOString(),
+        objects: []
+    };
+    room.objects = Array.isArray(source.objects)
+        ? source.objects.map(object => normalizeDeveloperObject(object, width, height)).filter(Boolean)
+        : [];
+    return room;
+}
+
+function loadDeveloperRooms() {
+    const raw = safeStorageGet(DEVELOPER_ROOMS_KEY);
+    if (!raw) return [];
+    try {
+        const parsed = JSON.parse(raw);
+        const rooms = Array.isArray(parsed) ? parsed : parsed?.rooms;
+        return Array.isArray(rooms) ? rooms.map(normalizeDeveloperRoom).filter(Boolean) : [];
+    } catch (_) { return []; }
+}
+
+function persistDeveloperRooms() {
+    try { localStorage.setItem(DEVELOPER_ROOMS_KEY, JSON.stringify(developerRooms)); } catch (_) { /* The editor still works for export. */ }
+}
+
+function blankDeveloperRoom() {
+    return normalizeDeveloperRoom({ id: developerId('room'), width:DEVELOPER_CANVAS_WIDTH, height:DEVELOPER_CANVAS_HEIGHT, objects:[] });
+}
+
+function cloneDeveloperRoom(room) {
+    return normalizeDeveloperRoom(JSON.parse(JSON.stringify(room)));
+}
+
+function isDeveloperUnlocked() {
+    return safeStorageGet(DEVELOPER_UNLOCK_KEY) === 'true';
+}
+
+function refreshDeveloperAccess() {
+    const button = document.getElementById('developerStudioButton');
+    if (button) button.style.display = isDeveloperUnlocked() ? 'block' : 'none';
+}
+
+function openDeveloperUnlock() {
+    if (isDeveloperUnlocked()) { openDeveloperStudio(); return; }
+    developerUnlockDialogOpen = true;
+    const dialog = document.getElementById('developerUnlockDialog');
+    const input = document.getElementById('developerCodeInput');
+    const error = document.getElementById('developerUnlockError');
+    if (dialog) dialog.style.display = 'flex';
+    if (error) error.textContent = '';
+    if (input) { input.value = ''; setTimeout(() => input.focus(), 0); }
+}
+
+function closeDeveloperUnlock() {
+    developerUnlockDialogOpen = false;
+    const dialog = document.getElementById('developerUnlockDialog');
+    if (dialog) dialog.style.display = 'none';
+}
+
+function submitDeveloperUnlock() {
+    const input = document.getElementById('developerCodeInput');
+    const error = document.getElementById('developerUnlockError');
+    if (input?.value === DEVELOPER_UNLOCK_CODE) {
+        try { localStorage.setItem(DEVELOPER_UNLOCK_KEY, 'true'); } catch (_) {}
+        closeDeveloperUnlock();
+        refreshDeveloperAccess();
+        playSound('unlock');
+        notify('DEVELOPER STUDIO UNLOCKED', 'unlock');
+    } else if (error) {
+        error.textContent = 'That code was not accepted.';
+        input?.focus();
+    }
+}
+
+function developerRoomHasContent(room = developerState.room) {
+    return Boolean(room && (room.name || room.description || room.objects.length));
+}
+
+function openDeveloperRoomDialog(action = null) {
+    if (!developerState.room) return;
+    developerRoomDialogAction = action;
+    const dialog = document.getElementById('developerRoomDialog');
+    const name = document.getElementById('developerRoomNameInput');
+    const description = document.getElementById('developerRoomDescriptionInput');
+    const error = document.getElementById('developerRoomError');
+    const title = document.getElementById('developerRoomTitle');
+    if (title) title.textContent = developerState.room.name ? 'EDIT ROOM DETAILS' : 'SAVE ROOM';
+    if (name) name.value = developerState.room.name || '';
+    if (description) description.value = developerState.room.description || '';
+    if (error) error.textContent = '';
+    if (dialog) dialog.style.display = 'flex';
+    setTimeout(() => name?.focus(), 0);
+}
+
+function closeDeveloperRoomDialog() {
+    developerRoomDialogAction = null;
+    const dialog = document.getElementById('developerRoomDialog');
+    if (dialog) dialog.style.display = 'none';
+}
+
+function submitDeveloperRoomDetails() {
+    const nameInput = document.getElementById('developerRoomNameInput');
+    const descriptionInput = document.getElementById('developerRoomDescriptionInput');
+    const error = document.getElementById('developerRoomError');
+    const name = developerText(nameInput?.value, 80);
+    const description = developerText(descriptionInput?.value, 500);
+    if (!name) { if (error) error.textContent = 'Give the room a name before saving.'; nameInput?.focus(); return; }
+    if (!description) { if (error) error.textContent = 'Add a short description so the room is easy to understand later.'; descriptionInput?.focus(); return; }
+    developerState.room.name = name;
+    developerState.room.description = description;
+    developerState.dirty = true;
+    const action = developerRoomDialogAction;
+    closeDeveloperRoomDialog();
+    commitDeveloperRoom();
+    if (typeof action === 'function') action();
+}
+
+function commitDeveloperRoom() {
+    if (!developerState.room) return;
+    developerState.room.updatedAt = new Date().toISOString();
+    const index = developerRooms.findIndex(room => room.id === developerState.room.id);
+    if (index >= 0) developerRooms[index] = cloneDeveloperRoom(developerState.room);
+    else developerRooms.push(cloneDeveloperRoom(developerState.room));
+    developerState.dirty = false;
+    persistDeveloperRooms();
+    renderDeveloperStudio();
+}
+
+function saveDeveloperRoom(afterSave = null) {
+    if (!developerState.room) return;
+    if (!developerState.room.name || !developerState.room.description) { openDeveloperRoomDialog(afterSave); return; }
+    commitDeveloperRoom();
+    if (typeof afterSave === 'function') afterSave();
+}
+
+function createBlankDeveloperRoom() {
+    developerState.room = blankDeveloperRoom();
+    developerState.selectedId = null;
+    developerState.dirty = false;
+    developerState.pointer = null;
+    developerState.preview = null;
+    developerState.undo = [];
+    developerState.redo = [];
+    developerState.playtesting = false;
+    developerState.testPlayer = null;
+    renderDeveloperStudio();
+}
+
+function newDeveloperRoom() {
+    if (!developerStudioOpen) return;
+    if (developerState.dirty && developerRoomHasContent()) {
+        const saveFirst = confirm('Save the current room before creating a new one?');
+        if (saveFirst) { saveDeveloperRoom(createBlankDeveloperRoom); return; }
+    }
+    createBlankDeveloperRoom();
+}
+
+function selectDeveloperRoom(id) {
+    if (developerState.dirty && developerRoomHasContent() && !confirm('Discard unsaved changes and open another room?')) return;
+    const room = developerRooms.find(entry => entry.id === id);
+    if (!room) return;
+    developerState.room = cloneDeveloperRoom(room);
+    developerState.selectedId = null;
+    developerState.dirty = false;
+    developerState.pointer = null;
+    developerState.preview = null;
+    developerState.undo = [];
+    developerState.redo = [];
+    developerState.playtesting = false;
+    renderDeveloperStudio();
+}
+
+function closeDeveloperStudio() {
+    if (developerState.dirty && developerRoomHasContent() && !confirm('Exit without saving this room?')) return;
+    developerStudioOpen = false;
+    developerState.playtesting = false;
+    document.getElementById('developerStudio').style.display = 'none';
+    showMenu('mainMenu');
+}
+
+function openDeveloperStudio() {
+    if (!isDeveloperUnlocked()) { openDeveloperUnlock(); return; }
+    developerStudioOpen = true;
+    document.querySelectorAll('.menu-panel').forEach(panel => panel.style.display = 'none');
+    document.getElementById('developerStudio').style.display = 'flex';
+    if (!developerState.room) {
+        if (developerRooms.length) selectDeveloperRoom(developerRooms[0].id);
+        else createBlankDeveloperRoom();
+    } else renderDeveloperStudio();
+    setTimeout(() => developerCanvas?.focus(), 0);
+}
+
 function showMenu(menuId) {
+    const studio = document.getElementById('developerStudio');
+    if (studio) studio.style.display = 'none';
+    developerStudioOpen = false;
     document.querySelectorAll('.menu-panel').forEach(p => p.style.display = 'none');
     hud.style.display = 'none';
     document.getElementById(menuId).style.display = 'flex';
@@ -742,6 +1026,361 @@ function showMenu(menuId) {
     if (menuId === 'infoMenu') setInfoTab(infoTab);
     if (menuId === 'diffMenu') renderRunSetup();
     if (menuId === 'mapMenu') renderMapMenu();
+    refreshDeveloperAccess();
+}
+
+function developerSnapshot() {
+    return developerState.room ? JSON.stringify(developerState.room) : null;
+}
+
+function developerPushUndo() {
+    const snapshot = developerSnapshot();
+    if (!snapshot) return;
+    developerState.undo.push(snapshot);
+    if (developerState.undo.length > 40) developerState.undo.shift();
+    developerState.redo = [];
+}
+
+function markDeveloperDirty() {
+    developerState.dirty = true;
+    if (developerState.room) developerState.room.updatedAt = new Date().toISOString();
+    renderDeveloperStudio();
+}
+
+function developerUndo() {
+    if (!developerState.undo.length || !developerState.room) return;
+    developerState.redo.push(developerSnapshot());
+    developerState.room = normalizeDeveloperRoom(JSON.parse(developerState.undo.pop()));
+    developerState.selectedId = null;
+    developerState.dirty = true;
+    renderDeveloperStudio();
+}
+
+function developerRedo() {
+    if (!developerState.redo.length || !developerState.room) return;
+    developerState.undo.push(developerSnapshot());
+    developerState.room = normalizeDeveloperRoom(JSON.parse(developerState.redo.pop()));
+    developerState.selectedId = null;
+    developerState.dirty = true;
+    renderDeveloperStudio();
+}
+
+function setDeveloperTool(tool) {
+    if (!['select','floor','wall','decoration','spawn','connection','eraser'].includes(tool)) return;
+    developerState.playtesting = false;
+    developerState.tool = tool;
+    developerState.pointer = null;
+    developerState.preview = null;
+    renderDeveloperStudio();
+}
+
+function renderDeveloperRoomList() {
+    const list = document.getElementById('developerRoomList');
+    if (!list) return;
+    if (!developerRooms.length) {
+        list.innerHTML = '<div class="developer-empty-rooms">No saved rooms yet.<br>Build one on the canvas, then press SAVE.</div>';
+        return;
+    }
+    list.innerHTML = developerRooms.map(room => `<button class="developer-room-entry ${developerState.room?.id === room.id ? 'active' : ''}" data-developer-room-id="${escapeDeveloperHtml(room.id)}"><strong>${escapeDeveloperHtml(room.name || 'Untitled room')}</strong><small>${room.objects.length} objects${developerState.room?.id === room.id && developerState.dirty ? ' · unsaved' : ''}</small></button>`).join('');
+    list.querySelectorAll('[data-developer-room-id]').forEach(button => button.addEventListener('click', () => selectDeveloperRoom(button.dataset.developerRoomId)));
+}
+
+function developerToolLabel() {
+    if (developerState.playtesting) return 'PLAY TEST · WASD / ARROWS move the test player · ESC exits';
+    const labels = {
+        select:'SELECT · Click an object to inspect it.',
+        floor:'FLOOR · Drag a rectangle to paint a floor area.',
+        wall:'WALL · Drag a rectangle to add collision-ready wall geometry.',
+        decoration:'DECOR · Click to place the selected decoration.',
+        spawn:'SPAWN · Click to place the selected gameplay marker.',
+        connection:'CONNECT · Click where another room can connect.',
+        eraser:'ERASER · Click an object to remove it.'
+    };
+    return labels[developerState.tool] || labels.select;
+}
+
+function renderDeveloperStudio() {
+    if (!developerState.room) return;
+    const room = developerState.room;
+    const summary = document.getElementById('developerRoomSummary');
+    if (summary) summary.innerHTML = `<strong>${escapeDeveloperHtml(room.name || 'Untitled room')}</strong><br>${escapeDeveloperHtml(room.description || 'This room still needs a description.') }<br><span style="color:#81939a">${room.width} × ${room.height} · ${room.objects.length} objects</span>`;
+    const floor = document.getElementById('developerFloorColor');
+    const wall = document.getElementById('developerWallColor');
+    const accent = document.getElementById('developerAccentColor');
+    if (floor && floor.value !== room.floorColor) floor.value = room.floorColor;
+    if (wall && wall.value !== room.wallColor) wall.value = room.wallColor;
+    if (accent && accent.value !== room.accentColor) accent.value = room.accentColor;
+    document.querySelectorAll('[data-dev-tool]').forEach(button => button.classList.toggle('active-dev-tool', button.dataset.devTool === developerState.tool));
+    const decorationOption = document.getElementById('developerDecorationOption');
+    const spawnOption = document.getElementById('developerSpawnOption');
+    const connectionOption = document.getElementById('developerConnectionOption');
+    if (decorationOption) decorationOption.style.display = developerState.tool === 'decoration' ? 'flex' : 'none';
+    if (spawnOption) spawnOption.style.display = developerState.tool === 'spawn' ? 'flex' : 'none';
+    if (connectionOption) connectionOption.style.display = developerState.tool === 'connection' ? 'flex' : 'none';
+    const selection = room.objects.find(object => object.id === developerState.selectedId);
+    const selectionSummary = document.getElementById('developerSelectionSummary');
+    const deleteButton = document.getElementById('developerDeleteButton');
+    if (selectionSummary) selectionSummary.innerHTML = selection ? `<strong>${escapeDeveloperHtml(selection.subtype || selection.type).toUpperCase()}</strong><br>${Math.round(selection.x)}, ${Math.round(selection.y)}${selection.width ? `<br>${Math.round(selection.width)} × ${Math.round(selection.height)}` : ''}` : 'Nothing selected.';
+    if (deleteButton) deleteButton.disabled = !selection;
+    const status = document.getElementById('developerToolStatus');
+    const dirty = document.getElementById('developerDirtyStatus');
+    if (status) status.textContent = developerToolLabel();
+    if (dirty) { dirty.textContent = developerState.dirty ? 'UNSAVED' : 'SAVED'; dirty.style.color = developerState.dirty ? '#ffd36b' : '#8fffa1'; }
+    const hint = document.getElementById('developerCanvasHint');
+    if (hint) hint.classList.toggle('hidden', Boolean(room.objects.length || room.name));
+    renderDeveloperCanvas();
+    renderDeveloperRoomList();
+}
+
+let developerView = { scale:1, offsetX:0, offsetY:0 };
+
+function developerCanvasPoint(event) {
+    if (!developerCanvas || !developerState.room) return null;
+    const rect = developerCanvas.getBoundingClientRect();
+    const screenX = (event.clientX - rect.left) * developerCanvas.width / rect.width;
+    const screenY = (event.clientY - rect.top) * developerCanvas.height / rect.height;
+    return {
+        x: developerNumber((screenX - developerView.offsetX) / developerView.scale, 0, developerState.room.width, 0),
+        y: developerNumber((screenY - developerView.offsetY) / developerView.scale, 0, developerState.room.height, 0)
+    };
+}
+
+function snapDeveloperPoint(point) {
+    const room = developerState.room;
+    const maxX = Math.max(0, (room?.width || DEVELOPER_CANVAS_WIDTH) - DEVELOPER_GRID_SIZE);
+    const maxY = Math.max(0, (room?.height || DEVELOPER_CANVAS_HEIGHT) - DEVELOPER_GRID_SIZE);
+    return { x: developerNumber(Math.round(point.x / DEVELOPER_GRID_SIZE) * DEVELOPER_GRID_SIZE, 0, maxX, 0), y: developerNumber(Math.round(point.y / DEVELOPER_GRID_SIZE) * DEVELOPER_GRID_SIZE, 0, maxY, 0) };
+}
+
+function developerDrawGrid(context, room) {
+    context.strokeStyle = 'rgba(255,255,255,.08)';
+    context.lineWidth = 1 / developerView.scale;
+    context.beginPath();
+    for (let x = 0; x <= room.width; x += DEVELOPER_GRID_SIZE) { context.moveTo(x, 0); context.lineTo(x, room.height); }
+    for (let y = 0; y <= room.height; y += DEVELOPER_GRID_SIZE) { context.moveTo(0, y); context.lineTo(room.width, y); }
+    context.stroke();
+}
+
+function developerDrawDecoration(context, object) {
+    const left = object.x - object.width / 2, top = object.y - object.height / 2;
+    context.fillStyle = object.color;
+    context.strokeStyle = 'rgba(255,255,255,.5)';
+    context.lineWidth = 1.5 / developerView.scale;
+    if (object.subtype === 'poster' || object.subtype === 'sign') {
+        context.fillRect(left, top, object.width, object.height);
+        context.strokeRect(left, top, object.width, object.height);
+        context.fillStyle = '#101416';
+        context.fillRect(left + object.width * .22, top + object.height * .2, object.width * .56, Math.max(3, object.height * .08));
+        context.fillRect(left + object.width * .22, top + object.height * .4, object.width * .4, Math.max(3, object.height * .08));
+    } else if (object.subtype === 'lamp') {
+        context.beginPath(); context.arc(object.x, object.y, Math.min(object.width, object.height) / 2, 0, Math.PI * 2); context.fill(); context.stroke();
+        context.fillStyle = 'rgba(255,235,150,.2)'; context.beginPath(); context.arc(object.x, object.y, object.width * 1.8, 0, Math.PI * 2); context.fill();
+    } else {
+        context.fillRect(left, top, object.width, object.height); context.strokeRect(left, top, object.width, object.height);
+        if (object.subtype === 'bench') { context.fillStyle = '#171a1a'; context.fillRect(left + 5, object.y - 2, object.width - 10, 4); }
+        if (object.subtype === 'locker') { context.strokeStyle = '#b5c2c2'; context.beginPath(); context.moveTo(object.x, top + 4); context.lineTo(object.x, top + object.height - 4); context.stroke(); }
+    }
+}
+
+function developerDrawObject(context, object, room) {
+    context.save();
+    if (object.type === 'floor' || object.type === 'wall') {
+        context.fillStyle = object.type === 'wall' ? room.wallColor : room.floorColor;
+        context.fillRect(object.x, object.y, object.width, object.height);
+        context.strokeStyle = object.type === 'wall' ? 'rgba(0,0,0,.72)' : 'rgba(255,255,255,.12)';
+        context.lineWidth = 2 / developerView.scale; context.strokeRect(object.x, object.y, object.width, object.height);
+    } else if (object.type === 'decoration') {
+        developerDrawDecoration(context, object);
+    } else if (object.type === 'spawn') {
+        const colors = { player:'#61d7ff', generator:'#8fffa1', nizar:'#bd9cff', monster:'#ff7979', item:'#ffd36b', exit:'#fff' };
+        context.fillStyle = colors[object.subtype] || room.accentColor; context.strokeStyle = '#0b1012'; context.lineWidth = 3 / developerView.scale;
+        context.beginPath(); context.arc(object.x, object.y, 12, 0, Math.PI * 2); context.fill(); context.stroke();
+        context.fillStyle = '#0b1012'; context.font = `${Math.max(9, 10 / developerView.scale)}px Courier New`; context.textAlign = 'center'; context.fillText(object.subtype[0].toUpperCase(), object.x, object.y + 4);
+    } else if (object.type === 'connection') {
+        const s = 18;
+        context.fillStyle = room.accentColor; context.strokeStyle = '#0b1012'; context.lineWidth = 2 / developerView.scale;
+        context.beginPath();
+        if (object.subtype === 'north') { context.moveTo(object.x, object.y - s); context.lineTo(object.x - s, object.y + s); context.lineTo(object.x + s, object.y + s); }
+        if (object.subtype === 'south') { context.moveTo(object.x, object.y + s); context.lineTo(object.x - s, object.y - s); context.lineTo(object.x + s, object.y - s); }
+        if (object.subtype === 'west') { context.moveTo(object.x - s, object.y); context.lineTo(object.x + s, object.y - s); context.lineTo(object.x + s, object.y + s); }
+        if (object.subtype === 'east') { context.moveTo(object.x + s, object.y); context.lineTo(object.x - s, object.y - s); context.lineTo(object.x - s, object.y + s); }
+        context.closePath(); context.fill(); context.stroke();
+    }
+    if (developerState.selectedId === object.id) {
+        context.strokeStyle = '#ffd36b'; context.lineWidth = 3 / developerView.scale; context.setLineDash([7 / developerView.scale, 5 / developerView.scale]);
+        if (object.type === 'spawn' || object.type === 'connection') { context.beginPath(); context.arc(object.x, object.y, 22, 0, Math.PI * 2); context.stroke(); }
+        else if (object.type === 'decoration') context.strokeRect(object.x - object.width / 2 - 4, object.y - object.height / 2 - 4, object.width + 8, object.height + 8);
+        else context.strokeRect(object.x - 4, object.y - 4, object.width + 8, object.height + 8);
+    }
+    context.restore();
+}
+
+function renderDeveloperCanvas() {
+    if (!developerContext || !developerCanvas) return;
+    const context = developerContext;
+    context.clearRect(0, 0, developerCanvas.width, developerCanvas.height);
+    if (!developerState.room) { context.fillStyle = '#070b0c'; context.fillRect(0, 0, developerCanvas.width, developerCanvas.height); return; }
+    const room = developerState.room;
+    developerView.scale = Math.min((developerCanvas.width - 28) / room.width, (developerCanvas.height - 28) / room.height);
+    developerView.offsetX = (developerCanvas.width - room.width * developerView.scale) / 2;
+    developerView.offsetY = (developerCanvas.height - room.height * developerView.scale) / 2;
+    context.fillStyle = '#070b0c'; context.fillRect(0, 0, developerCanvas.width, developerCanvas.height);
+    context.save(); context.translate(developerView.offsetX, developerView.offsetY); context.scale(developerView.scale, developerView.scale);
+    context.fillStyle = room.floorColor; context.fillRect(0, 0, room.width, room.height);
+    developerDrawGrid(context, room);
+    room.objects.forEach(object => developerDrawObject(context, object, room));
+    if (developerState.preview) {
+        const preview = developerState.preview;
+        context.save(); context.setLineDash([8 / developerView.scale, 5 / developerView.scale]); context.strokeStyle = room.accentColor; context.fillStyle = `${room.accentColor}33`; context.lineWidth = 2 / developerView.scale;
+        context.fillRect(preview.x, preview.y, preview.width, preview.height); context.strokeRect(preview.x, preview.y, preview.width, preview.height); context.restore();
+    }
+    if (developerState.playtesting && developerState.testPlayer) {
+        context.fillStyle = '#61d7ff'; context.strokeStyle = '#fff'; context.lineWidth = 3 / developerView.scale;
+        context.beginPath(); context.arc(developerState.testPlayer.x, developerState.testPlayer.y, 11, 0, Math.PI * 2); context.fill(); context.stroke();
+    }
+    context.strokeStyle = room.accentColor; context.lineWidth = 3 / developerView.scale; context.strokeRect(0, 0, room.width, room.height);
+    context.restore();
+}
+
+function developerObjectAt(point) {
+    if (!developerState.room) return null;
+    for (let index = developerState.room.objects.length - 1; index >= 0; index--) {
+        const object = developerState.room.objects[index];
+        if (object.type === 'spawn' || object.type === 'connection') {
+            if (Math.hypot(point.x - object.x, point.y - object.y) <= 22) return object;
+        } else {
+            const left = object.type === 'decoration' ? object.x - object.width / 2 : object.x;
+            const top = object.type === 'decoration' ? object.y - object.height / 2 : object.y;
+            if (point.x >= left && point.x <= left + object.width && point.y >= top && point.y <= top + object.height) return object;
+        }
+    }
+    return null;
+}
+
+function addDeveloperPointObject(point) {
+    const room = developerState.room;
+    if (!room) return;
+    const snapped = snapDeveloperPoint(point);
+    let object;
+    if (developerState.tool === 'decoration') object = { id:developerId('decor'), type:'decoration', subtype:document.getElementById('developerDecorationType').value, x:snapped.x, y:snapped.y, width:32, height:32, color:room.accentColor };
+    if (developerState.tool === 'spawn') object = { id:developerId('spawn'), type:'spawn', subtype:document.getElementById('developerSpawnType').value, x:snapped.x, y:snapped.y, width:0, height:0, color:room.accentColor };
+    if (developerState.tool === 'connection') object = { id:developerId('connection'), type:'connection', subtype:document.getElementById('developerConnectionDirection').value, x:snapped.x, y:snapped.y, width:0, height:0, color:room.accentColor };
+    if (!object) return;
+    developerPushUndo(); room.objects.push(object); developerState.selectedId = object.id; markDeveloperDirty();
+}
+
+function developerPointerDown(event) {
+    if (!developerStudioOpen || developerState.playtesting || !developerState.room) return;
+    event.preventDefault(); developerCanvas.setPointerCapture?.(event.pointerId);
+    const rawPoint = developerCanvasPoint(event); if (!rawPoint) return;
+    const point = snapDeveloperPoint(rawPoint);
+    if (developerState.tool === 'select') { developerState.selectedId = developerObjectAt(point)?.id || null; renderDeveloperStudio(); return; }
+    if (developerState.tool === 'eraser') { const object = developerObjectAt(point); if (object) { developerPushUndo(); developerState.room.objects = developerState.room.objects.filter(entry => entry.id !== object.id); developerState.selectedId = null; markDeveloperDirty(); } return; }
+    if (developerState.tool === 'floor' || developerState.tool === 'wall') { developerState.pointer = { start:point, current:point }; developerState.preview = { x:point.x, y:point.y, width:0, height:0 }; renderDeveloperCanvas(); return; }
+    addDeveloperPointObject(point);
+}
+
+function developerPointerMove(event) {
+    if (!developerState.pointer || !developerState.room) return;
+    const rawPoint = developerCanvasPoint(event); if (!rawPoint) return;
+    const point = snapDeveloperPoint(rawPoint);
+    const left = Math.min(developerState.pointer.start.x, point.x), top = Math.min(developerState.pointer.start.y, point.y);
+    developerState.pointer.current = point;
+    developerState.preview = { x:left, y:top, width:Math.max(DEVELOPER_GRID_SIZE, Math.abs(point.x - developerState.pointer.start.x)), height:Math.max(DEVELOPER_GRID_SIZE, Math.abs(point.y - developerState.pointer.start.y)) };
+    renderDeveloperCanvas();
+}
+
+function developerPointerUp(event) {
+    if (!developerState.pointer || !developerState.room) return;
+    const rawPoint = developerCanvasPoint(event); if (!rawPoint) return;
+    const point = snapDeveloperPoint(rawPoint);
+    const left = Math.min(developerState.pointer.start.x, point.x), top = Math.min(developerState.pointer.start.y, point.y);
+    const width = Math.max(DEVELOPER_GRID_SIZE, Math.abs(point.x - developerState.pointer.start.x));
+    const height = Math.max(DEVELOPER_GRID_SIZE, Math.abs(point.y - developerState.pointer.start.y));
+    developerPushUndo();
+    const type = developerState.tool;
+    const color = type === 'wall' ? developerState.room.wallColor : developerState.room.floorColor;
+    const object = { id:developerId(type), type, subtype:'', x:left, y:top, width, height, color };
+    developerState.room.objects.push(object); developerState.selectedId = object.id; developerState.pointer = null; developerState.preview = null; markDeveloperDirty();
+}
+
+function deleteDeveloperSelection() {
+    if (!developerState.room || !developerState.selectedId) return;
+    developerPushUndo(); developerState.room.objects = developerState.room.objects.filter(object => object.id !== developerState.selectedId); developerState.selectedId = null; markDeveloperDirty();
+}
+
+function developerTestMove(dx, dy) {
+    if (!developerState.testPlayer || !developerState.room) return;
+    const radius = 10;
+    const next = { x:developerState.testPlayer.x + dx, y:developerState.testPlayer.y + dy };
+    if (next.x < radius || next.y < radius || next.x > developerState.room.width - radius || next.y > developerState.room.height - radius) return;
+    const blocked = developerState.room.objects.some(object => object.type === 'wall' && next.x + radius > object.x && next.x - radius < object.x + object.width && next.y + radius > object.y && next.y - radius < object.y + object.height);
+    if (!blocked) developerState.testPlayer = next;
+    renderDeveloperCanvas();
+}
+
+function developerPlaytest() {
+    if (!developerState.room) return;
+    developerState.playtesting = !developerState.playtesting;
+    if (developerState.playtesting) {
+        const spawn = developerState.room.objects.find(object => object.type === 'spawn' && object.subtype === 'player');
+        developerState.testPlayer = spawn ? { x:spawn.x, y:spawn.y } : { x:developerState.room.width / 2, y:developerState.room.height / 2 };
+        developerState.tool = 'select';
+    } else developerState.testPlayer = null;
+    renderDeveloperStudio();
+}
+
+function developerFitCanvas() {
+    renderDeveloperCanvas();
+    notify('ROOM FIT TO CANVAS', 'info');
+}
+
+function downloadDeveloperJson(payload, fileName) {
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type:'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a'); link.href = url; link.download = fileName; link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
+function exportDeveloperRoom() {
+    if (!developerState.room) return;
+    if (!developerState.room.name || !developerState.room.description) { saveDeveloperRoom(() => exportDeveloperRoom()); return; }
+    downloadDeveloperJson(developerState.room, `calebs-shift-room-${developerState.room.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'untitled'}.json`);
+    notify('ROOM FILE EXPORTED', 'unlock');
+}
+
+function exportDeveloperRooms() {
+    if (!developerRooms.length) { notify('SAVE A ROOM BEFORE EXPORTING', 'warning'); return; }
+    downloadDeveloperJson({ format:'calebs-shift-room-collection', version:1, rooms:developerRooms }, 'calebs-shift-room-collection.json');
+    notify('ROOM COLLECTION EXPORTED', 'unlock');
+}
+
+function importDeveloperRoom(event) {
+    const file = event.target.files?.[0]; if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+        try {
+            const parsed = JSON.parse(reader.result);
+            const sourceRooms = Array.isArray(parsed?.rooms) ? parsed.rooms : [parsed];
+            const imported = sourceRooms.map(normalizeDeveloperRoom).filter(Boolean).map(room => ({ ...room, id:developerId('imported'), updatedAt:new Date().toISOString() }));
+            if (!imported.length) throw new Error('No rooms');
+            developerRooms.push(...imported); persistDeveloperRooms(); developerState.room = cloneDeveloperRoom(imported.at(-1)); developerState.selectedId = null; developerState.dirty = false; developerState.undo = []; developerState.redo = []; renderDeveloperStudio(); notify(`${imported.length} ROOM${imported.length === 1 ? '' : 'S'} IMPORTED`, 'unlock');
+        } catch (_) { notify('THAT ROOM FILE IS INVALID', 'danger'); }
+        event.target.value = '';
+    };
+    reader.readAsText(file);
+}
+
+function setupDeveloperStudio() {
+    document.querySelectorAll('[data-dev-tool]').forEach(button => button.addEventListener('click', () => setDeveloperTool(button.dataset.devTool)));
+    developerCanvas?.addEventListener('pointerdown', developerPointerDown);
+    developerCanvas?.addEventListener('pointermove', developerPointerMove);
+    developerCanvas?.addEventListener('pointerup', developerPointerUp);
+    developerCanvas?.addEventListener('pointercancel', () => { developerState.pointer = null; developerState.preview = null; renderDeveloperCanvas(); });
+    [['developerFloorColor','floorColor'],['developerWallColor','wallColor'],['developerAccentColor','accentColor']].forEach(([id, field]) => document.getElementById(id)?.addEventListener('change', event => { if (!developerState.room) return; developerPushUndo(); developerState.room[field] = event.target.value; markDeveloperDirty(); }));
+    document.getElementById('developerCodeInput')?.addEventListener('keydown', event => { if (event.key === 'Enter') submitDeveloperUnlock(); if (event.key === 'Escape') closeDeveloperUnlock(); });
+    document.getElementById('developerRoomDescriptionInput')?.addEventListener('keydown', event => { if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') submitDeveloperRoomDetails(); });
+    refreshDeveloperAccess();
 }
 
 function showInstallHelp() { showMenu('installMenu'); }
@@ -932,7 +1571,7 @@ let centralBoiler = null, boilerShutdown = false, boilerReadyShown = false;
 let hotelElevator = null, hotelLockdownTimer = 0, hotelEventCooldown = 0, hotelLockdownActive = false;
 let rhysSeal = null, rhysChest = null, rhysChestKey = null, rhysBreakWall = null, rhysTrap = null, rhysRoute = 'search', rhysSealCollected = false, rhysTrapArmed = false;
 let forestCabins = [], forestBreakers = [], forestTrees = [], forestBeaconBattery = null, forestWatchtower = null, forestBeaconActive = false, forestFogTimer = 0, forestFogCooldown = 0, noahState = 'hidden', noahTimer = 0, noahPathTimer = 0, noahCharge = null, noahLightningCooldown = 0, noahLightningZones = [], noahLightningPending = [], noahLightningWarning = 0, noahLightningFlashes = 0, noahShockTimer = 0;
-let amineHoles = [], amineFireZones = [], amineExitGate = null, amineFocus = false, amineVisibleTimer = 0, amineFlashCooldown = 0, amineTeleportCooldown = 0, amineCallCount = 1, amineCallsRemaining = 0, amineCallActive = false, amineTurret = null, amineBullets = [], amineBurnTimer = 0;
+let amineHoles = [], amineFireZones = [], amineExitGate = null, amineFocus = false, amineVisibleTimer = 0, amineFlashCooldown = 0, amineTeleportCooldown = 0, amineCallCount = 1, amineCallsRemaining = 0, amineCallActive = false, amineTurret = null, amineBullets = [], amineBurnTimer = 0, amineRoad = null;
 let subwayPanels = [], subwayTrains = [], subwayTrackRows = [], subwayTrackSegments = [], subwayTrap = null, subwayControl = null, subwayRouteReady = false, subwayTrapArmed = false, subwayTrainWarning = 0, subwayTrainTriggered = false, subwayDecor = [], subwaySigns = [], subwayCommitTimer = 0, subwayCommitTarget = null, subwayRouteMinX = 0, subwayRouteMaxX = 0, subwayTrainPaths = [];
 let routeBoard = null;
 const subwayTrainAudio = new Audio('assets/cs-train-sound.mp3');
@@ -1287,6 +1926,43 @@ function finishGeneratorInteraction() {
 
 window.addEventListener('keydown', (e) => {
     let k = e.key.toLowerCase();
+    if (developerUnlockDialogOpen || document.getElementById('developerRoomDialog')?.style.display === 'flex') return;
+    if (developerStudioOpen) {
+        if (['INPUT','TEXTAREA','SELECT'].includes(e.target?.tagName)) return;
+        if (developerState.playtesting) {
+            if (k === 'escape') { developerPlaytest(); return; }
+            const movement = { w:[0,-8], arrowup:[0,-8], s:[0,8], arrowdown:[0,8], a:[-8,0], arrowleft:[-8,0], d:[8,0], arrowright:[8,0] }[k];
+            if (movement) { e.preventDefault(); developerTestMove(movement[0], movement[1]); }
+            return;
+        }
+        if (k === 'delete' || k === 'backspace') { e.preventDefault(); deleteDeveloperSelection(); return; }
+        if (k === 'escape') { if (developerState.pointer) { developerState.pointer = null; developerState.preview = null; renderDeveloperCanvas(); } else setDeveloperTool('select'); return; }
+        return;
+    }
+    if (state === 0 && !developerUnlockDialogOpen) {
+        if (e.shiftKey && k === 'o') {
+            developerChordArmed = true;
+            window.clearTimeout(window.__developerChordTimeout);
+            window.__developerChordTimeout = window.setTimeout(() => { developerChordArmed = false; }, 1200);
+            return;
+        }
+        if (developerChordArmed && k === 'p') {
+            developerChordArmed = false;
+            window.clearTimeout(window.__developerChordTimeout);
+            e.preventDefault();
+            openDeveloperUnlock();
+            return;
+        }
+    }
+    if (state === 11) {
+        if (k === ' ' || k === 'enter') { e.preventDefault(); fireAmineRoadWeapon(amineRoad?.aimX); return; }
+        if (k === 'arrowleft') k = 'a';
+        if (k === 'arrowright') k = 'd';
+        if (k === 'arrowup') k = 'w';
+        if (k === 'arrowdown') k = 's';
+        if (k in keys) { keys[k] = true; e.preventDefault(); }
+        return;
+    }
     if (k==='v' && monster.name==='AMINE' && state===1) { amineFocus=true; return; }
     if (k === 'm' && state === 1) { toggleMapOverlay(); return; }
     if (hotelDialogueOpen) {
@@ -1489,6 +2165,12 @@ window.addEventListener('keydown', (e) => {
 });
 window.addEventListener('keyup', (e) => {
     let k = e.key.toLowerCase();
+    if (state === 11) {
+        if (k === 'arrowleft') k = 'a';
+        if (k === 'arrowright') k = 'd';
+        if (k === 'arrowup') k = 'w';
+        if (k === 'arrowdown') k = 's';
+    }
     if(k==='v') amineFocus=false;
     if (k in keys) {
         keys[k] = false;
@@ -1510,7 +2192,7 @@ function handleCanvasPress(clientX, clientY) {
     }
     if(state===9){if(rapidTarget&&Math.hypot(x-rapidTarget.x,y-rapidTarget.y)<=rapidTarget.r){rapidHits++;playSound('tick');if(rapidHits>=rapidRequired)finishGeneratorInteraction();else spawnRapidTarget();}return;}
     if(state===10&&simonPhase==='input'){const size=100,gap=14,left=canvas.width/2-size-gap/2,top=canvas.height/2-size-gap/2;const boxes=[[left,top],[left+size+gap,top],[left,top+size+gap],[left+size+gap,top+size+gap]];const choice=boxes.findIndex(([bx,by])=>x>=bx&&x<=bx+size&&y>=by&&y<=by+size);if(choice<0)return;simonFlashChoice=choice;simonFlashTimer=14;if(choice!==simonSequence[simonInput]){failGeneratorTask('COLOR MEMORY');return;}simonInput++;playSound('tick');if(simonInput>=simonRound){if(simonRound>=simonSequence.length)finishGeneratorInteraction();else{simonRound++;simonInput=0;simonShowIndex=0;simonTimer=38;simonPhase='show';}}return;}
-    if(state===11&&amineTurret&&amineTurret.ammo>0){const scale=Math.min(canvas.width/(COLS*TS),canvas.height/(ROWS*TS)),worldX=x/scale,worldY=y/scale,angle=Math.atan2(worldY-amineTurret.y,worldX-amineTurret.x);amineBullets.push({x:amineTurret.x,y:amineTurret.y,vx:Math.cos(angle)*14,vy:Math.sin(angle)*14,walls:0,life:480});amineTurret.ammo--;playSound('tick');}
+    if (state === 11 && amineRoad) { fireAmineRoadWeapon(x); }
 }
 canvas.addEventListener('pointerdown', event => {
     if (event.pointerType === 'touch') return;
@@ -1802,17 +2484,71 @@ function generateForest() {
     rebuildFloors();
 }
 
+// This is the normalized walkable shape from the user's PillarRoom editor
+// export. The JSON is treated as level data; its text fields are never
+// executed. Repeating this footprint creates a readable authored structure
+// while the Parted Grid still gets a different hazard/objective roll each run.
+const PARTED_GRID_ROOM_TEMPLATE = {
+    width: 7,
+    height: 7,
+    floors: [[0,2],[0,3],[0,4],[1,1],[1,2],[1,3],[1,4],[1,5],[2,0],[2,1],[2,2],[2,3],[2,4],[2,5],[2,6],[3,0],[3,1],[3,2],[3,3],[3,4],[3,5],[3,6],[4,0],[4,1],[4,2],[4,3],[4,4],[4,5],[4,6],[5,1],[5,2],[5,3],[5,4],[5,5],[6,2],[6,3],[6,4]],
+    walls: [[0,0],[0,1],[0,5],[0,6],[1,0],[1,6],[5,0],[5,6],[6,0],[6,1],[6,5],[6,6]],
+    connections: { north:[4,0], east:[7,3], south:[4,7], west:[0,3] }
+};
+
 function generateAmineGrid() {
-    map = Array.from({length: ROWS}, (_, r) => Array.from({length: COLS}, (_, c) => (r === 0 || c === 0 || r === ROWS - 1 || c === COLS - 1 || (r % 2 === 0 && c % 2 === 0)) ? 1 : 0));
+    map = Array.from({ length: ROWS }, () => Array(COLS).fill(1));
     rooms = []; hidingSpots = []; coolingValves = []; fuses = []; employees = []; reservedObjectTiles = new Set(); amineHoles = []; amineFireZones = [];
-    // The Grid is intentionally one open field: hazards are scattered without
-    // named biomes, so the exit and generators are the only landmarks.
-    for (let i = 0; i < 32; i++) { const c = 3 + Math.floor(Math.random()*(COLS-6)), r = 3 + Math.floor(Math.random()*(ROWS-6)); if (map[r]?.[c] === 0 && !amineHoles.some(h => Math.hypot(h.c-c,h.r-r)<3)) amineFireZones.push({ x:c*TS+TS/2, y:r*TS+TS/2, radius:52+Math.floor(Math.random()*32) }); }
-    for (let i = 0; i < 50; i++) { const c = 2 + Math.floor(Math.random()*(COLS-4)), r = 2 + Math.floor(Math.random()*(ROWS-4)); if (map[r]?.[c] === 0 && !amineHoles.some(h => Math.hypot(h.c-c,h.r-r)<2) && !amineFireZones.some(z => Math.hypot(z.x-(c*TS+TS/2),z.y-(r*TS+TS/2)) < 20)) amineHoles.push({ c, r, x:c*TS+TS/2, y:r*TS+TS/2, radius:9 }); }
+    const originColumns = [3, 12, 21, 30, 39, 48];
+    const originRows = [3, 12, 21, 30];
+    const carveTemplateCell = (originC, originR, localC, localR) => {
+        const c = originC + localC, r = originR + localR;
+        if (map[r]?.[c] !== undefined) map[r][c] = 0;
+    };
+    const stampRoom = (originC, originR) => {
+        for (const [c, r] of PARTED_GRID_ROOM_TEMPLATE.floors) carveTemplateCell(originC, originR, c, r);
+        // Walls remain solid in the base map, but keeping them explicit here
+        // makes the template easy to expand if the room gains special props.
+        for (const [c, r] of PARTED_GRID_ROOM_TEMPLATE.walls) {
+            const worldC = originC + c, worldR = originR + r;
+            if (map[worldR]?.[worldC] !== undefined && map[worldR][worldC] !== 0) map[worldR][worldC] = 1;
+        }
+    };
+    for (const r of originRows) for (const c of originColumns) stampRoom(c, r);
+    // Join the authored rooms through their exported cardinal connection
+    // points. These corridors are the only extra walkable cells, so every
+    // generated room remains reachable without returning to an open field.
+    for (let row = 0; row < originRows.length; row++) {
+        for (let column = 0; column < originColumns.length; column++) {
+            const originC = originColumns[column], originR = originRows[row];
+            if (column < originColumns.length - 1) {
+                const y = originR + PARTED_GRID_ROOM_TEMPLATE.connections.east[1];
+                for (let c = originC + 7; c <= originColumns[column + 1]; c++) if (map[y]?.[c] !== undefined) map[y][c] = 0;
+            }
+            if (row < originRows.length - 1) {
+                const x = originC + PARTED_GRID_ROOM_TEMPLATE.connections.south[0];
+                for (let r = originR + 7; r <= originRows[row + 1]; r++) if (map[r]?.[x] !== undefined) map[r][x] = 0;
+            }
+        }
+    }
     rebuildFloors();
-    const exitTile = [...floors].sort((a,b) => (b.c+b.r)-(a.c+a.r)).find(tile => !amineHoles.some(h => Math.hypot(h.c-tile.c,h.r-tile.r)<3));
-    amineExitGate = exitTile ? { x:exitTile.c*TS+TS/2, y:exitTile.r*TS+TS/2 } : null;
-    if (amineExitGate) reserveObjectTile(Math.floor(amineExitGate.x/TS), Math.floor(amineExitGate.y/TS), 2);
+    // Preserve the old random Parted Grid hazards, but only place them on the
+    // authored floor/corridor cells and keep the opening room safe enough to
+    // understand on spawn.
+    for (let i = 0; i < 32; i++) {
+        const candidates = floors.filter(tile => tile.c > 8 && tile.r > 2 && !amineFireZones.some(zone => Math.hypot(zone.x - (tile.c * TS + TS / 2), zone.y - (tile.r * TS + TS / 2)) < zone.radius + 20));
+        const tile = candidates[Math.floor(Math.random() * Math.max(1, candidates.length))];
+        if (tile) amineFireZones.push({ x:tile.c * TS + TS / 2, y:tile.r * TS + TS / 2, radius:52 + Math.floor(Math.random() * 32) });
+    }
+    for (let i = 0; i < 50; i++) {
+        const candidates = floors.filter(tile => tile.c > 8 && tile.r > 2 && !amineHoles.some(hole => Math.hypot(hole.c - tile.c, hole.r - tile.r) < 2) && !amineFireZones.some(zone => Math.hypot(zone.x - (tile.c * TS + TS / 2), zone.y - (tile.r * TS + TS / 2)) < 20));
+        const tile = candidates[Math.floor(Math.random() * Math.max(1, candidates.length))];
+        if (tile) amineHoles.push({ c:tile.c, r:tile.r, x:tile.c * TS + TS / 2, y:tile.r * TS + TS / 2, radius:9 });
+    }
+    const exitCandidates = floors.filter(tile => tile.c > COLS - 12 && !amineHoles.some(hole => Math.hypot(hole.c - tile.c, hole.r - tile.r) < 3));
+    const exitTile = exitCandidates.sort((a, b) => b.r - a.r)[Math.floor(exitCandidates.length * .55)] || exitCandidates.at(-1) || floors.at(-1);
+    amineExitGate = exitTile ? { x:exitTile.c * TS + TS / 2, y:exitTile.r * TS + TS / 2 } : null;
+    if (amineExitGate) reserveObjectTile(Math.floor(amineExitGate.x / TS), Math.floor(amineExitGate.y / TS), 2);
 }
 
 function generateSubway() {
@@ -1854,11 +2590,12 @@ function generateSubway() {
     stationPoints.forEach((point, index) => {
         const station = carveRoom(`platform_${index + 1}`, point.c, point.r, 19, 17);
         station.index = index + 1; stations.push(station);
-        [-5, -2, 2, 5].forEach(offset => addTrack(point.c - 9, point.r + offset, point.c + 9, point.r + offset, true));
+        // One platform, one usable rail.  It always feeds into the next tunnel;
+        // there are no cosmetic sidings that look playable but lead nowhere.
+        addTrack(point.c - 9, point.r - 5, point.c + 9, point.r - 5, true);
         subwaySigns.push({ x:station.x, y:station.y - 150, text:`PLATFORM ${index + 1} · ${index === stationCount - 1 ? 'LAST LINE' : 'TRANSFER'}` });
-        addDecor('bench', station.x - 190, station.y - 126); addDecor('bench', station.x + 190, station.y + 126);
-        addDecor('poster', station.x - 35, station.y - 137); addDecor('machine', station.x + 300, station.y - 105);
-        addDecor('column', station.x - 290, station.y); addDecor('column', station.x + 290, station.y);
+        addDecor('bench', station.x - 190, station.y); addDecor('bench', station.x + 190, station.y + 105);
+        addDecor('poster', station.x + 60, station.y + 105); addDecor('machine', station.x + 250, station.y + 85);
         const direction = index % 2 ? -1 : 1;
         const booth = carveRoom('ticket_booth', point.c + direction * 13, point.r - 12, 6, 5);
         booth.station = station; carveBoilerCorridor(booth, station); addDecor('booth', booth.x, booth.y);
@@ -1867,24 +2604,22 @@ function generateSubway() {
             service.station = station; carveBoilerCorridor(service, station); addDecor('crate', service.x + 42, service.y + 18); hidingSpots.push({ x:service.x - 42, y:service.y, occupied:false });
         }
     });
-    // Two parallel lines follow the same bent route.  A player can read the pair as
-    // separate tracks, while trains use the polylines below to travel and reverse.
-    const routeA = [], routeB = [];
+    // The single rail follows every station and turn. Two train instances travel
+    // it in opposite directions, rather than using dead-end platform sidings.
+    const routeA = [];
     for (let index = 0; index < stations.length - 1; index++) {
         const from = stations[index], to = stations[index + 1];
-        const fromY = from.r - 2, toY = to.r - 2;
+        const fromY = from.r - 5, toY = to.r - 5;
         const exitX = from.c + 9, entryX = to.c - 9;
-        const turnX = index % 2 ? from.c - 13 : to.c;
+        // Keep the second bend clear of the transfer station's booth instead of
+        // sending the rail straight through a room decoration.
+        const turnX = index % 2 ? from.c + 10 : to.c;
         const a = [{x:exitX,y:fromY},{x:turnX,y:fromY},{x:turnX,y:toY},{x:entryX,y:toY}];
-        // Offset the second line on both the horizontal and vertical legs.  Keeping
-        // the turn offset is what makes a tunnel visibly read as two tracks.
-        const b = [{x:exitX,y:fromY+4},{x:turnX+4,y:fromY+4},{x:turnX+4,y:toY+4},{x:entryX,y:toY+4}];
-        for (const path of [a, b]) for (let point = 0; point < path.length - 1; point++) addTrack(path[point].x, path[point].y, path[point + 1].x, path[point + 1].y, true);
+        for (let point = 0; point < a.length - 1; point++) addTrack(a[point].x, a[point].y, a[point + 1].x, a[point + 1].y, true);
         if (!routeA.length) routeA.push(...a); else routeA.push(...a.slice(1));
-        if (!routeB.length) routeB.push(...b); else routeB.push(...b.slice(1));
         rooms.push({ type:'two_track_tunnel', c:turnX, r:Math.round((fromY + toY) / 2), width:Math.max(5, Math.abs(exitX-entryX)), height:Math.max(5, Math.abs(fromY-toY)), x:turnX*TS+TS/2, y:Math.round((fromY+toY)/2)*TS+TS/2, subwayTunnel:true });
     }
-    subwayTrainPaths = [routeA, routeB];
+    subwayTrainPaths = [routeA];
     const entryHall = carveRoom('ticket_hall', stations[0].c - 13, stations[0].r, 7, 8);
     carveBoilerCorridor(entryHall, stations[0]);
     const finalStation = stations.at(-1);
@@ -1894,7 +2629,7 @@ function generateSubway() {
     rebuildFloors();
 
     subwayControl = { x: control.x, y: control.y };
-    const trapRow = finalStation.r + 2;
+    const trapRow = finalStation.r - 5;
     subwayTrap = { x: finalStation.x, y: trapRow * TS + TS / 2, row:trapRow, escapeTop:{x:finalStation.x + 110,y:(trapRow - 3)*TS + TS/2}, escapeBottom:{x:finalStation.x + 110,y:(trapRow + 3)*TS + TS/2} };
     const panelSlots = [...rooms.filter(room => ['ticket_booth','service_room'].includes(room.type)), ...stations, entryHall].sort(() => Math.random() - .5);
     const panelCount = Math.min(panelSlots.length, 2 + currentDiff + (Math.random() < .5 ? 1 : 0));
@@ -1902,7 +2637,11 @@ function generateSubway() {
     subwayPanels = panelSlots.slice(0, panelCount).map((room, index) => ({ x:room.x, y:room.y, room, label:panelNames[index], active:false, r:15, isSubway:true, type:'subway', stage:0, requiredStages:1 }));
     addDecor('turnstile', entryHall.x + 38, entryHall.y - 55); addDecor('turnstile', entryHall.x + 82, entryHall.y - 55);
     addDecor('luggage', entryHall.x - 46, entryHall.y + 60); addDecor('control', control.x, control.y);
-    subwayTrainPaths.forEach((path, pathIndex) => subwayTrains.push({ path, pathIndex, point:pathIndex ? path.length - 1 : 0, direction:pathIndex ? -1 : 1, x:path[pathIndex ? path.length-1 : 0].x*TS+TS/2, y:path[pathIndex ? path.length-1 : 0].y*TS+TS/2, speed:2.7+Math.random()*.5, length:TS*4.3, active:true, cooldown:0, trapTrain:false, soundCooldown:0, axis:'x' }));
+    const firstRailPoint = routeA[0], lastRailPoint = routeA.at(-1);
+    subwayTrains.push(
+        { path:routeA, point:0, direction:1, x:firstRailPoint.x*TS+TS/2, y:firstRailPoint.y*TS+TS/2, speed:2.7+Math.random()*.5, length:TS*4.3, active:true, cooldown:0, trapTrain:false, soundCooldown:0, axis:'x' },
+        { path:routeA, point:routeA.length-1, direction:-1, x:lastRailPoint.x*TS+TS/2, y:lastRailPoint.y*TS+TS/2, speed:2.7+Math.random()*.5, length:TS*4.3, active:true, cooldown:0, trapTrain:false, soundCooldown:0, axis:'x' }
+    );
     reserveObjectTile(Math.floor(subwayControl.x / TS), Math.floor(subwayControl.y / TS), 1);
     subwayPanels.forEach(panel => reserveObjectTile(Math.floor(panel.x / TS), Math.floor(panel.y / TS), 1));
 }
@@ -2083,22 +2822,172 @@ function updateAmine() {
     return true;
 }
 
-function beginAmineTurret() {
-    state=11; amineFocus=false; amineTurret={x:TS*1.5,y:ROWS*TS/2,ammo:14}; amineBullets=[]; monster.invisible=false;
-    const start=floors.filter(t=>t.c>COLS*.7)[Math.floor(Math.random()*Math.max(1,floors.filter(t=>t.c>COLS*.7).length))]||floors.at(-1); monster.x=start.c*TS+TS/2;monster.y=start.r*TS+TS/2;monster.path=[]; notify('TURRET ONLINE · SHOOT AMINE','unlock');
+function beginAmineRoadChase() {
+    state = 11;
+    amineFocus = false;
+    monster.invisible = false;
+    hud.style.display = 'none';
+    document.getElementById('mapTaskHUD').style.display = 'none';
+    document.getElementById('hotelTaskHUD').style.display = 'none';
+    document.getElementById('mapButton').style.display = 'none';
+    amineBullets = [];
+    amineTurret = null;
+    amineRoad = {
+        left: 96, right: 704, top: 64, bottom: 560,
+        player: { x:400, y:486, width:82, height:48, health:3 },
+        target: { x:400, y:150, width:38, height:58, health:4, vx:0, vy:0, changeTimer:18, invisibleTimer:0, visibleFlash:0 },
+        roadblocks: [],
+        aimX:400,
+        scroll:0,
+        spawnTimer:36,
+        cooldown:0,
+        jamTimer:0,
+        shotStreak:0,
+        quietTimer:0,
+        distance:0,
+        hitFlash:0,
+        roadShake:0,
+        finished:false
+    };
+    notify('EXIT GATE · VEHICLE PURSUIT INITIATED', 'unlock');
+    showMsg('STEER WITH A / D · AIM AND FIRE WITH CLICK OR SPACE', 1900);
 }
+
 function beginAmineFinalChase() {
-    state = 3; amineFocus = false; monster.invisible = false; amineVisibleTimer = 9999;
-    monster.path = []; monster.speed = Math.max(monster.speed, 3.75 + currentDiff * .18); player.speed = player.baseSpeed + .85;
-    notify('EXIT OPEN · AMINE IS EXPOSED', 'unlock'); showMsg('RUN THROUGH THE EXIT · CATCH AMINE', 1800);
+    beginAmineRoadChase();
 }
-function updateAmineTurret() {
-    if(state!==11)return;
-    if(!monster.path.length) monster.path=findPath(Math.floor(monster.x/TS),Math.floor(monster.y/TS),Math.floor(amineTurret.x/TS),Math.floor(amineTurret.y/TS));
-    moveMonsterAlongPath(3.05+currentDiff*.35,monster);
-    for(const bullet of amineBullets){bullet.x+=bullet.vx;bullet.y+=bullet.vy;bullet.life--;if(Math.hypot(bullet.x-monster.x,bullet.y-monster.y)<monster.r+5){bullet.life=0;endGame(true,monster);return;}}
-    amineBullets=amineBullets.filter(b=>b.life>0);
-    if(Math.hypot(monster.x-amineTurret.x,monster.y-amineTurret.y)<28||(amineTurret.ammo<=0&&!amineBullets.length))endGame(false,monster);
+
+function amineRoadRect(entity) {
+    return { left:entity.x - entity.width / 2, right:entity.x + entity.width / 2, top:entity.y - entity.height / 2, bottom:entity.y + entity.height / 2 };
+}
+
+function amineRoadRectHit(a, b) {
+    const first = amineRoadRect(a), second = amineRoadRect(b);
+    return first.left < second.right && first.right > second.left && first.top < second.bottom && first.bottom > second.top;
+}
+
+function spawnAmineRoadblock() {
+    if (!amineRoad || amineRoad.roadblocks.length >= 7) return;
+    const width = 56 + Math.floor(Math.random() * 42);
+    const x = amineRoad.left + 30 + Math.random() * (amineRoad.right - amineRoad.left - 60);
+    amineRoad.roadblocks.push({ x, y:-52, width, height:30, speed:4.7 + currentDiff * .45 + Math.random() * 1.7, tilt:(Math.random() - .5) * .16, type:Math.random() < .5 ? 'barrier' : 'wreck' });
+}
+
+function fireAmineRoadWeapon(targetX = amineRoad?.aimX || amineRoad?.player.x) {
+    if (state !== 11 || !amineRoad || amineRoad.finished) return;
+    if (amineRoad.jamTimer > 0) { notify('TURRET JAMMED · WAIT FOR THE COOLING CYCLE', 'warning'); return; }
+    if (amineRoad.cooldown > 0) return;
+    const playerCar = amineRoad.player;
+    const requestedAim = Number(targetX);
+    const aim = Number.isFinite(requestedAim) ? Math.max(amineRoad.left, Math.min(amineRoad.right, requestedAim)) : playerCar.x;
+    const angle = Math.atan2(amineRoad.target.y - (playerCar.y - 28), aim - playerCar.x);
+    amineBullets.push({ x:playerCar.x, y:playerCar.y - 28, vx:Math.cos(angle) * 10.5, vy:Math.sin(angle) * 10.5, life:90, radius:4 });
+    amineRoad.aimX = aim;
+    amineRoad.cooldown = 8;
+    amineRoad.quietTimer = 0;
+    amineRoad.shotStreak++;
+    playSound('tick');
+    if (amineRoad.shotStreak >= 8) {
+        amineRoad.jamTimer = 150;
+        amineRoad.shotStreak = 0;
+        playSound('fail');
+        notify('TURRET JAMMED · REPETITIVE FIRE OVERHEATED IT', 'danger');
+    }
+}
+
+function updateAmineRoadChase() {
+    if (state !== 11 || !amineRoad || amineRoad.finished) return;
+    const road = amineRoad;
+    if (road.cooldown > 0) road.cooldown--;
+    if (road.jamTimer > 0) road.jamTimer--;
+    road.quietTimer++;
+    if (road.quietTimer > 100) road.shotStreak = 0;
+    if (road.hitFlash > 0) road.hitFlash--;
+    if (road.roadShake > 0) road.roadShake--;
+
+    const moveX = (keys.d ? 1 : 0) - (keys.a ? 1 : 0);
+    const moveY = (keys.s ? 1 : 0) - (keys.w ? 1 : 0);
+    road.player.x = Math.max(road.left + road.player.width / 2, Math.min(road.right - road.player.width / 2, road.player.x + moveX * 6.4));
+    road.player.y = Math.max(road.top + 230, Math.min(road.bottom - road.player.height / 2, road.player.y + moveY * 4.1));
+    road.scroll = (road.scroll + 5.2 + currentDiff * .55) % 96;
+    road.distance += 1;
+
+    const target = road.target;
+    target.changeTimer--;
+    if (target.changeTimer <= 0) {
+        target.changeTimer = 16 + Math.floor(Math.random() * 46);
+        target.vx = (Math.random() - .5) * (3.5 + currentDiff * .8);
+        target.vy = (Math.random() - .5) * 1.8;
+        if (target.invisibleTimer <= 0 && Math.random() < .24) {
+            target.invisibleTimer = 42 + Math.floor(Math.random() * 85);
+            notify('AMINE DISAPPEARED INTO THE ROAD NOISE', 'warning');
+        }
+    }
+    if (target.invisibleTimer > 0) target.invisibleTimer--;
+    target.x += target.vx; target.y += target.vy;
+    if (target.x < road.left + target.width / 2 || target.x > road.right - target.width / 2) { target.vx *= -1; target.x = Math.max(road.left + target.width / 2, Math.min(road.right - target.width / 2, target.x)); }
+    target.y = Math.max(96, Math.min(245, target.y));
+    target.visibleFlash = target.invisibleTimer <= 0 ? 0 : (target.invisibleTimer % 12 < 4 ? 1 : 0);
+    monster.invisible = target.invisibleTimer > 0;
+
+    road.spawnTimer--;
+    if (road.spawnTimer <= 0) { spawnAmineRoadblock(); road.spawnTimer = 34 + Math.floor(Math.random() * 48) - currentDiff * 4; }
+    for (const block of road.roadblocks) block.y += block.speed;
+    for (const block of road.roadblocks) {
+        if (amineRoadRectHit(road.player, block)) {
+            block.y = road.bottom + 80;
+            road.player.health--;
+            road.hitFlash = 20; road.roadShake = 22;
+            playSound('fail');
+            notify(`ROADBLOCK HIT · VEHICLE ${Math.max(0, road.player.health)}/3`, 'danger');
+            if (road.player.health <= 0) { road.finished = true; endGame(false, monster); return; }
+        }
+    }
+    road.roadblocks = road.roadblocks.filter(block => block.y < road.bottom + 100);
+
+    for (const bullet of amineBullets) {
+        bullet.x += bullet.vx; bullet.y += bullet.vy; bullet.life--;
+        const bulletBox = { x:bullet.x, y:bullet.y, width:bullet.radius * 2, height:bullet.radius * 2 };
+        const block = road.roadblocks.find(candidate => amineRoadRectHit(bulletBox, candidate));
+        if (block) { bullet.life = 0; block.y = road.bottom + 100; playSound('fail'); continue; }
+        const targetBox = { x:target.x, y:target.y, width:target.width, height:target.height };
+        if (target.invisibleTimer <= 0 && amineRoadRectHit(bulletBox, targetBox)) {
+            bullet.life = 0; target.health--; road.hitFlash = 18; notify(`AMINE HIT · ${target.health} SHOT${target.health === 1 ? '' : 'S'} REMAIN`, 'unlock');
+            if (target.health <= 0) { road.finished = true; showStoryLine('THE ROAD FINALLY REMEMBERS HIM.', 900); setTimeout(() => endGame(true, monster), 900); return; }
+        }
+    }
+    amineBullets = amineBullets.filter(bullet => bullet.life > 0 && bullet.y > -40 && bullet.y < canvas.height + 40 && bullet.x > -40 && bullet.x < canvas.width + 40);
+}
+
+function drawAmineRoadChase() {
+    if (!amineRoad) return;
+    const road = amineRoad, target = road.target;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#11181c'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.save();
+    if (road.roadShake > 0) ctx.translate((Math.random() - .5) * 8, (Math.random() - .5) * 5);
+    ctx.fillStyle = '#20282d'; ctx.fillRect(road.left - 28, 0, road.right - road.left + 56, canvas.height);
+    ctx.fillStyle = '#43484a'; ctx.fillRect(road.left, 0, road.right - road.left, canvas.height);
+    ctx.fillStyle = '#2b3032'; ctx.fillRect(road.left + 8, 0, 8, canvas.height); ctx.fillRect(road.right - 16, 0, 8, canvas.height);
+    ctx.strokeStyle = '#d1b86b'; ctx.lineWidth = 3; ctx.setLineDash([42, 54]); ctx.lineDashOffset = road.scroll;
+    for (const laneX of [road.left + 122, road.left + 244, road.left + 366, road.left + 488]) { ctx.beginPath(); ctx.moveTo(laneX, 0); ctx.lineTo(laneX, canvas.height); ctx.stroke(); }
+    ctx.setLineDash([]);
+    for (const block of road.roadblocks) {
+        ctx.save(); ctx.translate(block.x, block.y); ctx.rotate(block.tilt);
+        if (block.type === 'barrier') { ctx.fillStyle = '#d4d0bd'; ctx.fillRect(-block.width / 2, -block.height / 2, block.width, block.height); ctx.fillStyle = '#a52525'; for (let x = -block.width / 2; x < block.width / 2; x += 22) ctx.fillRect(x, -block.height / 2, 11, block.height); ctx.fillStyle = '#202426'; ctx.fillRect(-block.width / 2, block.height / 2 - 4, block.width, 8); }
+        else { ctx.fillStyle = '#25282b'; ctx.fillRect(-block.width / 2, -block.height / 2, block.width, block.height); ctx.fillStyle = '#9f3f2d'; ctx.fillRect(-block.width / 2 + 8, -block.height / 2 + 5, block.width - 16, 7); ctx.fillStyle = '#121516'; ctx.beginPath(); ctx.arc(-block.width * .28, block.height / 2, 8, 0, Math.PI * 2); ctx.arc(block.width * .28, block.height / 2, 8, 0, Math.PI * 2); ctx.fill(); }
+        ctx.restore();
+    }
+    for (const bullet of amineBullets) { ctx.fillStyle = '#ffe28c'; ctx.shadowColor = '#ffbe4d'; ctx.shadowBlur = 10; ctx.beginPath(); ctx.arc(bullet.x, bullet.y, bullet.radius, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0; }
+    if (target.invisibleTimer <= 0 || target.visibleFlash) {
+        ctx.save(); ctx.translate(target.x, target.y); ctx.fillStyle = target.invisibleTimer > 0 ? 'rgba(205,230,255,.24)' : '#f5f5f5'; ctx.fillRect(-target.width / 2, -target.height / 2, target.width, target.height); ctx.fillStyle = '#0c0c0c'; ctx.fillRect(-target.width / 2 + 7, -target.height / 2 + 8, target.width - 14, 22); ctx.fillStyle = '#ff6c91'; ctx.beginPath(); ctx.arc(-8, -8, 4, 0, Math.PI * 2); ctx.arc(8, -8, 4, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+    }
+    const car = road.player;
+    ctx.save(); ctx.translate(car.x, car.y);
+    ctx.fillStyle = road.hitFlash > 0 ? '#ff6a5b' : '#4ba8c4'; ctx.fillRect(-car.width / 2, -car.height / 2, car.width, car.height); ctx.fillStyle = '#18282e'; ctx.fillRect(-car.width / 2 + 12, -car.height / 2 + 7, car.width - 24, 18); ctx.fillStyle = '#101416'; ctx.fillRect(-car.width / 2 - 5, -car.height / 2 + 7, 8, 13); ctx.fillRect(car.width / 2 - 3, -car.height / 2 + 7, 8, 13); ctx.fillStyle = '#303d42'; ctx.fillRect(-car.width / 2 + 8, car.height / 2 - 2, car.width - 16, 7); ctx.fillStyle = '#d4c09a'; ctx.fillRect(-5, -car.height / 2 - 17, 10, 19); ctx.fillStyle = '#1c262a'; ctx.fillRect(-3, -car.height / 2 - 22, 6, 12); ctx.restore();
+    ctx.restore();
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 17px Arial'; ctx.textAlign = 'left'; ctx.fillText('AMINE ROAD PURSUIT', 20, 30); ctx.font = '13px Arial'; ctx.fillStyle = '#d9e8eb'; ctx.fillText(`VEHICLE ${road.player.health}/3`, 20, 52); ctx.fillText(`AMINE TARGET ${target.health}/4`, 20, 70); ctx.textAlign = 'right'; ctx.fillStyle = road.jamTimer > 0 ? '#ff7979' : road.shotStreak >= 6 ? '#ffd36b' : '#b9d6df'; ctx.fillText(road.jamTimer > 0 ? `TURRET JAMMED · ${Math.ceil(road.jamTimer / 60)}s` : `TURRET ${road.shotStreak}/8`, canvas.width - 20, 30); ctx.fillStyle = '#b9d6df'; ctx.fillText('A/D STEER · CLICK OR SPACE FIRE', canvas.width - 20, 52);
+    if (target.invisibleTimer > 0) { ctx.textAlign = 'center'; ctx.fillStyle = '#c9e5ff'; ctx.font = 'bold 14px Arial'; ctx.fillText('AMINE IS INVISIBLE', canvas.width / 2, 34); }
 }
 
 function updateForestEvent() {
@@ -2588,7 +3477,7 @@ function startGame(diffLevel) {
     boilerShutdown = false; boilerReadyShown = false; heatZones = []; heatEventCooldown = currentMapId === 'boilerworks' ? 360 : 0;
     rhysSealCollected = false; rhysTrapArmed = false; goopZones = []; goopShots = []; rhysSpitCooldown = 180; rhysDashTimer = 0; rhysChargeWindup = 0; rhysDashCooldown = 360; rhysEventCooldown = 900; rhysSweepTimer = 0; rhysSweepRadius = 0; rhysPressureZones = [];
     forestBeaconBattery = null; forestWatchtower = null; forestBeaconActive = false; forestFogTimer = 0; forestFogCooldown = currentMapId === 'forest' ? 720 : 0; noahCharge = null; noahLightningCooldown = 360; noahLightningZones = []; noahLightningPending = []; noahLightningWarning = 0; noahLightningFlashes = 0; noahShockTimer = 0;
-    amineFocus = false; amineVisibleTimer = 0; amineFlashCooldown = 90; amineTeleportCooldown = 240; amineCallCount = 1; amineCallsRemaining = 0; amineCallActive = false; amineTurret = null; amineBullets = []; amineBurnTimer = 0; luckyBlocks = [];
+    amineFocus = false; amineVisibleTimer = 0; amineFlashCooldown = 90; amineTeleportCooldown = 240; amineCallCount = 1; amineCallsRemaining = 0; amineCallActive = false; amineTurret = null; amineBullets = []; amineBurnTimer = 0; amineRoad = null; luckyBlocks = [];
     document.getElementById('amineCall').style.display='none';
     hotelLockdownTimer = 0; hotelEventCooldown = currentMapId === 'hotel' ? 480 : 0; hotelLockdownActive = false; hotelBlockedDoor = null;
     bassamState = 'roaming'; bassamRevealPending = false; bassamTrapTaskId = null; bassamFakeTask = null; bassamFakeLine = ''; bassamAmbushActive = false; bassamRelentlessChase = false; bassamLostTimer = 0; bassamAmbushCooldown = 900; hotelTaskGame = null; bassamStaffDepartment = ['FRONT DESK','MAINTENANCE','HOUSEKEEPING','KITCHEN'][Math.floor(Math.random() * 4)]; closeHotelDialogue();
@@ -3296,7 +4185,7 @@ function update() {
     if (state===9) { rapidTimer--; if(rapidTimer<=0) failGeneratorTask('RESPONSE ARRAY'); }
     if (state===10 && simonFlashTimer > 0) simonFlashTimer--;
     if (state===10 && simonPhase==='show') { simonTimer--; if(simonTimer<=0){simonShowIndex++;if(simonShowIndex>=simonRound){simonPhase='input';simonInput=0;}else simonTimer=38;} }
-    if (state===11) { updateAmineTurret(); return; }
+    if (state===11) { updateAmineRoadChase(); return; }
 
     for (const generator of generators) {
         if (generator.repairFlash > 0) generator.repairFlash--;
@@ -3717,6 +4606,7 @@ function update() {
 }
 
 function draw() {
+    if (state === 11 && amineRoad) { drawAmineRoadChase(); return; }
     if (state === 0 || state === 4) {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         return;
@@ -3732,10 +4622,10 @@ function draw() {
     for (let r = 0; r < ROWS; r++) {
         for (let c = 0; c < COLS; c++) {
             if (map[r][c] === 1) {
-                ctx.fillStyle = currentMapId === 'boilerworks' ? '#171a1d' : currentMapId === 'hotel' ? '#211a20' : currentMapId === 'crimson' ? '#241012' : currentMapId === 'forest' ? '#17351c' : currentMapId === 'amine' ? '#494949' : currentMapId === 'subway' ? '#15191d' : '#2d2216'; ctx.fillRect(c * TS, r * TS, TS, TS);
+                ctx.fillStyle = currentMapId === 'boilerworks' ? '#171a1d' : currentMapId === 'hotel' ? '#211a20' : currentMapId === 'crimson' ? '#241012' : currentMapId === 'forest' ? '#17351c' : currentMapId === 'amine' ? '#252525' : currentMapId === 'subway' ? '#15191d' : '#2d2216'; ctx.fillRect(c * TS, r * TS, TS, TS);
                 if (!setOptimization) { ctx.strokeStyle = currentMapId === 'boilerworks' ? '#0b0d0f' : currentMapId === 'hotel' ? '#0e0a10' : currentMapId === 'crimson' ? '#100506' : '#181109'; ctx.strokeRect(c * TS, r * TS, TS, TS); }
             } else {
-                ctx.fillStyle = currentMapId === 'boilerworks' ? '#4b4540' : currentMapId === 'hotel' ? ((r + c) % 2 ? '#5b4850' : '#65505a') : currentMapId === 'crimson' ? ((r + c) % 2 ? '#6f2429' : '#7d2b30') : currentMapId === 'forest' ? ((r + c) % 2 ? '#326d36' : '#39793d') : currentMapId === 'amine' ? ((r+c)%2?'#292426':'#332a2d') : currentMapId === 'subway' ? ((r + c) % 2 ? '#31383d' : '#3a4247') : '#8b7355'; ctx.fillRect(c * TS, r * TS, TS, TS);
+                ctx.fillStyle = currentMapId === 'boilerworks' ? '#4b4540' : currentMapId === 'hotel' ? ((r + c) % 2 ? '#5b4850' : '#65505a') : currentMapId === 'crimson' ? ((r + c) % 2 ? '#6f2429' : '#7d2b30') : currentMapId === 'forest' ? ((r + c) % 2 ? '#326d36' : '#39793d') : currentMapId === 'amine' ? '#555555' : currentMapId === 'subway' ? ((r + c) % 2 ? '#31383d' : '#3a4247') : '#8b7355'; ctx.fillRect(c * TS, r * TS, TS, TS);
                 if (!setOptimization && currentMapId === 'boilerworks' && (r + c) % 7 === 0) {
                     ctx.fillStyle = 'rgba(180,120,55,0.2)'; ctx.fillRect(c * TS + 5, r * TS + 7, TS - 10, 3);
                 }
@@ -4292,7 +5182,6 @@ function draw() {
     }
     if(state===9){ctx.fillStyle='rgba(7,3,10,.9)';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.strokeStyle='#ff75d2';ctx.lineWidth=2;ctx.strokeRect(18,18,canvas.width-36,74);ctx.fillStyle='#fff';ctx.font='bold 22px Arial';ctx.textAlign='center';ctx.fillText('RESPONSE ARRAY',canvas.width/2,48);ctx.font='15px Arial';ctx.fillStyle='#ffc1e9';ctx.fillText(`CLICK THE SIGNALS · ${rapidHits}/${rapidRequired}`,canvas.width/2,74);if(rapidTarget){ctx.fillStyle='rgba(255,79,197,.25)';ctx.beginPath();ctx.arc(rapidTarget.x,rapidTarget.y,rapidTarget.r+13,0,Math.PI*2);ctx.fill();ctx.fillStyle='#ff4fc5';ctx.beginPath();ctx.arc(rapidTarget.x,rapidTarget.y,rapidTarget.r,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#fff';ctx.lineWidth=3;ctx.beginPath();ctx.arc(rapidTarget.x,rapidTarget.y,rapidTarget.r,0,Math.PI*2);ctx.stroke();ctx.fillStyle='#fff';ctx.font='bold 19px Arial';ctx.fillText('TAP',rapidTarget.x,rapidTarget.y+7);}}
     if(state===10){ctx.fillStyle='rgba(0,0,0,.82)';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.fillStyle='#fff';ctx.font='bold 22px Arial';ctx.textAlign='center';ctx.fillText(`COLOR MEMORY · ROUND ${simonRound}/${simonSequence.length}`,canvas.width/2,70);const colors=['#e33','#38f','#3c5','#fd3'],symbols=['▲','●','■','★'],size=100,gap=14,left=canvas.width/2-size-gap/2,top=canvas.height/2-size-gap/2,active=simonPhase==='show'?simonSequence[Math.min(simonShowIndex,simonRound-1)]:-1;for(let i=0;i<4;i++){const x=left+(i%2)*(size+gap),y=top+Math.floor(i/2)*(size+gap),flashing=i===simonFlashChoice&&simonFlashTimer>0;ctx.fillStyle=i===active||flashing?'#fff':colors[i];ctx.fillRect(x,y,size,size);ctx.strokeStyle=flashing?'#fff':'rgba(255,255,255,.2)';ctx.lineWidth=flashing?5:1;ctx.strokeRect(x,y,size,size);ctx.fillStyle=i===active||flashing?colors[i]:'#111';ctx.font='bold 30px Arial';ctx.fillText(symbols[i],x+size/2,y+60);}ctx.fillStyle='#ddd';ctx.font='15px Arial';ctx.fillText(simonPhase==='show'?'WATCH THE PATTERN':'REPEAT THE PATTERN',canvas.width/2,top+size*2+gap+38);}
-    if(state===11&&amineTurret){ctx.fillStyle='#050505';ctx.fillRect(0,0,canvas.width,canvas.height);const scale=Math.min(canvas.width/(COLS*TS),canvas.height/(ROWS*TS));for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){ctx.fillStyle=map[r][c]===1?'#666':'#191919';ctx.fillRect(c*TS*scale,r*TS*scale,Math.ceil(TS*scale),Math.ceil(TS*scale));}ctx.fillStyle='#5cf';ctx.beginPath();ctx.arc(amineTurret.x*scale,amineTurret.y*scale,8,0,Math.PI*2);ctx.fill();ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(monster.x*scale,monster.y*scale,7,0,Math.PI*2);ctx.fill();for(const b of amineBullets){ctx.fillStyle='#ffdc62';ctx.beginPath();ctx.arc(b.x*scale,b.y*scale,3,0,Math.PI*2);ctx.fill();}ctx.fillStyle='#fff';ctx.font='bold 18px Arial';ctx.textAlign='left';ctx.fillText(`AMMO ${amineTurret.ammo}`,18,28);}
 }
 
 function loop(timestamp) {
@@ -4324,6 +5213,7 @@ document.querySelectorAll('#infoVersion, #settingsVersion').forEach(element => e
 document.addEventListener('change', event => { if (event.target?.id?.startsWith('survival')) updateSurvivalSummary(); });
 applySettings();
 updateMenuData();
+setupDeveloperStudio();
 requestAnimationFrame(loop);
 
 function mobileKey(key) {
@@ -4370,6 +5260,7 @@ function updateMobileSkillCheckButton() {
     const focus=document.getElementById('touchFocus'); if(focus) focus.style.display=monster.name==='AMINE'&&state===1?'block':'none';
     const dash=document.getElementById('touchDash'); if(dash) { dash.style.display=upgDash && (state===1 || state===3) ? 'block' : 'none'; dash.disabled=!upgDash || dashCooldown>0; dash.textContent=dashCooldown>0 ? `${Math.ceil(dashCooldown/60)}s` : 'DASH'; }
     const mapButton=document.getElementById('mapButton'); if(mapButton) mapButton.style.display=mapIntel.includes(currentMapId) && (state===1 || state===3) ? 'block' : 'none';
+    const roadControls=document.getElementById('amineRoadControls'); if(roadControls) roadControls.style.display=state===11 && isMobileClient()?'flex':'none';
 }
 
 
@@ -4461,6 +5352,9 @@ function updateMobileSkillCheckButton() {
     }
 
     bindAction('touchInteract', 'e');
+    bindHoldAction('amineRoadLeft', 'a');
+    bindHoldAction('amineRoadRight', 'd');
+    document.getElementById('amineRoadFire')?.addEventListener('pointerdown', event => { event.preventDefault(); fireAmineRoadWeapon(amineRoad?.aimX); });
     document.getElementById('touchDash')?.addEventListener('pointerdown', event => { event.preventDefault(); useDash(); });
     document.getElementById('touchAbilities')?.addEventListener('pointerdown', event => { event.preventDefault(); openMobileActionMenu('abilities'); });
     document.getElementById('touchItems')?.addEventListener('pointerdown', event => { event.preventDefault(); openMobileActionMenu('items'); });
