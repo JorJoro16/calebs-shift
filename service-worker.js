@@ -1,4 +1,4 @@
-const CACHE_NAME = 'calebs-shift-v62';
+const CACHE_NAME = 'calebs-shift-v63';
 const FILES_TO_CACHE = [
   './',
   './index.html',
@@ -17,7 +17,7 @@ const FILES_TO_CACHE = [
   './assets/spongebob-mask.png',
   './assets/krusty-krab-hat.png',
   './assets/smile-mask.png',
-  './assets/cs-train-sound.mp3'
+  './assets/WallCrashSoundEffect.mp3'
 ];
 
 self.addEventListener('install', event => {

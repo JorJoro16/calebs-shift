@@ -102,8 +102,17 @@ function playSound(type) {
     }
 }
 
+function playNizarCrashSound() {
+    if (!audioUnlocked || setVolM === 0 || setVolS === 0) return;
+    try {
+        const sound = nizarCrashAudio.cloneNode();
+        sound.volume = Math.min(.28, (setVolM / 100) * (setVolS / 100) * .28);
+        sound.play().catch(() => {});
+    } catch (_) {}
+}
+
 // Versioned local progress with a backup copy and import/export support.
-const GAME_VERSION = '2.9.8';
+const GAME_VERSION = '2.9.9';
 const SAVE_SCHEMA_VERSION = 10;
 const SAVE_KEY = 'br_save_v2';
 const SAVE_BACKUP_KEY = 'br_save_backup_v2';
@@ -118,7 +127,7 @@ const MAP_DEFINITIONS = {
     crimson: { id: 'crimson', name: 'THE CRIMSON CONTAINMENT', description: 'Break the seal route, survive Rhys, and trap him.', campaignOrder: 3 },
     forest: { id: 'forest', name: 'THE BLACKWOOD FOREST', description: 'Dark trails, powered cabins, and Noah the Stalker.', campaignOrder: 4 },
     amine: { id: 'amine', name: 'THE PARTED GRID', description: 'A burning grid where closing your eyes reveals Amine.', campaignOrder: 5 },
-    subway: { id: 'subway', name: 'THE LAST LINE', description: 'Restore the route, arm the rails, and lure the hunter into the last train.', campaignOrder: 6 }
+    subway: { id: 'subway', name: 'THE LAST LINE', description: 'Restore the signal panels, then route a train into the moving hunter from Rail Control.', campaignOrder: 6 }
 };
 
 const LOADOUT_DEFINITIONS = {
@@ -1572,15 +1581,16 @@ let hotelElevator = null, hotelLockdownTimer = 0, hotelEventCooldown = 0, hotelL
 let rhysSeal = null, rhysChest = null, rhysChestKey = null, rhysBreakWall = null, rhysTrap = null, rhysRoute = 'search', rhysSealCollected = false, rhysTrapArmed = false;
 let forestCabins = [], forestBreakers = [], forestTrees = [], forestBeaconBattery = null, forestWatchtower = null, forestBeaconActive = false, forestFogTimer = 0, forestFogCooldown = 0, forestGuideTimer = 0, forestGuideCooldown = 1200, forestGuideMode = 'cabins', noahState = 'hidden', noahTimer = 0, noahPathTimer = 0, noahCharge = null, noahLightningCooldown = 0, noahLightningZones = [], noahLightningPending = [], noahLightningWarning = 0, noahLightningFlashes = 0, noahShockTimer = 0;
 let amineHoles = [], amineFireZones = [], amineExitGate = null, amineFocus = false, amineVisibleTimer = 0, amineFlashCooldown = 0, amineTeleportCooldown = 0, amineCallCount = 1, amineCallsRemaining = 0, amineCallActive = false, amineTurret = null, amineBullets = [], amineBurnTimer = 0, amineRoad = null;
-let subwayPanels = [], subwayTrains = [], subwayTrackRows = [], subwayTrackSegments = [], subwayTrap = null, subwayControl = null, subwayRouteReady = false, subwayTrapArmed = false, subwayTrainWarning = 0, subwayTrainTriggered = false, subwayDecor = [], subwaySigns = [], subwayCommitTimer = 0, subwayCommitTarget = null, subwayRouteMinX = 0, subwayRouteMaxX = 0, subwayTrainPaths = [];
+let subwayPanels = [], subwayTrains = [], subwayTrackRows = [], subwayTrackSegments = [], subwayTrap = null, subwayControl = null, subwayRouteReady = false, subwayTrapArmed = false, subwayTrainWarning = 0, subwayTrainTriggered = false, subwayDecor = [], subwaySigns = [], subwayCommitTimer = 0, subwayCommitTarget = null, subwayRouteMinX = 0, subwayRouteMaxX = 0, subwayTrainPaths = [], subwayControlPuzzle = null;
 let routeBoard = null;
-const subwayTrainAudio = new Audio('assets/cs-train-sound.mp3');
-subwayTrainAudio.preload = 'auto';
+const nizarCrashAudio = new Audio('assets/WallCrashSoundEffect.mp3');
+nizarCrashAudio.preload = 'auto';
 let luckyBlocks = [];
 let playerTrail = [], trailLastX = 0, trailLastY = 0;
 let hotelEmployeesRequired = 3, hotelDialogueOpen = false, hotelTaskSerial = 0;
 let nearFuse = null, nearHide = null, nearValve = null, nearBoiler = false, nearEmployee = null, nearElevator = false, nearHotelTask = null, nearRhysSeal = false, nearRhysKey = false, nearRhysChest = false, nearRhysTrap = false;
 let nearSubwayPanel = null, nearSubwayControl = false;
+let nizarClones = [], nizarCloneCooldown = 2400, nizarCrush = null, nizarCrushCooldown = 900;
 let player = { x: 0, y: 0, r: 12, baseSpeed: 3.8, speed: 3.8, boostTimer: 0, stunTimer: 0, crouching: false, breathing: false, breathTimer: 0, breathCooldown: 0, heat: 0, inHeatZone: false, hidden: false, hideTimer: 0, hideCompromised: false };
 let monster = { name: '', x: 0, y: 0, r: 14, drawRadius: 14, speed: 2.2, baseSpeed: 2.2, color: '', textColor: '', activeMutations: [], isReinforced: false, hasGloom: false, isResilient: false, hasScrambler: false, hasHexed: false, hasHallucinations: false, hasLockedIn: false, hasEcho: false, hasFalseObjective: false, hasWatcher: false, hasPanic: false, hasHeavyFootfall: false, hasAfterimage: false, allSeeing: false, heatAlertTimer: 0, heatAlertX: 0, heatAlertY: 0, stunTimer: 0, lastTargetC: -1, lastTargetR: -1 };
 let monsters = [];
@@ -1963,6 +1973,10 @@ window.addEventListener('keydown', (e) => {
         if (k in keys) { keys[k] = true; e.preventDefault(); }
         return;
     }
+    if (state === 14) {
+        if (k === 'escape') { e.preventDefault(); exitSubwayControlPuzzle(); }
+        return;
+    }
     if (k==='v' && monster.name==='AMINE' && state===1) { amineFocus=true; return; }
     if (k === 'm' && state === 1) { toggleMapOverlay(); return; }
     if (hotelDialogueOpen) {
@@ -2011,7 +2025,7 @@ window.addEventListener('keydown', (e) => {
         const lucky = luckyBlocks.find(block => !block.opened && Math.hypot(player.x-block.x,player.y-block.y)<36);
         if (lucky) { openLuckyBlock(lucky); return; }
         if (currentMapId === 'amine' && activeGens >= totalGens && amineExitGate && Math.hypot(player.x-amineExitGate.x,player.y-amineExitGate.y)<44) { beginAmineFinalChase(); return; }
-        if (currentMapId === 'subway' && nearSubwayControl) { armSubwayTrap(); return; }
+        if (currentMapId === 'subway' && nearSubwayControl) { beginSubwayControlPuzzle(); return; }
         if (currentMapId === 'subway' && nearSubwayPanel) {
             beginRouteBoard(nearSubwayPanel);
             return;
@@ -2181,6 +2195,7 @@ window.addEventListener('keyup', (e) => {
 
 function handleCanvasPress(clientX, clientY) {
     const rect=canvas.getBoundingClientRect(), x=(clientX-rect.left)*canvas.width/rect.width, y=(clientY-rect.top)*canvas.height/rect.height;
+    if (state === 14) { clickSubwayControlSwitch(x, y); return; }
     if (state === 13 && routeBoard) {
         const layout = getRouteBoardLayout();
         const col = Math.floor((x - layout.left) / (layout.tileSize + layout.gap)), row = Math.floor((y - layout.top) / (layout.tileSize + layout.gap));
@@ -2565,7 +2580,7 @@ function generateAmineGrid() {
 function generateSubway() {
     map = Array.from({ length: ROWS }, () => Array(COLS).fill(1));
     rooms = []; hidingSpots = []; coolingValves = []; fuses = []; employees = []; reservedObjectTiles = new Set();
-    subwayPanels = []; subwayTrains = []; subwayTrackRows = []; subwayTrackSegments = []; subwayDecor = []; subwaySigns = []; subwayTrainPaths = []; routeBoard = null;
+    subwayPanels = []; subwayTrains = []; subwayTrackRows = []; subwayTrackSegments = []; subwayDecor = []; subwaySigns = []; subwayTrainPaths = []; routeBoard = null; subwayControlPuzzle = null;
     subwayTrap = null; subwayControl = null; subwayRouteReady = false; subwayTrapArmed = false; subwayTrainWarning = 0; subwayTrainTriggered = false; subwayCommitTimer = 0; subwayCommitTarget = null;
     const stations = [];
     const decorFootprints = [];
@@ -2590,14 +2605,19 @@ function generateSubway() {
             if (map[r]?.[c] !== undefined) map[r][c] = 0;
         }
     };
-    // Stations deliberately form an elbow.  Two-station runs still turn; three-station
-    // runs make a full transfer bend, so every seed has more than a straight hallway.
-    const stationCount = Math.random() < .56 ? 3 : 2;
-    const leftC = 20 + Math.floor(Math.random() * 7), transferC = 58 + Math.floor(Math.random() * 8);
-    const upperR = 18 + Math.floor(Math.random() * 8), lowerR = 45 + Math.floor(Math.random() * 8);
-    const stationPoints = stationCount === 3
-        ? (Math.random() < .5 ? [{c:leftC,r:upperR},{c:transferC,r:upperR},{c:transferC,r:lowerR}] : [{c:leftC,r:lowerR},{c:transferC,r:lowerR},{c:transferC,r:upperR}])
-        : (Math.random() < .5 ? [{c:leftC,r:upperR},{c:82 + Math.floor(Math.random()*7),r:lowerR}] : [{c:leftC,r:lowerR},{c:82 + Math.floor(Math.random()*7),r:upperR}]);
+    // Four stations create a readable journey with alternating platform levels,
+    // a real transfer bend, and enough breathing room for side rooms and panels.
+    // A smaller three-station seed still exists for variety, but it uses the same
+    // left-to-right spine instead of creating an isolated diagonal shortcut.
+    const stationCount = Math.random() < .28 ? 3 : 4;
+    const stationColumns = stationCount === 4
+        ? [16 + Math.floor(Math.random() * 4), 40 + Math.floor(Math.random() * 5), 67 + Math.floor(Math.random() * 5), 96 + Math.floor(Math.random() * 5)]
+        : [16 + Math.floor(Math.random() * 4), 55 + Math.floor(Math.random() * 6), 96 + Math.floor(Math.random() * 5)];
+    const upperR = 18 + Math.floor(Math.random() * 7), lowerR = 45 + Math.floor(Math.random() * 7);
+    const routePattern = Math.random() < .5
+        ? [upperR, lowerR, upperR, lowerR]
+        : [lowerR, upperR, lowerR, upperR];
+    const stationPoints = stationColumns.map((c, index) => ({ c, r:routePattern[index] }));
     stationPoints.forEach((point, index) => {
         const station = carveRoom(`platform_${index + 1}`, point.c, point.r, 19, 17);
         station.index = index + 1; stations.push(station);
@@ -2624,7 +2644,7 @@ function generateSubway() {
         const exitX = from.c + 9, entryX = to.c - 9;
         // Keep the second bend clear of the transfer station's booth instead of
         // sending the rail straight through a room decoration.
-        const turnX = index % 2 ? from.c + 10 : to.c;
+        const turnX = Math.round((from.c + to.c) / 2);
         const a = [{x:exitX,y:fromY},{x:turnX,y:fromY},{x:turnX,y:toY},{x:entryX,y:toY}];
         for (let point = 0; point < a.length - 1; point++) addTrack(a[point].x, a[point].y, a[point + 1].x, a[point + 1].y, true);
         if (!routeA.length) routeA.push(...a); else routeA.push(...a.slice(1));
@@ -2650,8 +2670,8 @@ function generateSubway() {
     addDecor('luggage', entryHall.x - 46, entryHall.y + 60); addDecor('control', control.x, control.y);
     const firstRailPoint = routeA[0], lastRailPoint = routeA.at(-1);
     subwayTrains.push(
-        { path:routeA, point:0, direction:1, x:firstRailPoint.x*TS+TS/2, y:firstRailPoint.y*TS+TS/2, speed:2.7+Math.random()*.5, length:TS*4.3, active:true, cooldown:0, trapTrain:false, soundCooldown:0, axis:'x' },
-        { path:routeA, point:routeA.length-1, direction:-1, x:lastRailPoint.x*TS+TS/2, y:lastRailPoint.y*TS+TS/2, speed:2.7+Math.random()*.5, length:TS*4.3, active:true, cooldown:0, trapTrain:false, soundCooldown:0, axis:'x' }
+        { path:routeA, point:0, direction:1, x:firstRailPoint.x*TS+TS/2, y:firstRailPoint.y*TS+TS/2, speed:2.7+Math.random()*.5, length:TS*4.3, active:true, cooldown:0, trapTrain:false, axis:'x' },
+        { path:routeA, point:routeA.length-1, direction:-1, x:lastRailPoint.x*TS+TS/2, y:lastRailPoint.y*TS+TS/2, speed:2.7+Math.random()*.5, length:TS*4.3, active:true, cooldown:0, trapTrain:false, axis:'x' }
     );
     reserveObjectTile(Math.floor(subwayControl.x / TS), Math.floor(subwayControl.y / TS), 1);
     subwayPanels.forEach(panel => reserveObjectTile(Math.floor(panel.x / TS), Math.floor(panel.y / TS), 1));
@@ -2704,23 +2724,170 @@ function getRouteBoardLayout() {
 }
 
 function armSubwayTrap() {
-    if (!subwayObjectiveComplete()) { notify('RESTORE ALL THREE SIGNAL PANELS FIRST', 'warning'); return; }
-    subwayTrapArmed = true; subwayRouteReady = true; subwayTrainWarning = 0; subwayTrainTriggered = false;
-    notify('RAILS LIVE · BAIT THE HUNTER INTO AN ONCOMING TRAIN', 'danger'); updateHUD();
+    beginSubwayControlPuzzle();
 }
 
-function playSubwayTrainSound(train) {
-    if (!audioUnlocked || !train || train.soundCooldown > 0 || setVolM == 0 || setVolS == 0) return;
-    const close = Math.hypot(train.x - player.x, train.y - player.y) < 410;
-    if (!close) return;
-    try { const sound = subwayTrainAudio.cloneNode(); sound.volume = Math.min(.65, (setVolM / 100) * (setVolS / 100) * .65); sound.play().catch(() => {}); } catch (_) {}
-    train.soundCooldown = 360;
+function getSubwayControlBoardLayout() {
+    if (!subwayControlPuzzle) return null;
+    const left = 76, right = canvas.width - 76, top = 154, bottom = canvas.height - 112;
+    return {
+        left, right, top, bottom,
+        colGap: (right - left) / (subwayControlPuzzle.cols - 1),
+        laneGap: (bottom - top) / (subwayControlPuzzle.lanes - 1)
+    };
+}
+
+function beginSubwayControlPuzzle() {
+    if (!subwayObjectiveComplete()) { notify('RESTORE ALL SIGNAL PANELS FIRST', 'warning'); return; }
+    if (!subwayControl || subwayControlPuzzle) return;
+    clearMovementKeys();
+    routeBoard = null;
+    const lanes = 4, cols = 8;
+    const switches = [];
+    for (let col = 1; col < cols - 1; col++) {
+        switches.push({ col, lowLane: Math.floor(Math.random() * (lanes - 1)), open: false, pulse: 0 });
+    }
+    subwayControlPuzzle = {
+        lanes, cols, timer: 7200, switches, ended: false,
+        target: { lane: 1 + Math.floor(Math.random() * 2), progress: 3.8, direction: Math.random() < .5 ? -1 : 1, speed: .012, changeTimer: 55 },
+        trains: [
+            { lane: 0, progress: -0.2, speed: .020, color: '#f2c14e', usedSwitches: new Set() },
+            { lane: 2, progress: -1.15, speed: .024, color: '#7ed6ff', usedSwitches: new Set() },
+            { lane: 3, progress: -2.1, speed: .018, color: '#f28a8a', usedSwitches: new Set() }
+        ]
+    };
+    state = 14;
+    hud.style.display = 'none';
+    document.getElementById('mapTaskHUD').style.display = 'none';
+    document.getElementById('hotelTaskHUD').style.display = 'none';
+    document.getElementById('mapButton').style.display = 'none';
+    document.getElementById('amineRoadControls').style.display = 'none';
+    notify('RAIL CONTROL ONLINE · ROUTE A TRAIN INTO THE HUNTER', 'unlock');
+}
+
+function exitSubwayControlPuzzle() {
+    subwayControlPuzzle = null;
+    clearMovementKeys();
+    state = 1;
+    hud.style.display = 'block';
+    document.getElementById('mapTaskHUD').style.display = 'block';
+    updateHUD();
+}
+
+function finishSubwayControlPuzzle(won) {
+    if (!subwayControlPuzzle || subwayControlPuzzle.ended) return;
+    subwayControlPuzzle.ended = true;
+    subwayControlPuzzle = null;
+    state = 8;
+    clearMovementKeys();
+    showStoryLine(won ? 'THE SIGNALS TURN AGAINST NIZAR.' : 'THE LAST LINE LEAVES YOU BEHIND.', won ? 1500 : 1100);
+    setTimeout(() => { if (state === 8) endGame(won, monster); }, won ? 1500 : 1100);
+}
+
+function updateSubwayControlPuzzle() {
+    const puzzle = subwayControlPuzzle;
+    if (!puzzle || puzzle.ended) return;
+    puzzle.timer--;
+    if (puzzle.timer <= 0) { finishSubwayControlPuzzle(false); return; }
+
+    const target = puzzle.target;
+    target.progress += target.speed * target.direction;
+    if (target.progress < .55) { target.progress = .55; target.direction = 1; }
+    if (target.progress > puzzle.cols - 1.55) { target.progress = puzzle.cols - 1.55; target.direction = -1; }
+    target.changeTimer--;
+    if (target.changeTimer <= 0) {
+        const options = [target.lane - 1, target.lane + 1].filter(lane => lane >= 0 && lane < puzzle.lanes);
+        if (options.length && Math.random() < .72) target.lane = options[Math.floor(Math.random() * options.length)];
+        target.changeTimer = 48 + Math.floor(Math.random() * 62);
+    }
+
+    for (const train of puzzle.trains) {
+        train.progress += train.speed;
+        if (train.progress > puzzle.cols + .35) {
+            train.progress = -.8 - Math.random() * 1.3;
+            train.lane = Math.floor(Math.random() * puzzle.lanes);
+            train.usedSwitches.clear();
+        }
+        for (let index = 0; index < puzzle.switches.length; index++) {
+            const entry = puzzle.switches[index];
+            if (!entry.open || train.usedSwitches.has(index)) continue;
+            if (train.progress >= entry.col - .02 && train.progress <= entry.col + train.speed * 1.6) {
+                if (train.lane === entry.lowLane) train.lane++;
+                else if (train.lane === entry.lowLane + 1) train.lane--;
+                train.usedSwitches.add(index);
+            }
+        }
+        if (train.lane === target.lane && Math.abs(train.progress - target.progress) < .24) {
+            finishSubwayControlPuzzle(true);
+            return;
+        }
+    }
+}
+
+function clickSubwayControlSwitch(x, y) {
+    const puzzle = subwayControlPuzzle, layout = getSubwayControlBoardLayout();
+    if (!puzzle || !layout) return;
+    for (const entry of puzzle.switches) {
+        const sx = layout.left + entry.col * layout.colGap;
+        const sy = layout.top + (entry.lowLane + .5) * layout.laneGap;
+        if (Math.hypot(x - sx, y - sy) < 28) {
+            entry.open = !entry.open;
+            entry.pulse = 18;
+            playSound('tick');
+            return;
+        }
+    }
+}
+
+function drawSubwayControlPuzzle() {
+    const puzzle = subwayControlPuzzle, layout = getSubwayControlBoardLayout();
+    if (!puzzle || !layout) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#090d12'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#dceeff'; ctx.font = 'bold 22px Arial'; ctx.textAlign = 'center';
+    ctx.fillText('LAST LINE · RAIL CONTROL', canvas.width / 2, 38);
+    ctx.fillStyle = '#9fb3c2'; ctx.font = '13px Arial';
+    ctx.fillText('Click a switch to open or close it. Route any train into the moving hunter.', canvas.width / 2, 62);
+    ctx.fillText('ESC returns to the station · trains can only change lanes at open switches', canvas.width / 2, 84);
+    const seconds = Math.ceil(puzzle.timer / 60);
+    ctx.fillStyle = seconds <= 20 ? '#ff7777' : '#f0d58a'; ctx.font = 'bold 18px Arial';
+    ctx.fillText(`TIME ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`, canvas.width / 2, 116);
+
+    ctx.strokeStyle = '#263743'; ctx.lineWidth = 8;
+    for (let lane = 0; lane < puzzle.lanes; lane++) {
+        const y = layout.top + lane * layout.laneGap;
+        ctx.beginPath(); ctx.moveTo(layout.left, y); ctx.lineTo(layout.right, y); ctx.stroke();
+        ctx.strokeStyle = '#71818b'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(layout.left, y - 9); ctx.lineTo(layout.right, y - 9); ctx.moveTo(layout.left, y + 9); ctx.lineTo(layout.right, y + 9); ctx.stroke();
+        ctx.strokeStyle = '#263743'; ctx.lineWidth = 8;
+    }
+    for (const entry of puzzle.switches) {
+        const sx = layout.left + entry.col * layout.colGap;
+        const lowY = layout.top + entry.lowLane * layout.laneGap, highY = lowY + layout.laneGap;
+        ctx.strokeStyle = entry.open ? '#48e59a' : '#7f4d57'; ctx.lineWidth = entry.open ? 7 : 4;
+        ctx.beginPath(); ctx.moveTo(sx, lowY); ctx.lineTo(sx, highY); ctx.stroke();
+        ctx.fillStyle = entry.open ? '#9dffca' : '#dc8690'; ctx.beginPath(); ctx.arc(sx, (lowY + highY) / 2, 12, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#142029'; ctx.font = 'bold 12px Arial'; ctx.fillText(entry.open ? '↕' : '×', sx, (lowY + highY) / 2 + 4);
+    }
+    for (const train of puzzle.trains) {
+        const x = layout.left + train.progress * layout.colGap, y = layout.top + train.lane * layout.laneGap;
+        if (x < layout.left - 50 || x > layout.right + 50) continue;
+        ctx.fillStyle = train.color; ctx.fillRect(x - 22, y - 14, 44, 28);
+        ctx.fillStyle = '#142029'; ctx.fillRect(x - 13, y - 8, 9, 10); ctx.fillRect(x + 4, y - 8, 9, 10);
+        ctx.fillStyle = '#fff'; ctx.font = 'bold 9px Arial'; ctx.fillText('TRAIN', x, y + 27);
+    }
+    const targetX = layout.left + puzzle.target.progress * layout.colGap, targetY = layout.top + puzzle.target.lane * layout.laneGap;
+    ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.beginPath(); ctx.ellipse(targetX + 4, targetY + 18, 17, 6, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#537b99'; ctx.beginPath(); ctx.arc(targetX, targetY, 15, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#d8f1ff'; ctx.beginPath(); ctx.arc(targetX - 5, targetY - 2, 2, 0, Math.PI * 2); ctx.arc(targetX + 5, targetY - 2, 2, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#d8f1ff'; ctx.font = 'bold 11px Arial'; ctx.fillText(`${monster.name} · MOVING TARGET`, targetX, targetY - 25);
+    ctx.textAlign = 'left'; ctx.fillStyle = '#9fb3c2'; ctx.font = '12px Arial'; ctx.fillText('OPEN SWITCHES', 20, canvas.height - 43);
+    ctx.fillStyle = '#48e59a'; ctx.fillText(`${puzzle.switches.filter(entry => entry.open).length}/${puzzle.switches.length}`, 20, canvas.height - 25);
 }
 
 function updateSubwayTrains() {
     if (currentMapId !== 'subway' || !(state === 1 || state === 3)) return;
     for (const train of subwayTrains) {
-        if (train.soundCooldown > 0) train.soundCooldown--;
         if (!train.active || !train.path?.length) continue;
         const nextIndex = train.point + train.direction;
         if (!train.path[nextIndex]) { train.direction *= -1; continue; }
@@ -2729,7 +2896,6 @@ function updateSubwayTrains() {
         train.axis = Math.abs(dx) >= Math.abs(dy) ? 'x' : 'y';
         if (distance <= train.speed) { train.x = target.x; train.y = target.y; train.point = nextIndex; }
         else { train.x += dx / distance * train.speed; train.y += dy / distance * train.speed; }
-        playSubwayTrainSound(train);
         const hit = entity => train.axis === 'x'
             ? Math.abs(entity.y - train.y) < 24 && Math.abs(entity.x - train.x) < train.length / 2
             : Math.abs(entity.x - train.x) < 24 && Math.abs(entity.y - train.y) < train.length / 2;
@@ -2829,6 +2995,104 @@ function updateNoah() {
         notify('LIGHTNING IN 1 SECOND · MOVE', 'warning');
     }
     return true;
+}
+
+function beginNizarCrush() {
+    if (monster.name !== 'NIZAR' || state !== 1 || nizarCrush) return;
+    const y = player.y;
+    nizarCrush = {
+        left: { x:player.x - 245, y, width:70, height:154 },
+        right: { x:player.x + 245, y, width:70, height:154 },
+        speed:6.1, warning:48, impact:false
+    };
+    nizarCrushCooldown = 1200;
+    notify('NIZAR DISTORTED THE SPACE AROUND YOU · MOVE', 'warning');
+}
+
+function spawnNizarClones() {
+    if (monster.name !== 'NIZAR' || state !== 1 || nizarClones.length) return;
+    const candidates = floors.filter(tile => {
+        const x = tile.c * TS + TS / 2, y = tile.r * TS + TS / 2;
+        return Math.hypot(x - player.x, y - player.y) > 260 && Math.hypot(x - monster.x, y - monster.y) > 90;
+    }).sort(() => Math.random() - .5);
+    for (let index = 0; index < 2; index++) {
+        const tile = candidates[index] || floors[(index * 37) % Math.max(1, floors.length)];
+        if (!tile) continue;
+        nizarClones.push({ x:tile.c * TS + TS / 2, y:tile.r * TS + TS / 2, r:13, drawRadius:14, speed:Math.max(2.25, monster.speed * .82), path:[], lastTargetC:-1, lastTargetR:-1, life:1800 });
+    }
+    nizarCloneCooldown = 2400;
+    if (nizarClones.length) notify('SIGNAL SPLIT · TWO NIZARS DETECTED', 'danger');
+}
+
+function updateNizarClones() {
+    if (nizarCloneCooldown > 0) nizarCloneCooldown--;
+    if (nizarCloneCooldown <= 0 && !nizarClones.length) spawnNizarClones();
+    const survivors = [];
+    for (const clone of nizarClones) {
+        clone.life--;
+        if (clone.life <= 0) continue;
+        const targetC = Math.floor(player.x / TS), targetR = Math.floor(player.y / TS);
+        if (clone.lastTargetC !== targetC || clone.lastTargetR !== targetR || clone.path.length === 0) {
+            clone.path = findPath(Math.floor(clone.x / TS), Math.floor(clone.y / TS), targetC, targetR);
+            clone.lastTargetC = targetC; clone.lastTargetR = targetR;
+        }
+        if (clone.path.length) {
+            const next = clone.path[0], tx = next.c * TS + TS / 2, ty = next.r * TS + TS / 2;
+            if (Math.hypot(tx - clone.x, ty - clone.y) <= clone.speed) { clone.x = tx; clone.y = ty; clone.path.shift(); }
+            else moveEntity(clone, Math.cos(Math.atan2(ty - clone.y, tx - clone.x)) * clone.speed, Math.sin(Math.atan2(ty - clone.y, tx - clone.x)) * clone.speed);
+        }
+        if (Math.hypot(player.x - clone.x, player.y - clone.y) < player.r + clone.r + 4) continue;
+        survivors.push(clone);
+    }
+    nizarClones = survivors;
+}
+
+function updateNizarCrush() {
+    if (!nizarCrush) return;
+    if (nizarCrush.warning > 0) { nizarCrush.warning--; return; }
+    const crush = nizarCrush;
+    crush.left.x += crush.speed;
+    crush.right.x -= crush.speed;
+    const leftEdge = crush.left.x + crush.left.width / 2;
+    const rightEdge = crush.right.x - crush.right.width / 2;
+    if (leftEdge < rightEdge) return;
+    const insideHeight = Math.abs(player.y - crush.left.y) < crush.left.height / 2 + player.r;
+    const betweenFrames = player.x > crush.left.x - crush.left.width / 2 && player.x < crush.right.x + crush.right.width / 2;
+    playNizarCrashSound();
+    crush.impact = true;
+    nizarCrush = null;
+    nizarCrushCooldown = 900;
+    if (insideHeight && betweenFrames) { endGame(false, monster); return; }
+    showMsg('THE CLOSING FRAMES COLLIDE', 650);
+}
+
+function updateNizarAbilities() {
+    if (monster.name !== 'NIZAR' || state !== 1) { nizarClones = []; nizarCrush = null; return; }
+    if (nizarCrushCooldown > 0) nizarCrushCooldown--;
+    if (!nizarCrush && nizarCrushCooldown <= 0 && Math.random() < .00125) beginNizarCrush();
+    updateNizarCrush();
+    updateNizarClones();
+}
+
+function drawNizarAbilities() {
+    if (monster.name !== 'NIZAR' || state !== 1) return;
+    for (const clone of nizarClones) {
+        ctx.fillStyle = 'rgba(74,126,155,.82)';
+        ctx.beginPath(); ctx.arc(clone.x, clone.y, clone.drawRadius, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#b9e9ff';
+        ctx.beginPath(); ctx.arc(clone.x - clone.drawRadius * .3, clone.y - 2, 2, 0, Math.PI * 2); ctx.arc(clone.x + clone.drawRadius * .3, clone.y - 2, 2, 0, Math.PI * 2); ctx.fill();
+    }
+    if (nizarCrush) {
+        const pulse = nizarCrush.warning > 0 ? .38 + Math.sin(ambienceClock * .5) * .12 : .72;
+        for (const block of [nizarCrush.left, nizarCrush.right]) {
+            ctx.fillStyle = `rgba(104,177,211,${pulse})`;
+            ctx.fillRect(block.x - block.width / 2, block.y - block.height / 2, block.width, block.height);
+            ctx.strokeStyle = '#c7f3ff'; ctx.lineWidth = 3; ctx.strokeRect(block.x - block.width / 2, block.y - block.height / 2, block.width, block.height);
+            ctx.strokeStyle = 'rgba(15,40,52,.8)'; ctx.lineWidth = 4;
+            ctx.beginPath(); ctx.moveTo(block.x - 18, block.y - 28); ctx.lineTo(block.x + 18, block.y + 28); ctx.moveTo(block.x + 18, block.y - 28); ctx.lineTo(block.x - 18, block.y + 28); ctx.stroke();
+        }
+        if (nizarCrush.warning > 0) { ctx.fillStyle = '#d6f7ff'; ctx.font = 'bold 14px Arial'; ctx.textAlign = 'center'; ctx.fillText('MOVE OUT OF THE CLOSING FRAMES', player.x, player.y - 104); }
+    }
 }
 
 function updateAmine() {
@@ -3512,7 +3776,7 @@ function startGame(diffLevel) {
     boilerShutdown = false; boilerReadyShown = false; heatZones = []; heatEventCooldown = currentMapId === 'boilerworks' ? 360 : 0;
     rhysSealCollected = false; rhysTrapArmed = false; goopZones = []; goopShots = []; rhysSpitCooldown = 180; rhysDashTimer = 0; rhysChargeWindup = 0; rhysDashCooldown = 360; rhysEventCooldown = 900; rhysSweepTimer = 0; rhysSweepRadius = 0; rhysPressureZones = [];
     forestBeaconBattery = null; forestWatchtower = null; forestBeaconActive = false; forestFogTimer = 0; forestFogCooldown = currentMapId === 'forest' ? 720 : 0; forestGuideTimer = 0; forestGuideCooldown = currentMapId === 'forest' ? 1200 : 0; forestGuideMode = 'cabins'; noahCharge = null; noahLightningCooldown = 360; noahLightningZones = []; noahLightningPending = []; noahLightningWarning = 0; noahLightningFlashes = 0; noahShockTimer = 0;
-    amineFocus = false; amineVisibleTimer = 0; amineFlashCooldown = 90; amineTeleportCooldown = 240; amineCallCount = 1; amineCallsRemaining = 0; amineCallActive = false; amineTurret = null; amineBullets = []; amineBurnTimer = 0; amineRoad = null; luckyBlocks = [];
+    amineFocus = false; amineVisibleTimer = 0; amineFlashCooldown = 90; amineTeleportCooldown = 240; amineCallCount = 1; amineCallsRemaining = 0; amineCallActive = false; amineTurret = null; amineBullets = []; amineBurnTimer = 0; amineRoad = null; nizarClones = []; nizarCloneCooldown = 2400; nizarCrush = null; nizarCrushCooldown = 900; subwayControlPuzzle = null; luckyBlocks = [];
     document.getElementById('amineCall').style.display='none';
     hotelLockdownTimer = 0; hotelEventCooldown = currentMapId === 'hotel' ? 480 : 0; hotelLockdownActive = false; hotelBlockedDoor = null;
     bassamState = 'roaming'; bassamRevealPending = false; bassamTrapTaskId = null; bassamFakeTask = null; bassamFakeLine = ''; bassamAmbushActive = false; bassamRelentlessChase = false; bassamLostTimer = 0; bassamAmbushCooldown = 900; hotelTaskGame = null; bassamStaffDepartment = ['FRONT DESK','MAINTENANCE','HOUSEKEEPING','KITCHEN'][Math.floor(Math.random() * 4)]; closeHotelDialogue();
@@ -4046,7 +4310,7 @@ function updateHUD() {
         objective.textContent = falseObjective
             ? 'Objective signal corrupted · CHECK THE LANDMARKS'
             : currentMapId === 'subway'
-                ? `Last Line: ${activeGens}/${totalGens} signal panels · ${!subwayObjectiveComplete() ? 'RESTORE THE ROUTE' : !subwayTrapArmed ? 'FIND RAIL CONTROL' : subwayTrainTriggered ? 'TRAIN INBOUND · GET CLEAR' : 'BAIT THE HUNTER INTO A TRAIN'}`
+                ? `Last Line: ${activeGens}/${totalGens} signal panels · ${!subwayObjectiveComplete() ? 'RESTORE THE ROUTE' : 'USE RAIL CONTROL TO INTERCEPT THE HUNTER'}`
             : currentMapId === 'boilerworks'
                 ? `Cooling valves: ${coolingValves.filter(valve => valve.active).length}/${coolingValves.length || 3}${boilerReadyShown ? ' · FIND THE BOILER' : ''}`
                 : currentMapId === 'hotel'
@@ -4248,6 +4512,7 @@ function separateMonsters() {
 
 function update() {
     if (mobileMenuPaused || hotelDialogueOpen) return;
+    if (state === 14) { updateSubwayControlPuzzle(); return; }
     if (![1,3,5,6,7,9,10,11,13].includes(state)) return;
 
     if (flashAlpha > 0) flashAlpha -= 0.02;
@@ -4356,6 +4621,8 @@ function update() {
 
     updateSubwayTrains();
     if (state === 4 || state === 8) return;
+
+    if (state === 1) updateNizarAbilities();
 
     if (player.stunTimer > 0) {
         player.stunTimer--;
@@ -4684,6 +4951,7 @@ function update() {
 
 function draw() {
     if (state === 11 && amineRoad) { drawAmineRoadChase(); return; }
+    if (state === 14 && subwayControlPuzzle) { drawSubwayControlPuzzle(); return; }
     if (state === 0 || state === 4) {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         return;
@@ -4762,7 +5030,7 @@ function draw() {
         }
         for (const sign of subwaySigns) { ctx.fillStyle='#111b23';ctx.fillRect(sign.x-82,sign.y-12,164,24);ctx.strokeStyle='#c7d5df';ctx.lineWidth=1;ctx.strokeRect(sign.x-82,sign.y-12,164,24);ctx.fillStyle='#e7f1f7';ctx.font='bold 10px Arial';ctx.textAlign='center';ctx.fillText(sign.text,sign.x,sign.y+4); }
         for (const panel of subwayPanels) { ctx.fillStyle=panel.active?'#46d876':'#d7a943';ctx.fillRect(panel.x-13,panel.y-19,26,38);ctx.fillStyle='#091018';ctx.fillRect(panel.x-8,panel.y-13,16,11);if (nearSubwayPanel === panel && state===1) {ctx.fillStyle='#fff';ctx.font='bold 10px Arial';ctx.fillText('[E] '+panel.label,panel.x,panel.y-30);} }
-        if (subwayControl) { ctx.fillStyle=subwayTrapArmed?'#52ec79':'#7ea7c1';ctx.fillRect(subwayControl.x-21,subwayControl.y-18,42,36);ctx.fillStyle='#101820';ctx.fillRect(subwayControl.x-15,subwayControl.y-12,30,13);if(nearSubwayControl&&state===1){ctx.fillStyle='#fff';ctx.font='bold 10px Arial';ctx.fillText('[E] '+(subwayTrapArmed?'LAST LINE ARMED':'ARM LAST LINE'),subwayControl.x,subwayControl.y-29);} }
+        if (subwayControl) { ctx.fillStyle=subwayObjectiveComplete()?'#52ec79':'#7ea7c1';ctx.fillRect(subwayControl.x-21,subwayControl.y-18,42,36);ctx.fillStyle='#101820';ctx.fillRect(subwayControl.x-15,subwayControl.y-12,30,13);if(nearSubwayControl&&state===1){ctx.fillStyle='#fff';ctx.font='bold 10px Arial';ctx.fillText('[E] '+(subwayObjectiveComplete()?'OPEN RAIL CONTROL':'SIGNALS REQUIRED'),subwayControl.x,subwayControl.y-29);} }
         for (const train of subwayTrains.filter(train=>train.active)) { ctx.save();ctx.translate(train.x,train.y);if(train.axis==='y')ctx.rotate(Math.PI/2);ctx.fillStyle=train.trapTrain?'#9d2222':'#45515a';ctx.fillRect(-train.length/2,-26,train.length,52);ctx.fillStyle='#111';for(let x=-train.length/2+14;x<train.length/2-6;x+=28)ctx.fillRect(x,-15,17,19);ctx.fillStyle='#e7d6a1';ctx.fillRect(train.direction>0?train.length/2-6:-train.length/2,-12,6,24);ctx.restore(); }
     }
     if(currentMapId==='amine'){
@@ -5100,6 +5368,8 @@ function draw() {
             ctx.beginPath(); ctx.arc(enemy.x + enemy.drawRadius * 0.3, enemy.y - 2, 2, 0, Math.PI * 2); ctx.fill();
         }
     }
+
+    drawNizarAbilities();
 
     if (!player.hidden) {
         const playerColors = { blue:'#00f', crimson:'#d22', violet:'#a64dff', green:'#19c76b', amber:'#e7a21a', gold:'#e9ca35', sepia:'#800', white:'#f6f6f6' };

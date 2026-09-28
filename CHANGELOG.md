@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.9.9
+
+- Reworked the Last Line layout into a clearer three-or-four-station connected spine with alternating platform levels and cleaner transfer bends.
+- Replaced the old subway ending with a two-minute Rail Control interception board: open lane switches to route one of several trains into the moving hunter.
+- Removed the repetitive subway train sound and added the provided, quiet `WallCrashSoundEffect.mp3` only when Nizar's Closing Frames collide.
+- Added Nizar's False Nizars: two shadowless chasing clones appear every 40 seconds, vanish after 30 seconds, and disappear harmlessly if they catch you.
+- Updated the Nizar and Last Line instructions and bumped the offline cache to `calebs-shift-v63`.
+
 ## 2.9.8
 
 - Opened the Parted Grid connector mouths into wider three-way junctions and reduced random fire zones from 32 to 16.
