@@ -124,7 +124,7 @@ function playNizarCrashSound() {
 }
 
 // Versioned local progress with a backup copy and import/export support.
-const GAME_VERSION = '2.11.4';
+const GAME_VERSION = '2.12.0';
 const SAVE_SCHEMA_VERSION = 10;
 const COSMETIC_REWARD_VERSION = 2;
 const SAVE_KEY = 'br_save_v2';
@@ -353,7 +353,7 @@ function currentProgress() {
 }
 
 function syncEndlessCosmeticUnlocks() {
-    const thresholds = [[3, 'bronzeSkin'], [6, 'silverSkin'], [10, 'goldSkin']];
+    const thresholds = [[3, 'bronzeSkin'], [6, 'silverSkin'], [9, 'goldSkin'], [9, 'smileMask']];
     let changed = false;
     for (const [round, id] of thresholds) {
         if (stats.bestEndless >= round && !cosmetics.unlocked.includes(id)) {
@@ -744,10 +744,10 @@ function cosmeticProgress(id) {
     if (id === 'trainSkin') return 'Headlight first: as Nizar, collect the gold sphere before restoring any signal, then open Rail Control.';
     if (id === 'bronzeSkin') return `${Math.min(stats.bestEndless, 3)}/3 Endless rounds`;
     if (id === 'silverSkin') return `${Math.min(stats.bestEndless, 6)}/6 Endless rounds`;
-    if (id === 'goldSkin') return `${Math.min(stats.bestEndless, 10)}/10 Endless rounds`;
+    if (id === 'goldSkin') return `${Math.min(stats.bestEndless, 9)}/9 Endless rounds`;
     if (id === 'afterimage') return stats.fastestWin ? `Best: ${(stats.fastestWin / 1000).toFixed(1)}s · target under 60s` : '0/1 under-one-minute win';
     if (id === 'spongeMask') return `${Math.min(stats.boilerworksHardStreak, 3)}/3 Hard Boilerworks wins in a row`;
-    if (id === 'smileMask') return `${Math.min(stats.bestEndless, 10)}/10 Endless rounds`;
+    if (id === 'smileMask') return `${Math.min(stats.bestEndless, 9)}/9 Endless rounds`;
     if (id === 'spark') return `${Math.min(stats.bestEndless, 3)}/3 Endless rounds`;
     if (id === 'ghost') return `${Math.min(stats.itemFreeWins, 1)}/1 item-free win`;
     if (id === 'amber') return stats.fastestWin ? `Best: ${(stats.fastestWin / 1000).toFixed(1)}s · target under 120s` : '0/1 under-two-minute win';
@@ -788,7 +788,7 @@ function renderCosmetics() {
             { id:'idiotMask', label:'Idiot Mask', desc:'A smile that appears after too many mistakes.', how:'Fail the same generator task three times in one run.', preview:'#fff', image:'idiot-mask.png' },
             { id:'spongeMask', label:'SpongeBob Mask', desc:'A cheerful face for deeply uncheerful places.', how:'Complete Boilerworks three times in a row on Hard.', preview:'#f6d34a', image:'spongebob-mask.png' },
             { id:'jordanMask', label:'Jordan Mask', desc:'Jordan’s face, earned through his own color.', how:'Catch Jordan while Green is equipped.', preview:'#6cce77', image:'jordan-mask.png' },
-            { id:'smileMask', label:'Smile Mask', desc:'A grin earned through endurance.', how:'Clear Endless Round 10.', preview:'#fff', image:'smile-mask.png' },
+            { id:'smileMask', label:'Smile Mask', desc:'A grin earned through endurance.', how:'Clear Endless Round 9.', preview:'#fff', image:'smile-mask.png' },
             { id:'stopSignMask', label:'Stop Sign Mask', desc:'A warning from the platform edge.', how:'Deliver the torn ticket before restoring any Subway signal, then clear the level.', preview:'#f33', image:'stop-sign-mask.png' }
         ]},
         skins: { type:'skin', items:[
@@ -798,7 +798,7 @@ function renderCosmetics() {
             { id:'trainSkin', label:'Train Skin', desc:'A little engine for a very long last line.', how:'First earn the Headlight. Then, as Nizar, take the gold sphere before the signals and open Rail Control.', preview:'#9aa8b1', image:'train-skin.png' },
             { id:'bronzeSkin', label:'Bronze Skin', desc:'A worn metal finish from the early rounds.', how:'Clear Endless Round 3.', preview:'#bf7a32', image:'bronze-skin.png' },
             { id:'silverSkin', label:'Silver Skin', desc:'A polished finish for surviving the middle stretch.', how:'Clear Endless Round 6.', preview:'#d8e1ea', image:'silver-skin.png' },
-            { id:'goldSkin', label:'Gold Skin', desc:'A final-round finish earned at the end of the line.', how:'Clear Endless Round 10.', preview:'#e5c34e', image:'gold-skin.png' }
+            { id:'goldSkin', label:'Gold Skin', desc:'A final-round finish earned at the end of the line.', how:'Clear Endless Round 9.', preview:'#e5c34e', image:'gold-skin.png' }
         ]}
     };
     const content = document.getElementById('cosmeticsContent'); if (!content) return;
@@ -1685,7 +1685,7 @@ let centralBoiler = null, boilerShutdown = false, boilerReadyShown = false;
 let hotelElevator = null, hotelLockdownTimer = 0, hotelEventCooldown = 0, hotelLockdownActive = false;
 let rhysSeal = null, rhysChest = null, rhysChestKey = null, rhysBreakWall = null, rhysTrap = null, rhysRoute = 'search', rhysSealCollected = false, rhysTrapArmed = false;
 let forestCabins = [], forestBreakers = [], forestTrees = [], forestBeaconBattery = null, forestWatchtower = null, forestBeaconActive = false, forestFogTimer = 0, forestFogCooldown = 0, forestGuideTimer = 0, forestGuideCooldown = 1200, forestGuideMode = 'cabins', noahState = 'hidden', noahTimer = 0, noahPathTimer = 0, noahCharge = null, noahLightningCooldown = 0, noahLightningZones = [], noahLightningPending = [], noahLightningWarning = 0, noahLightningFlashes = 0, noahShockTimer = 0, noahAppearanceWindow = 0;
-let amineHoles = [], amineFireZones = [], amineExitGate = null, amineFocus = false, amineVisibleTimer = 0, amineFlashCooldown = 0, amineTeleportCooldown = 0, amineCallCount = 1, amineCallsRemaining = 0, amineCallActive = false, amineTurret = null, amineBullets = [], amineBurnTimer = 0, amineRoad = null;
+let amineHoles = [], amineFireZones = [], amineExitGate = null, amineFocus = false, amineVisibleTimer = 0, amineFlashCooldown = 0, amineTeleportCooldown = 0, amineTurret = null, amineBullets = [], amineBurnTimer = 0, amineRoad = null;
 let subwayPanels = [], subwayTrains = [], subwayTrackRows = [], subwayTrackSegments = [], subwayTrap = null, subwayControl = null, subwayRouteReady = false, subwayTrapArmed = false, subwayTrainWarning = 0, subwayTrainTriggered = false, subwayDecor = [], subwaySigns = [], subwayCommitTimer = 0, subwayCommitTarget = null, subwayRouteMinX = 0, subwayRouteMaxX = 0, subwayTrainPaths = [], subwayControlPuzzle = null;
 let subwayTornTicket = null, subwayGoldSphere = null, subwayBronzeEligible = true, subwayFareCutscene = null, subwayGoldPressure = null;
 let routeBoard = null;
@@ -1964,19 +1964,6 @@ function launchCurrentGeneratorTask() {
     updateHUD();
 }
 
-function maybeStartAmineCall() {
-    if (monster.name !== 'AMINE' || (amineCallCount===1 && Math.random() > .55)) return false;
-    amineCallsRemaining = amineCallCount; amineCallActive = true; state=12; document.getElementById('amineCall').style.display='flex'; return true;
-}
-function answerAmineCall(accept) {
-    if (!amineCallActive) return;
-    document.getElementById('amineCall').style.display='none';
-    if (accept) { amineCallActive=false; amineCallCount=1; failGeneratorTask('CALL ACCEPTED'); return; }
-    amineCallsRemaining--;
-    if (amineCallsRemaining > 0) { setTimeout(()=>{ if (amineCallActive) document.getElementById('amineCall').style.display='flex'; }, 180); return; }
-    amineCallActive=false; amineCallCount=Math.min(16,amineCallCount*2); launchCurrentGeneratorTask();
-}
-
 function boilerObjectiveComplete() {
     return currentMapId !== 'boilerworks' || (activeGens >= totalGens && coolingValves.length === 3 && coolingValves.every(valve => valve.active));
 }
@@ -2246,7 +2233,6 @@ window.addEventListener('keydown', (e) => {
             showMsg(`<span style="color:#ffcc00">MISSING FUSES</span><br>${currentGen.collectedFuses}/${currentGen.requiredFuses}`, 1200);
             return;
         }
-        if (maybeStartAmineCall()) return;
         launchCurrentGeneratorTask();
         return;
     }
@@ -3165,6 +3151,26 @@ function updateSubwayFareCutscene() {
     if (subwayFareCutscene.time >= subwayFareCutscene.duration) finishSubwayFareCutscene();
 }
 
+function dodgeSubwayHeadlightTrain(puzzle, train) {
+    const target = puzzle.target;
+    const options = [target.lane - 1, target.lane + 1].filter(lane => lane >= 0 && lane < puzzle.lanes);
+    const safeOptions = options.filter(lane => !puzzle.trains.some(other => other !== train && Math.abs(other.progress - target.progress) < .55 && other.lane === lane));
+    const nextLane = safeOptions[Math.floor(Math.random() * Math.max(1, safeOptions.length))]
+        ?? options[Math.floor(Math.random() * Math.max(1, options.length))];
+    if (nextLane !== undefined) target.lane = nextLane;
+    target.changeTimer = 58 + Math.floor(Math.random() * 42);
+    target.collisionGrace = 90;
+    if (train.passenger) {
+        puzzle.passengerSeen = true;
+        puzzle.passengerPending = false;
+        notify('PASSENGER TRAIN PASSED · NIZAR DODGED IT ALIVE', 'unlock');
+        return;
+    }
+    puzzle.missedTrains = Math.min(3, puzzle.missedTrains + 1);
+    if (puzzle.missedTrains >= 3) puzzle.passengerPending = true;
+    notify(`NIZAR DODGED THE TRAIN · ${puzzle.missedTrains}/3 MISSED`, 'warning');
+}
+
 function updateSubwayControlPuzzle() {
     const puzzle = subwayControlPuzzle;
     if (!puzzle || puzzle.ended) return;
@@ -3227,6 +3233,13 @@ function updateSubwayControlPuzzle() {
             puzzle.passengerSeen = true;
             puzzle.passengerPending = false;
             notify('PASSENGER TRAIN PASSED · NIZAR IS STILL ALIVE', 'unlock');
+        }
+        if (target.collisionGrace <= 0 && train.lane === target.lane && Math.abs(train.progress - target.progress) < .20 && puzzle.silverEligible && !puzzle.passengerSeen) {
+            // During the Headlight challenge, Nizar dodges any train that
+            // reaches his lane. The player still earns a miss, but a random
+            // collision cannot end the challenge before the passenger train.
+            dodgeSubwayHeadlightTrain(puzzle, train);
+            continue;
         }
         if (target.collisionGrace <= 0 && train.lane === target.lane && Math.abs(train.progress - target.progress) < .20) {
             finishSubwayControlPuzzle(true);
@@ -3446,9 +3459,9 @@ function updateNoah() {
     const pursue = map[leadR]?.[leadC] === 0 ? { x:leadC * TS + TS / 2, y:leadR * TS + TS / 2 } : player;
     if (noahState === 'hidden') {
         monster.invisible = true;
-        const target = Math.hypot(player.x - monster.x, player.y - monster.y) < 680 ? pursue : (noiseTarget && noiseTimer > 0 ? noiseTarget : null);
+        const target = !isSafeRoom(player.x, player.y) && Math.hypot(player.x - monster.x, player.y - monster.y) < 680 ? pursue : (noiseTarget && noiseTimer > 0 && !isSafeRoom(player.x, player.y) ? noiseTarget : null);
         if (target && (noahPathTimer <= 0 || !monster.path.length)) { monster.path = findPath(Math.floor(monster.x / TS), Math.floor(monster.y / TS), Math.floor(target.x / TS), Math.floor(target.y / TS)); noahPathTimer = 18; }
-        else if (!monster.path.length) { const tile = floors[Math.floor(Math.random() * floors.length)]; monster.path = findPath(Math.floor(monster.x / TS), Math.floor(monster.y / TS), tile.c, tile.r); }
+        else if (!monster.path.length) { const tile = pickMonsterWanderTile(monster); monster.path = findPath(Math.floor(monster.x / TS), Math.floor(monster.y / TS), tile.c, tile.r); }
         const oldX = monster.x, oldY = monster.y; moveMonsterAlongPath(getMonsterSpeed(monster) * 1.18, monster);
         if (isSafeRoom(monster.x, monster.y)) { monster.x = oldX; monster.y = oldY; monster.path = []; }
         if (!lit && !player.hidden && Math.hypot(player.x-monster.x, player.y-monster.y) < 92) { noahState = 'reveal'; noahTimer = 60; noahAppearanceWindow = 60; monster.invisible = false; notify('NOAH REVEALS HIMSELF', 'danger'); }
@@ -3598,14 +3611,14 @@ function updateAmine() {
     if (amineFlashCooldown<=0) { amineVisibleTimer=50; amineFlashCooldown=150+Math.floor(Math.random()*180); }
     const dist=Math.hypot(player.x-monster.x,player.y-monster.y);
     const teleportChance = currentMapId === 'amine' ? 1 : .28;
-    if (amineTeleportCooldown<=0 && dist>160 && dist<520 && Math.random() < teleportChance) {
+    if (amineTeleportCooldown<=0 && !isSafeRoom(player.x, player.y) && dist>160 && dist<520 && Math.random() < teleportChance) {
         const mx=(keys.d?1:0)-(keys.a?1:0), my=(keys.s?1:0)-(keys.w?1:0), angle=(mx||my)?Math.atan2(my,mx):Math.atan2(player.y-monster.y,player.x-monster.x);
         const candidates=floors.filter(t=>Math.hypot(t.c*TS+TS/2-(player.x-Math.cos(angle)*TS*4),t.r*TS+TS/2-(player.y-Math.sin(angle)*TS*4))<TS*3&&!amineHoles.some(h=>h.c===t.c&&h.r===t.r));
         const tile=candidates[Math.floor(Math.random()*Math.max(1,candidates.length))]; if(tile){monster.x=tile.c*TS+TS/2;monster.y=tile.r*TS+TS/2;monster.path=[];flashAlpha=.9;amineVisibleTimer=90;} amineTeleportCooldown=[420,540,720][currentDiff];
     }
     const tc=Math.floor(player.x/TS),tr=Math.floor(player.y/TS);
-    if (dist < 430) { if(!monster.path.length||monster.lastTargetC!==tc||monster.lastTargetR!==tr){monster.path=findPath(Math.floor(monster.x/TS),Math.floor(monster.y/TS),tc,tr);monster.lastTargetC=tc;monster.lastTargetR=tr;} }
-    else if (!monster.path.length) { const tile=floors[Math.floor(Math.random()*floors.length)]; monster.path=findPath(Math.floor(monster.x/TS),Math.floor(monster.y/TS),tile.c,tile.r); }
+    if (!isSafeRoom(player.x, player.y) && dist < 430) { if(!monster.path.length||monster.lastTargetC!==tc||monster.lastTargetR!==tr){monster.path=findPath(Math.floor(monster.x/TS),Math.floor(monster.y/TS),tc,tr);monster.lastTargetC=tc;monster.lastTargetR=tr;} }
+    else if (!monster.path.length) { const tile=pickMonsterWanderTile(monster); monster.path=findPath(Math.floor(monster.x/TS),Math.floor(monster.y/TS),tile.c,tile.r); }
     moveMonsterAlongPath(getMonsterSpeed(monster)*.90,monster);
     if (!player.hidden && Math.hypot(player.x-monster.x,player.y-monster.y)<player.r+monster.r+3) { state=8; amineVisibleTimer=120; showStoryLine('“May death do us part.”',1500); setTimeout(()=>{if(state===8)endGame(false,monster);},1500); }
     return true;
@@ -4236,7 +4249,7 @@ function updateExtraAmineAbility(enemy) {
     enemy.invisible = enemy.abilityVisibleTimer <= 0;
     const dist = Math.hypot(player.x - enemy.x, player.y - enemy.y);
     const teleportChance = currentMapId === 'amine' ? 1 : .28;
-    if (enemy.abilityTeleportCooldown <= 0 && dist > 160 && dist < 520 && Math.random() < teleportChance) {
+    if (enemy.abilityTeleportCooldown <= 0 && !isSafeRoom(player.x, player.y) && dist > 160 && dist < 520 && Math.random() < teleportChance) {
         const angle = Math.atan2(player.y - enemy.y, player.x - enemy.x);
         const candidates = floors.filter(tile => Math.hypot(tile.c * TS + TS / 2 - (player.x - Math.cos(angle) * TS * 4), tile.r * TS + TS / 2 - (player.y - Math.sin(angle) * TS * 4)) < TS * 3 && !amineHoles.some(hole => hole.c === tile.c && hole.r === tile.r));
         const tile = candidates[Math.floor(Math.random() * Math.max(1, candidates.length))];
@@ -4399,8 +4412,7 @@ function startGame(diffLevel) {
     boilerShutdown = false; boilerReadyShown = false; heatZones = []; heatEventCooldown = 360;
     rhysSealCollected = false; rhysTrapArmed = false; goopZones = []; goopShots = []; rhysSpitCooldown = 180; rhysDashTimer = 0; rhysChargeWindup = 0; rhysDashCooldown = 360; rhysEventCooldown = 900; rhysSweepTimer = 0; rhysSweepRadius = 0; rhysPressureZones = [];
     forestBeaconBattery = null; forestWatchtower = null; forestBeaconActive = false; forestFogTimer = 0; forestFogCooldown = currentMapId === 'forest' ? 720 : 0; forestGuideTimer = 0; forestGuideCooldown = currentMapId === 'forest' ? 1200 : 0; forestGuideMode = 'cabins'; noahCharge = null; noahLightningCooldown = 360; noahLightningZones = []; noahLightningPending = []; noahLightningWarning = 0; noahLightningFlashes = 0; noahShockTimer = 0; noahAppearanceWindow = 0;
-    amineFocus = false; amineVisibleTimer = 0; amineFlashCooldown = 90; amineTeleportCooldown = 240; amineCallCount = 1; amineCallsRemaining = 0; amineCallActive = false; amineTurret = null; amineBullets = []; amineBurnTimer = 0; amineRoad = null; nizarClones = []; nizarCloneCooldown = 2400; nizarCrush = null; nizarCrushCooldown = 900; subwayControlPuzzle = null; subwayFareCutscene = null; subwayGoldPressure = null; subwayTornTicket = null; subwayGoldSphere = null; subwayBronzeEligible = true; luckyBlocks = [];
-    document.getElementById('amineCall').style.display='none';
+    amineFocus = false; amineVisibleTimer = 0; amineFlashCooldown = 90; amineTeleportCooldown = 240; amineTurret = null; amineBullets = []; amineBurnTimer = 0; amineRoad = null; nizarClones = []; nizarCloneCooldown = 2400; nizarCrush = null; nizarCrushCooldown = 900; subwayControlPuzzle = null; subwayFareCutscene = null; subwayGoldPressure = null; subwayTornTicket = null; subwayGoldSphere = null; subwayBronzeEligible = true; luckyBlocks = [];
     hotelLockdownTimer = 0; hotelEventCooldown = currentMapId === 'hotel' ? 480 : 0; hotelLockdownActive = false; hotelBlockedDoor = null;
     bassamState = 'roaming'; bassamRevealPending = false; bassamTrapTaskId = null; bassamFakeTask = null; bassamFakeLine = ''; bassamAmbushActive = false; bassamRelentlessChase = false; bassamLostTimer = 0; bassamAmbushCooldown = 900; bassamDecoys = []; bassamDecoyCooldown = 600 + Math.floor(Math.random() * 601); hotelTaskGame = null; bassamStaffDepartment = ['FRONT DESK','MAINTENANCE','HOUSEKEEPING','KITCHEN'][Math.floor(Math.random() * 4)]; closeHotelDialogue();
     document.getElementById('hotelTaskHUD').style.display = currentMapId === 'hotel' ? 'block' : 'none';
@@ -4707,9 +4719,9 @@ function endGame(isWin, sourceMonster = monster) {
         if (runItemsUsed === 0) stats.itemFreeWins++;
         if (endlessRound >= 3) unlockCosmetic('bronzeSkin');
         if (endlessRound >= 6) unlockCosmetic('silverSkin');
-        if (endlessRound >= 10) unlockCosmetic('goldSkin');
+        if (endlessRound >= 9) unlockCosmetic('goldSkin');
         if (endlessRound >= 3) unlockCosmetic('spark');
-        if (endlessRound >= 10) unlockCosmetic('smileMask');
+        if (endlessRound >= 9) unlockCosmetic('smileMask');
         if (sourceMonster.name === 'BASSAM' && currentMapId === 'hotel' && bassamRelentlessChase) unlockCosmetic('krustyHat');
         saveData();
         playSound('success');
@@ -4728,7 +4740,7 @@ function endGame(isWin, sourceMonster = monster) {
     document.getElementById('mapTaskHUD').style.display = 'none';
     closeHotelDialogue(); document.getElementById('hotelTaskHUD').style.display = 'none';
     document.getElementById('endMenu').style.display = 'flex';
-    document.getElementById('amineCall').style.display='none'; amineCallActive=false; amineFocus=false;
+    amineFocus=false;
     document.getElementById('endTitle').innerText = isWin ? "YOU WIN!" : "CAUGHT!";
     document.getElementById('endTitle').style.color = isWin ? "#0f0" : "#f00";
     
@@ -5106,7 +5118,61 @@ function findPath(sc, sr, tc, tr) {
     return path;
 }
 
+function pickMonsterWanderTile(enemy = monster) {
+    const protectedPlayer = isSafeRoom(player.x, player.y);
+    const candidates = floors.filter(tile => {
+        const x = tile.c * TS + TS / 2, y = tile.r * TS + TS / 2;
+        if (isProtectedRoom(x, y)) return false;
+        if (protectedPlayer && Math.hypot(player.x - x, player.y - y) < TS * 5) return false;
+        return monsters.every(other => other === enemy || Math.hypot(other.x - x, other.y - y) > TS * 2);
+    });
+    const fallback = floors.filter(tile => !isProtectedRoom(tile.c * TS + TS / 2, tile.r * TS + TS / 2));
+    return (candidates.length ? candidates : fallback)[Math.floor(Math.random() * Math.max(1, candidates.length ? candidates.length : fallback.length))] || floors[0];
+}
+
+function clearProtectedPlayerTarget(enemy) {
+    if (!isSafeRoom(player.x, player.y)) return;
+    const playerC = Math.floor(player.x / TS), playerR = Math.floor(player.y / TS);
+    const pathEnd = enemy.path.at(-1);
+    if ((enemy.lastTargetC === playerC && enemy.lastTargetR === playerR) || (pathEnd?.c === playerC && pathEnd?.r === playerR)) {
+        enemy.path = [];
+        enemy.lastTargetC = -1;
+        enemy.lastTargetR = -1;
+    }
+}
+
+function moveMonsterAwayFromCrowd(spd, enemy) {
+    const nearby = monsters
+        .filter(other => other !== enemy)
+        .map(other => ({ other, distance: Math.hypot(enemy.x - other.x, enemy.y - other.y) }))
+        .filter(entry => entry.distance < 54)
+        .sort((a, b) => a.distance - b.distance)[0];
+    if (!nearby) return false;
+    const distance = nearby.distance;
+    const angle = distance > .01
+        ? Math.atan2(enemy.y - nearby.other.y, enemy.x - nearby.other.x)
+        : (monsters.indexOf(enemy) % 2 ? Math.PI / 2 : -Math.PI / 2);
+    const directions = [angle, angle + Math.PI / 2, angle - Math.PI / 2];
+    for (const direction of directions) {
+        const oldX = enemy.x, oldY = enemy.y;
+        moveEntity(enemy, Math.cos(direction) * Math.min(spd, 2.4), Math.sin(direction) * Math.min(spd, 2.4));
+        if (isProtectedRoom(enemy.x, enemy.y) || Math.hypot(enemy.x - oldX, enemy.y - oldY) < .2) {
+            enemy.x = oldX; enemy.y = oldY;
+            continue;
+        }
+        enemy.path = [];
+        enemy.lastTargetC = -1;
+        enemy.lastTargetR = -1;
+        return true;
+    }
+    enemy.path = [];
+    enemy.lastTargetC = -1;
+    enemy.lastTargetR = -1;
+    return false;
+}
+
 function moveMonsterAlongPath(spd, enemy = monster) {
+    if (moveMonsterAwayFromCrowd(spd, enemy)) return;
     if (enemy.path.length > 0) {
         const oldX = enemy.x, oldY = enemy.y;
         let target = enemy.path[0], tx = target.c * TS + TS/2, ty = target.r * TS + TS/2;
@@ -5128,6 +5194,7 @@ function getMonsterSpeed(enemy = monster) {
 
 function updateExtraMonsters() {
     for (const enemy of monsters.slice(1)) {
+        clearProtectedPlayerTarget(enemy);
         triggerBearTrap(enemy);
         if (enemy.stunTimer > 0) { enemy.stunTimer--; continue; }
         const specialMovement = updateExtraMonsterAbilities(enemy);
@@ -5152,7 +5219,7 @@ function updateExtraMonsters() {
         } else if (noiseTarget && noiseTimer > 0) {
             targetC = Math.floor(noiseTarget.x / TS); targetR = Math.floor(noiseTarget.y / TS);
         } else if (enemy.path.length === 0) {
-            const tile = floors[Math.floor(Math.random() * floors.length)];
+            const tile = pickMonsterWanderTile(enemy);
             targetC = tile.c; targetR = tile.r;
         }
         if (!specialMovement && targetC !== undefined && (enemy.lastTargetC !== targetC || enemy.lastTargetR !== targetR || enemy.path.length === 0)) {
@@ -5171,13 +5238,18 @@ function separateMonsters() {
         for (let j = i + 1; j < monsters.length; j++) {
             const a = monsters[i], b = monsters[j];
             const dx = b.x - a.x, dy = b.y - a.y, distance = Math.hypot(dx, dy);
-            if (distance > 0 && distance < 30) {
-                const push = (30 - distance) * 0.5;
+            if (distance < 38) {
+                const angle = distance > .01 ? Math.atan2(dy, dx) : (i % 2 ? Math.PI / 2 : -Math.PI / 2);
+                const push = Math.min(4, (38 - distance) * 0.55);
                 const aX = a.x, aY = a.y, bX = b.x, bY = b.y;
-                moveEntity(a, -dx / distance * push, -dy / distance * push);
-                moveEntity(b, dx / distance * push, dy / distance * push);
+                moveEntity(a, -Math.cos(angle) * push, -Math.sin(angle) * push);
+                moveEntity(b, Math.cos(angle) * push, Math.sin(angle) * push);
                 if (isProtectedRoom(a.x, a.y)) { a.x = aX; a.y = aY; }
                 if (isProtectedRoom(b.x, b.y)) { b.x = bX; b.y = bY; }
+                if (Math.hypot(b.x - a.x, b.y - a.y) < 30) {
+                    a.path = []; b.path = [];
+                    a.lastTargetC = a.lastTargetR = b.lastTargetC = b.lastTargetR = -1;
+                }
             }
         }
     }
@@ -5392,6 +5464,7 @@ function update() {
     if (monster.stunTimer > 0) {
         monster.stunTimer--;
     } else if (state === 1 || state === 3) {
+        clearProtectedPlayerTarget(monster);
         const goldFareDetectable = currentMapId === 'subway' && monster.name === 'NIZAR' && subwayGoldPressure?.active && subwayGoldPressure.detectableTimer > 0;
         let canSeePlayer = !player.hidden && !player.breathing && (goldFareDetectable || (!isSafeRoom(player.x, player.y) && (monsterCanSeeUnhiddenPlayer() || (monster.name === 'AESON' && player.heat > 120))));
         let tracksBlood = !player.hidden && !isSafeRoom(player.x, player.y) && monster.name === 'MALAKAI' && monster.bloodHuntTimer > 0;
@@ -5439,7 +5512,7 @@ function update() {
                     bassamState = 'disguised'; bassamAmbushActive = false; bassamAmbushCooldown = 900; bassamLostTimer = 0; monster.path = []; moveBassamToEmployee(); updateHUD();
                 }
             } else if (bassamState === 'roaming') {
-                if (monster.path.length === 0) { const tile = floors[Math.floor(Math.random() * floors.length)]; monster.path = findPath(Math.floor(monster.x / TS), Math.floor(monster.y / TS), tile.c, tile.r); }
+                if (monster.path.length === 0) { const tile = pickMonsterWanderTile(monster); monster.path = findPath(Math.floor(monster.x / TS), Math.floor(monster.y / TS), tile.c, tile.r); }
                 moveMonsterAlongPath(getMonsterSpeed(monster));
             } else {
                 if (bassamAmbushActive && bassamFakeTask?.status !== 'accepted') {
@@ -5599,8 +5672,9 @@ function update() {
                     } else {
                     if (monster.path.length === 0 || (monster.allSeeing && Math.random() < 0.05)) {
                         const tracksPlayer = (monster.allSeeing || emergencyTimer > 0) && !player.breathing && !player.hidden && !isSafeRoom(player.x, player.y);
-                        let targetC = tracksPlayer ? Math.floor(player.x/TS) : floors[Math.floor(Math.random() * floors.length)].c;
-                        let targetR = tracksPlayer ? Math.floor(player.y/TS) : floors[Math.floor(Math.random() * floors.length)].r;
+                        const wanderTile = pickMonsterWanderTile(monster);
+                        let targetC = tracksPlayer ? Math.floor(player.x/TS) : wanderTile.c;
+                        let targetR = tracksPlayer ? Math.floor(player.y/TS) : wanderTile.r;
                         monster.path = findPath(Math.floor(monster.x/TS), Math.floor(monster.y/TS), targetC, targetR);
                     }
                     moveMonsterAlongPath(getMonsterSpeed());

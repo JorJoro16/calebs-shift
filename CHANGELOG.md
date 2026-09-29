@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.12.0
+
+- Made the Headlight challenge forgiving before the passenger train: Nizar automatically dodges early train collisions, which still count toward the three misses.
+- Moved Smile Mask and Gold Skin to Endless Round 9 and retroactively unlocks them for players whose saved Endless record is already 9 or higher.
+- Removed Amine’s incoming-call interruption from generator repairs, including its overlay and documentation.
+- Added monster crowd avoidance, overlap recovery, protected-cabin target clearing, and non-cabin roaming targets to stop multi-monster pile-ups and Blackwood Forest cabin-door blocking.
+- Bumped the offline cache to `calebs-shift-v73`.
+
 ## 2.11.4
 
 - Replaced the Subway cosmetic assets with the new 144×144 versions.
