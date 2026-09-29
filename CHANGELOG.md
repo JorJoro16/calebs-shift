@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.10.0
+
+- Expanded Endless map selection with a saved round high score for each map.
+- Raised Survival's selectable hunter cap to eight.
+- Moved Dash to Left Shift, removed Shift crouching, and made the dash a swept movement with a five-second cooldown.
+- Made specialist monster abilities work across levels: Aeson fire, Rhys goop and charges, Noah reveals and lightning, Amine invisibility and teleporting, Bassam's off-map employee decoys, and Nizar's signal attacks.
+- Made Closing Frames push the player instead of allowing them to walk through the crush.
+- Improved mobile support for Focus Vision, Dash, and the Subway Rail Control board.
+- Updated the offline cache to `calebs-shift-v64`.
+
 ## 2.9.9
 
 - Reworked the Last Line layout into a clearer three-or-four-station connected spine with alternating platform levels and cleaner transfer bends.

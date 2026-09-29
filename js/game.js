@@ -112,7 +112,7 @@ function playNizarCrashSound() {
 }
 
 // Versioned local progress with a backup copy and import/export support.
-const GAME_VERSION = '2.9.9';
+const GAME_VERSION = '2.10.0';
 const SAVE_SCHEMA_VERSION = 10;
 const SAVE_KEY = 'br_save_v2';
 const SAVE_BACKUP_KEY = 'br_save_backup_v2';
@@ -201,6 +201,8 @@ function normalizeCosmetics(value) {
 function normalizeStats(value) {
     const source = value && typeof value === 'object' ? value : {};
     const names = ['CALEB', 'MALAKAI', 'JORDAN', 'AESON', 'BASSAM', 'RHYS', 'NOAH', 'AMINE', 'NIZAR'];
+    const endlessMapBest = {};
+    Object.keys(MAP_DEFINITIONS).forEach(mapId => endlessMapBest[mapId] = boundedInt(source.endlessMapBest?.[mapId], 0, 999999, 0));
     const encounters = {};
     names.forEach(name => encounters[name] = boundedInt(source.encounters?.[name], 0, 999999, 0));
     const encounteredNames = names.filter(name => encounters[name] > 0);
@@ -223,7 +225,8 @@ function normalizeStats(value) {
         challengesCleared: boundedInt(source.challengesCleared, 0, 999999, 0),
         boilerworksHardStreak: boundedInt(source.boilerworksHardStreak, 0, 3, 0),
         favoriteMonster: favorite,
-        encounters
+        encounters,
+        endlessMapBest
     };
 }
 
@@ -438,7 +441,7 @@ function mountSurvivalSetup() {
 function updateSurvivalSummary() {
     const summary = document.getElementById('survivalSummary');
     if (!summary) return;
-    const selected = ['Caleb','Malakai','Jordan','Aeson','Bassam','Rhys','Noah','Amine'].filter(name => document.getElementById(`survival${name}`)?.checked);
+    const selected = ['Caleb','Malakai','Jordan','Aeson','Bassam','Rhys','Noah','Amine','Nizar'].filter(name => document.getElementById(`survival${name}`)?.checked);
     const map = document.getElementById('survivalMap')?.selectedOptions?.[0]?.textContent || 'a map';
     const count = document.getElementById('survivalCount')?.value || '1';
     const difficulty = document.getElementById('survivalDiff')?.selectedOptions?.[0]?.textContent || 'Normal';
@@ -1428,7 +1431,8 @@ function renderMapMenu() {
         const campaignLocked = gameMode === 'campaign' && mapDef.campaignOrder > campaignCleared.length;
         const disabled = !unlocked || campaignLocked;
         const label = disabled ? 'LOCKED' : 'SELECT';
-        return `<button ${disabled ? 'disabled' : ''} onclick="selectMap('${mapDef.id}')"><b>${mapDef.name}</b><br><span style="font-size:12px;color:#aaa">${disabled ? 'Complete the previous campaign map first.' : mapDef.description}</span><br><span style="font-size:12px;color:${disabled ? '#777' : '#0f0'}">${label}</span></button>`;
+            const highScore = gameMode === 'endless' ? `<br><span style="font-size:12px;color:#ffe06b">ROUND HIGH SCORE: ${stats.endlessMapBest?.[mapDef.id] || 0}</span>` : '';
+            return `<button ${disabled ? 'disabled' : ''} onclick="selectMap('${mapDef.id}')"><b>${mapDef.name}</b><br><span style="font-size:12px;color:#aaa">${disabled ? 'Complete the previous campaign map first.' : mapDef.description}</span><br><span style="font-size:12px;color:${disabled ? '#777' : '#0f0'}">${label}</span>${highScore}</button>`;
     }).join('');
 }
 
@@ -1466,7 +1470,7 @@ function startSurvival() {
     if (!unlockedMaps.includes(currentMapId)) { showMsg('UNLOCK THIS MAP IN CAMPAIGN FIRST', 1400); return; }
     survivalConfig = {
         names,
-        count: Number(document.getElementById('survivalCount').value),
+        count: Math.max(1, Math.min(8, Number(document.getElementById('survivalCount').value) || 1)),
         generators: Number(document.getElementById('survivalGens').value),
         mutations: Number(document.getElementById('survivalMuts').value),
         events: document.getElementById('survivalEvents').checked
@@ -1591,7 +1595,8 @@ let hotelEmployeesRequired = 3, hotelDialogueOpen = false, hotelTaskSerial = 0;
 let nearFuse = null, nearHide = null, nearValve = null, nearBoiler = false, nearEmployee = null, nearElevator = false, nearHotelTask = null, nearRhysSeal = false, nearRhysKey = false, nearRhysChest = false, nearRhysTrap = false;
 let nearSubwayPanel = null, nearSubwayControl = false;
 let nizarClones = [], nizarCloneCooldown = 2400, nizarCrush = null, nizarCrushCooldown = 900;
-let player = { x: 0, y: 0, r: 12, baseSpeed: 3.8, speed: 3.8, boostTimer: 0, stunTimer: 0, crouching: false, breathing: false, breathTimer: 0, breathCooldown: 0, heat: 0, inHeatZone: false, hidden: false, hideTimer: 0, hideCompromised: false };
+let player = { x: 0, y: 0, r: 12, baseSpeed: 3.8, speed: 3.8, boostTimer: 0, dashTimer: 0, stunTimer: 0, crouching: false, breathing: false, breathTimer: 0, breathCooldown: 0, heat: 0, inHeatZone: false, hidden: false, hideTimer: 0, hideCompromised: false };
+let lastMoveX = 1, lastMoveY = 0;
 let monster = { name: '', x: 0, y: 0, r: 14, drawRadius: 14, speed: 2.2, baseSpeed: 2.2, color: '', textColor: '', activeMutations: [], isReinforced: false, hasGloom: false, isResilient: false, hasScrambler: false, hasHexed: false, hasHallucinations: false, hasLockedIn: false, hasEcho: false, hasFalseObjective: false, hasWatcher: false, hasPanic: false, hasHeavyFootfall: false, hasAfterimage: false, allSeeing: false, heatAlertTimer: 0, heatAlertX: 0, heatAlertY: 0, stunTimer: 0, lastTargetC: -1, lastTargetR: -1 };
 let monsters = [];
 let camera = { x: 0, y: 0, targetZoom: 1.0, zoom: 1.0 };
@@ -1602,7 +1607,7 @@ let puzzleSequence = [], circuitSequence = [], circuitStage = 0, circuitRequired
 let lastSingleMutation = null; 
 
 // AI & Item Variables
-let jordanState = 'saboteur', mimicTimer = 0, stateTimer = 0, jordanSabotageCooldown = 0, bassamState = 'roaming', bassamRevealPending = false, bassamTrapTaskId = null, bassamFakeTask = null, bassamStaffDepartment = 'FRONT DESK', bassamFakeLine = '', bassamAmbushActive = false, bassamRelentlessChase = false, bassamLostTimer = 0, bassamAmbushCooldown = 0;
+let jordanState = 'saboteur', mimicTimer = 0, stateTimer = 0, jordanSabotageCooldown = 0, bassamState = 'roaming', bassamRevealPending = false, bassamTrapTaskId = null, bassamFakeTask = null, bassamStaffDepartment = 'FRONT DESK', bassamFakeLine = '', bassamAmbushActive = false, bassamRelentlessChase = false, bassamLostTimer = 0, bassamAmbushCooldown = 0, bassamDecoys = [], bassamDecoyCooldown = 720;
 let hotelTaskGame = null;
 let empTimer = 0, empWarning = 0, empActive = 0, flashAlpha = 0, scramblerTimer = 0, repairAssist = 0, flareTimer = 0, dashCooldown = 0;
 let powerOutageTimer = 0, powerOutageCooldown = 0, flickerTimer = 0, flickerCooldown = 0, emergencyTimer = 0, emergencyCooldown = 0, outageFlickerTimer = 0;
@@ -1658,7 +1663,7 @@ function useSignalScrambler() {
 }
 
 function useNeutralizer() {
-    if (!itemAllowed('neutralizer') || state !== 1 || currentMapId !== 'crimson' || invNeutralizer <= 0) return;
+    if (!itemAllowed('neutralizer') || state !== 1 || !monsters.some(enemy => enemy.name === 'RHYS') || invNeutralizer <= 0) return;
     invNeutralizer--; consumeLoadoutItem('neutralizer'); runItemsUsed++; stats.itemsUsed++; advanceDailyObjective('items');
     goopZones = goopZones.filter(zone => Math.hypot(zone.x - player.x, zone.y - player.y) > 180);
     rhysPressureZones = rhysPressureZones.filter(zone => Math.hypot(zone.x - player.x, zone.y - player.y) > 180);
@@ -1681,12 +1686,22 @@ function useFlare() {
 function useDash() {
     if (!upgDash || (state !== 1 && state !== 3) || player.hidden || player.stunTimer > 0 || dashCooldown > 0 || hotelDialogueOpen) return;
     let dx = (keys.d ? 1 : 0) - (keys.a ? 1 : 0), dy = (keys.s ? 1 : 0) - (keys.w ? 1 : 0);
+    if (!dx && !dy) { dx = lastMoveX; dy = lastMoveY; }
     if (!dx && !dy) return;
     if (dx && dy) { dx *= .707; dy *= .707; }
-    moveEntity(player, dx * 58, dy * 58);
-    dashCooldown = 360;
+    const dashDistance = 86, stepDistance = 6, steps = Math.ceil(dashDistance / stepDistance);
+    let moved = 0;
+    for (let step = 0; step < steps; step++) {
+        const beforeX = player.x, beforeY = player.y;
+        moveEntity(player, dx * stepDistance, dy * stepDistance);
+        moved += Math.hypot(player.x - beforeX, player.y - beforeY);
+        if (Math.hypot(player.x - beforeX, player.y - beforeY) < .2) break;
+    }
+    if (moved < 10) return;
+    player.dashTimer = 18;
+    dashCooldown = 300;
     noiseTarget = { x: player.x, y: player.y }; noiseTimer = 150;
-    playSound('tick'); showMsg('<span style="color:#8ff">DASH</span>', 500); updateHUD();
+    playSound('tick'); showMsg('<span style="color:#8ff">DASH · 5s COOLDOWN</span>', 500); updateHUD();
 }
 
 function carriedSupplyCount() { return runLoadoutRemaining ? Object.values(runLoadoutRemaining).reduce((sum, amount) => sum + amount, 0) : invAdrenaline + invFlashbang + invNoiseMaker + invBearTrap + invBattery + invBreathFilter + invSignalScrambler + invNeutralizer + invRepairKit + invFlare; }
@@ -1977,7 +1992,7 @@ window.addEventListener('keydown', (e) => {
         if (k === 'escape') { e.preventDefault(); exitSubwayControlPuzzle(); }
         return;
     }
-    if (k==='v' && monster.name==='AMINE' && state===1) { amineFocus=true; return; }
+    if (k==='v' && monsters.some(enemy => enemy.name === 'AMINE') && state===1) { amineFocus=true; return; }
     if (k === 'm' && state === 1) { toggleMapOverlay(); return; }
     if (hotelDialogueOpen) {
         if (k === 'escape' || k === 'e') closeHotelDialogue();
@@ -2008,13 +2023,12 @@ window.addEventListener('keydown', (e) => {
         saveData(); updateHUD();
     }
 
-    if ((state === 1 || state === 3) && k === 'shift') player.crouching = true;
+    if ((state === 1 || state === 3) && k === 'shift') { e.preventDefault(); useDash(); return; }
     if ((state === 1 || state === 3) && k === 'b') activateBreath();
     if (state === 1 && k === 'h') toggleHide();
     if ((state === 1 || state === 3) && k === 'n') useNoiseMaker();
     if ((state === 1 || state === 3) && k === 't') placeBearTrap();
     if ((state === 1 || state === 3) && k === 'r') useBattery();
-    if ((state === 1 || state === 3) && k === 'q') useDash();
     if ((state === 1 || state === 3) && k === 'x') useSignalScrambler();
     if (state === 1 && k === 'g') useNeutralizer();
     if (state === 1 && k === 'k') useRepairKit();
@@ -2189,13 +2203,15 @@ window.addEventListener('keyup', (e) => {
     if (k in keys) {
         keys[k] = false;
     }
-    if (k === 'shift') player.crouching = false;
     if (k === 'b') player.breathing = false;
 });
 
 function handleCanvasPress(clientX, clientY) {
     const rect=canvas.getBoundingClientRect(), x=(clientX-rect.left)*canvas.width/rect.width, y=(clientY-rect.top)*canvas.height/rect.height;
-    if (state === 14) { clickSubwayControlSwitch(x, y); return; }
+    if (state === 14) {
+        if (x < 132 && y > canvas.height - 92) { exitSubwayControlPuzzle(); return; }
+        clickSubwayControlSwitch(x, y); return;
+    }
     if (state === 13 && routeBoard) {
         const layout = getRouteBoardLayout();
         const col = Math.floor((x - layout.left) / (layout.tileSize + layout.gap)), row = Math.floor((y - layout.top) / (layout.tileSize + layout.gap));
@@ -2742,18 +2758,20 @@ function beginSubwayControlPuzzle() {
     if (!subwayControl || subwayControlPuzzle) return;
     clearMovementKeys();
     routeBoard = null;
-    const lanes = 4, cols = 8;
+    const lanes = 6, cols = 12;
     const switches = [];
     for (let col = 1; col < cols - 1; col++) {
         switches.push({ col, lowLane: Math.floor(Math.random() * (lanes - 1)), open: false, pulse: 0 });
     }
     subwayControlPuzzle = {
         lanes, cols, timer: 7200, switches, ended: false,
-        target: { lane: 1 + Math.floor(Math.random() * 2), progress: 3.8, direction: Math.random() < .5 ? -1 : 1, speed: .012, changeTimer: 55 },
+        target: { lane: 2 + Math.floor(Math.random() * 2), progress: 5.5, direction: Math.random() < .5 ? -1 : 1, speed: .016, changeTimer: 48, collisionGrace: 180 },
         trains: [
-            { lane: 0, progress: -0.2, speed: .020, color: '#f2c14e', usedSwitches: new Set() },
-            { lane: 2, progress: -1.15, speed: .024, color: '#7ed6ff', usedSwitches: new Set() },
-            { lane: 3, progress: -2.1, speed: .018, color: '#f28a8a', usedSwitches: new Set() }
+            { lane: 0, progress: -0.2, speed: .021, color: '#f2c14e', usedSwitches: new Set() },
+            { lane: 2, progress: -1.25, speed: .024, color: '#7ed6ff', usedSwitches: new Set() },
+            { lane: 4, progress: -2.3, speed: .019, color: '#f28a8a', usedSwitches: new Set() },
+            { lane: 1, progress: -3.1, speed: .022, color: '#bba2ff', usedSwitches: new Set() },
+            { lane: 5, progress: -4.0, speed: .026, color: '#8de0a1', usedSwitches: new Set() }
         ]
     };
     state = 14;
@@ -2794,11 +2812,25 @@ function updateSubwayControlPuzzle() {
     target.progress += target.speed * target.direction;
     if (target.progress < .55) { target.progress = .55; target.direction = 1; }
     if (target.progress > puzzle.cols - 1.55) { target.progress = puzzle.cols - 1.55; target.direction = -1; }
+    if (target.collisionGrace > 0) target.collisionGrace--;
     target.changeTimer--;
     if (target.changeTimer <= 0) {
         const options = [target.lane - 1, target.lane + 1].filter(lane => lane >= 0 && lane < puzzle.lanes);
-        if (options.length && Math.random() < .72) target.lane = options[Math.floor(Math.random() * options.length)];
-        target.changeTimer = 48 + Math.floor(Math.random() * 62);
+        const closeTrainLanes = puzzle.trains
+            .filter(train => Math.abs(train.progress - target.progress) < .34)
+            .map(train => train.lane);
+        const safeOptions = options.filter(lane => !puzzle.trains.some(train => train.lane === lane && train.progress > target.progress - .18 && train.progress < target.progress + 1.15));
+        // Nizar reads the rail traffic and usually steps into a clear lane. A
+        // close train can still bait a bad dodge occasionally, which is the
+        // intended tell for a successful interception.
+        if (options.length && closeTrainLanes.length && Math.random() < .16) {
+            target.lane = options.find(lane => closeTrainLanes.includes(lane)) ?? options[Math.floor(Math.random() * options.length)];
+        } else if (safeOptions.length && Math.random() < .88) {
+            target.lane = safeOptions[Math.floor(Math.random() * safeOptions.length)];
+        } else if (options.length) {
+            target.lane = options[Math.floor(Math.random() * options.length)];
+        }
+        target.changeTimer = 42 + Math.floor(Math.random() * 58);
     }
 
     for (const train of puzzle.trains) {
@@ -2817,7 +2849,7 @@ function updateSubwayControlPuzzle() {
                 train.usedSwitches.add(index);
             }
         }
-        if (train.lane === target.lane && Math.abs(train.progress - target.progress) < .24) {
+        if (target.collisionGrace <= 0 && train.lane === target.lane && Math.abs(train.progress - target.progress) < .20) {
             finishSubwayControlPuzzle(true);
             return;
         }
@@ -2830,7 +2862,7 @@ function clickSubwayControlSwitch(x, y) {
     for (const entry of puzzle.switches) {
         const sx = layout.left + entry.col * layout.colGap;
         const sy = layout.top + (entry.lowLane + .5) * layout.laneGap;
-        if (Math.hypot(x - sx, y - sy) < 28) {
+        if (Math.hypot(x - sx, y - sy) < 44) {
             entry.open = !entry.open;
             entry.pulse = 18;
             playSound('tick');
@@ -2848,7 +2880,7 @@ function drawSubwayControlPuzzle() {
     ctx.fillText('LAST LINE · RAIL CONTROL', canvas.width / 2, 38);
     ctx.fillStyle = '#9fb3c2'; ctx.font = '13px Arial';
     ctx.fillText('Click a switch to open or close it. Route any train into the moving hunter.', canvas.width / 2, 62);
-    ctx.fillText('ESC returns to the station · trains can only change lanes at open switches', canvas.width / 2, 84);
+    ctx.fillText('ESC or EXIT returns to the station · trains can only change lanes at open switches', canvas.width / 2, 84);
     const seconds = Math.ceil(puzzle.timer / 60);
     ctx.fillStyle = seconds <= 20 ? '#ff7777' : '#f0d58a'; ctx.font = 'bold 18px Arial';
     ctx.fillText(`TIME ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`, canvas.width / 2, 116);
@@ -2881,7 +2913,9 @@ function drawSubwayControlPuzzle() {
     ctx.fillStyle = '#537b99'; ctx.beginPath(); ctx.arc(targetX, targetY, 15, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = '#d8f1ff'; ctx.beginPath(); ctx.arc(targetX - 5, targetY - 2, 2, 0, Math.PI * 2); ctx.arc(targetX + 5, targetY - 2, 2, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = '#d8f1ff'; ctx.font = 'bold 11px Arial'; ctx.fillText(`${monster.name} · MOVING TARGET`, targetX, targetY - 25);
-    ctx.textAlign = 'left'; ctx.fillStyle = '#9fb3c2'; ctx.font = '12px Arial'; ctx.fillText('OPEN SWITCHES', 20, canvas.height - 43);
+    ctx.fillStyle = 'rgba(19,35,44,.96)'; ctx.fillRect(18, canvas.height - 78, 100, 46); ctx.strokeStyle = '#7f9eaa'; ctx.lineWidth = 2; ctx.strokeRect(18, canvas.height - 78, 100, 46);
+    ctx.fillStyle = '#dceeff'; ctx.font = 'bold 12px Arial'; ctx.textAlign = 'center'; ctx.fillText('EXIT', 68, canvas.height - 50);
+    ctx.textAlign = 'left'; ctx.fillStyle = '#9fb3c2'; ctx.font = '12px Arial'; ctx.fillText('OPEN SWITCHES', 20, canvas.height - 22);
     ctx.fillStyle = '#48e59a'; ctx.fillText(`${puzzle.switches.filter(entry => entry.open).length}/${puzzle.switches.length}`, 20, canvas.height - 25);
 }
 
@@ -2997,8 +3031,8 @@ function updateNoah() {
     return true;
 }
 
-function beginNizarCrush() {
-    if (monster.name !== 'NIZAR' || state !== 1 || nizarCrush) return;
+function beginNizarCrush(nizarEnemy = monsters.find(enemy => enemy.name === 'NIZAR')) {
+    if (!nizarEnemy || state !== 1 || nizarCrush) return;
     const y = player.y;
     nizarCrush = {
         left: { x:player.x - 245, y, width:70, height:154 },
@@ -3009,16 +3043,16 @@ function beginNizarCrush() {
     notify('NIZAR DISTORTED THE SPACE AROUND YOU · MOVE', 'warning');
 }
 
-function spawnNizarClones() {
-    if (monster.name !== 'NIZAR' || state !== 1 || nizarClones.length) return;
+function spawnNizarClones(nizarEnemy = monsters.find(enemy => enemy.name === 'NIZAR')) {
+    if (!nizarEnemy || state !== 1 || nizarClones.length) return;
     const candidates = floors.filter(tile => {
         const x = tile.c * TS + TS / 2, y = tile.r * TS + TS / 2;
-        return Math.hypot(x - player.x, y - player.y) > 260 && Math.hypot(x - monster.x, y - monster.y) > 90;
+        return Math.hypot(x - player.x, y - player.y) > 260 && Math.hypot(x - nizarEnemy.x, y - nizarEnemy.y) > 90;
     }).sort(() => Math.random() - .5);
     for (let index = 0; index < 2; index++) {
         const tile = candidates[index] || floors[(index * 37) % Math.max(1, floors.length)];
         if (!tile) continue;
-        nizarClones.push({ x:tile.c * TS + TS / 2, y:tile.r * TS + TS / 2, r:13, drawRadius:14, speed:Math.max(2.25, monster.speed * .82), path:[], lastTargetC:-1, lastTargetR:-1, life:1800 });
+        nizarClones.push({ x:tile.c * TS + TS / 2, y:tile.r * TS + TS / 2, r:13, drawRadius:14, speed:Math.max(2.25, nizarEnemy.speed * .82), path:[], lastTargetC:-1, lastTargetR:-1, life:1800 });
     }
     nizarCloneCooldown = 2400;
     if (nizarClones.length) notify('SIGNAL SPLIT · TWO NIZARS DETECTED', 'danger');
@@ -3053,29 +3087,44 @@ function updateNizarCrush() {
     const crush = nizarCrush;
     crush.left.x += crush.speed;
     crush.right.x -= crush.speed;
+    const insideHeight = Math.abs(player.y - crush.left.y) < crush.left.height / 2 + player.r;
+    if (insideHeight && !player.hidden) {
+        const leftOuter = crush.left.x - crush.left.width / 2, leftInner = crush.left.x + crush.left.width / 2;
+        const rightInner = crush.right.x - crush.right.width / 2, rightOuter = crush.right.x + crush.right.width / 2;
+        // The frames are solid while moving. If one reaches the player's
+        // circle, it carries the player inward instead of allowing a walk
+        // straight through the hazard.
+        if (player.x > leftOuter - player.r && player.x < leftInner + player.r && player.x < rightInner) {
+            player.x = leftInner + player.r + 2;
+        }
+        if (player.x < rightOuter + player.r && player.x > rightInner - player.r && player.x > leftInner) {
+            player.x = rightInner - player.r - 2;
+        }
+    }
     const leftEdge = crush.left.x + crush.left.width / 2;
     const rightEdge = crush.right.x - crush.right.width / 2;
     if (leftEdge < rightEdge) return;
-    const insideHeight = Math.abs(player.y - crush.left.y) < crush.left.height / 2 + player.r;
     const betweenFrames = player.x > crush.left.x - crush.left.width / 2 && player.x < crush.right.x + crush.right.width / 2;
     playNizarCrashSound();
     crush.impact = true;
     nizarCrush = null;
     nizarCrushCooldown = 900;
-    if (insideHeight && betweenFrames) { endGame(false, monster); return; }
+    if (insideHeight && betweenFrames) { endGame(false, monsters.find(enemy => enemy.name === 'NIZAR') || monster); return; }
     showMsg('THE CLOSING FRAMES COLLIDE', 650);
 }
 
 function updateNizarAbilities() {
-    if (monster.name !== 'NIZAR' || state !== 1) { nizarClones = []; nizarCrush = null; return; }
+    const nizarEnemy = monsters.find(enemy => enemy.name === 'NIZAR');
+    if (!nizarEnemy || state !== 1) { nizarClones = []; nizarCrush = null; return; }
     if (nizarCrushCooldown > 0) nizarCrushCooldown--;
-    if (!nizarCrush && nizarCrushCooldown <= 0 && Math.random() < .00125) beginNizarCrush();
+    if (!nizarCrush && nizarCrushCooldown <= 0 && Math.random() < .00125) beginNizarCrush(nizarEnemy);
     updateNizarCrush();
+    if (nizarCloneCooldown <= 0 && !nizarClones.length) spawnNizarClones(nizarEnemy);
     updateNizarClones();
 }
 
 function drawNizarAbilities() {
-    if (monster.name !== 'NIZAR' || state !== 1) return;
+    if (!monsters.some(enemy => enemy.name === 'NIZAR') || state !== 1) return;
     for (const clone of nizarClones) {
         ctx.fillStyle = 'rgba(74,126,155,.82)';
         ctx.beginPath(); ctx.arc(clone.x, clone.y, clone.drawRadius, 0, Math.PI * 2); ctx.fill();
@@ -3100,7 +3149,8 @@ function updateAmine() {
     if (amineVisibleTimer>0) amineVisibleTimer--; if (amineFlashCooldown>0) amineFlashCooldown--; if (amineTeleportCooldown>0) amineTeleportCooldown--;
     if (amineFlashCooldown<=0) { amineVisibleTimer=50; amineFlashCooldown=150+Math.floor(Math.random()*180); }
     const dist=Math.hypot(player.x-monster.x,player.y-monster.y);
-    if (amineTeleportCooldown<=0 && dist>160 && dist<520) {
+    const teleportChance = currentMapId === 'amine' ? 1 : .28;
+    if (amineTeleportCooldown<=0 && dist>160 && dist<520 && Math.random() < teleportChance) {
         const mx=(keys.d?1:0)-(keys.a?1:0), my=(keys.s?1:0)-(keys.w?1:0), angle=(mx||my)?Math.atan2(my,mx):Math.atan2(player.y-monster.y,player.x-monster.x);
         const candidates=floors.filter(t=>Math.hypot(t.c*TS+TS/2-(player.x-Math.cos(angle)*TS*4),t.r*TS+TS/2-(player.y-Math.sin(angle)*TS*4))<TS*3&&!amineHoles.some(h=>h.c===t.c&&h.r===t.r));
         const tile=candidates[Math.floor(Math.random()*Math.max(1,candidates.length))]; if(tile){monster.x=tile.c*TS+TS/2;monster.y=tile.r*TS+TS/2;monster.path=[];flashAlpha=.9;amineVisibleTimer=90;} amineTeleportCooldown=[420,540,720][currentDiff];
@@ -3294,7 +3344,7 @@ function isInHeatZone(x, y) {
 }
 
 function updateAesonEvents() {
-    if (currentMapId !== 'boilerworks' || !monsters.some(enemy => enemy.name === 'AESON') || state !== 1 || !eventsEnabled) return;
+    if (!monsters.some(enemy => enemy.name === 'AESON') || state !== 1 || !eventsEnabled) return;
     if (heatEventCooldown > 0) { heatEventCooldown--; return; }
     const options = floors.filter(tile => Math.hypot(tile.c * TS + TS / 2 - player.x, tile.r * TS + TS / 2 - player.y) > 180);
     const tile = options[Math.floor(Math.random() * Math.max(1, options.length))] || floors[0];
@@ -3345,7 +3395,7 @@ function updateHotelEvents() {
 }
 
 function updateRhysEvents() {
-    if (currentMapId !== 'crimson' || state !== 1 || !eventsEnabled) return;
+    if (!monsters.some(enemy => enemy.name === 'RHYS') || state !== 1 || !eventsEnabled) return;
     if (rhysSweepTimer > 0) { rhysSweepTimer--; rhysSweepRadius += 16; }
     if (rhysEventCooldown > 0) { rhysEventCooldown--; return; }
     rhysEventCooldown = 1200 + Math.floor(Math.random() * 900);
@@ -3353,17 +3403,28 @@ function updateRhysEvents() {
     if (event === 0) { notify('CONTAINMENT ALARM · RHYS INVESTIGATING', 'danger'); noiseTarget = { x:player.x, y:player.y }; noiseTimer = 240; }
     else if (event === 1) { const tile = floors[Math.floor(Math.random() * floors.length)]; if (tile) rhysPressureZones.push({ x:tile.c*TS+TS/2, y:tile.r*TS+TS/2, life:420, radius:52 }); notify('PRESSURE RELEASE · AVOID THE HISS', 'warning'); }
     else if (event === 2) { rhysSweepTimer = 150; rhysSweepRadius = 0; emergencyTimer = Math.max(emergencyTimer, 150); notify('EMERGENCY LIGHT SWEEP', 'warning'); }
-    else if (!rhysSealCollected) { notify('SEAL RESONANCE · RHYS HEARD IT', 'warning'); noiseTarget = { x:rhysSeal.x, y:rhysSeal.y }; noiseTimer = 300; }
+    else if (!rhysSealCollected) { const resonance = rhysSeal || monsters.find(enemy => enemy.name === 'RHYS') || player; notify('RESONANCE · RHYS HEARD YOU', 'warning'); noiseTarget = { x:resonance.x, y:resonance.y }; noiseTimer = 300; }
+}
+
+function updateRhysHazards() {
+    for (const shot of goopShots) {
+        shot.x += shot.vx; shot.y += shot.vy; shot.life--;
+        if (shot.life <= 0 || checkWall({ x:shot.x, y:shot.y, r:4 })) {
+            goopZones.push({ x:shot.x, y:shot.y, life:540, radius:42 });
+            shot.life = 0;
+        }
+    }
+    goopShots = goopShots.filter(shot => shot.life > 0);
+    for (const zone of goopZones) zone.life--;
+    goopZones = goopZones.filter(zone => zone.life > 0);
+    for (const zone of rhysPressureZones) zone.life--;
+    rhysPressureZones = rhysPressureZones.filter(zone => zone.life > 0);
 }
 
 function updateRhysCombat(canSeePlayer) {
-    if (monster.name !== 'RHYS' || currentMapId !== 'crimson' || state !== 1) return false;
+    if (monster.name !== 'RHYS' || state !== 1) return false;
     if (rhysSpitCooldown > 0) rhysSpitCooldown--;
     if (rhysDashCooldown > 0) rhysDashCooldown--;
-    for (const shot of goopShots) { shot.x += shot.vx; shot.y += shot.vy; shot.life--; if (shot.life <= 0 || checkWall({ x:shot.x, y:shot.y, r:4 })) { goopZones.push({ x:shot.x, y:shot.y, life:540, radius:42 }); shot.life = 0; } }
-    goopShots = goopShots.filter(shot => shot.life > 0);
-    for (const zone of goopZones) zone.life--; goopZones = goopZones.filter(zone => zone.life > 0);
-    for (const zone of rhysPressureZones) zone.life--; rhysPressureZones = rhysPressureZones.filter(zone => zone.life > 0);
     if (rhysChargeWindup > 0) {
         rhysChargeWindup--;
         if (rhysChargeWindup <= 0) { rhysDashTimer = 150; notify('RHYS CHARGES', 'danger'); }
@@ -3394,11 +3455,6 @@ function updateRhysCombat(canSeePlayer) {
 
 function updateHeat() {
     heatOverlay ||= document.getElementById('heatOverlay');
-    if (currentMapId !== 'boilerworks') {
-        player.heat = 0; player.inHeatZone = false;
-        if (heatOverlay) { heatOverlay.style.opacity = '0'; heatOverlay.style.backdropFilter = 'blur(0px)'; }
-        return;
-    }
     const hot = isInHeatZone(player.x, player.y);
     if (hot && !player.inHeatZone && scramblerTimer <= 0) {
         for (const enemy of monsters) {
@@ -3683,8 +3739,125 @@ function updateHotelEmployees() {
     }
 }
 
+function spawnBassamDecoy() {
+    const candidates = floors.filter(tile => {
+        const x = tile.c * TS + TS / 2, y = tile.r * TS + TS / 2;
+        return !isSafeRoom(x, y) && Math.hypot(x - player.x, y - player.y) > 280;
+    });
+    const tile = candidates[Math.floor(Math.random() * Math.max(1, candidates.length))] || floors.at(-1);
+    if (!tile) return;
+    bassamDecoys.push({ x:tile.c * TS + TS / 2, y:tile.r * TS + TS / 2, r:11, life:900, speed:2.35, path:[], lastTargetC:-1, lastTargetR:-1, department:['MAINTENANCE','HOUSEKEEPING','SECURITY'][Math.floor(Math.random() * 3)] });
+    notify('BASSAM SENT A FALSE EMPLOYEE', 'danger');
+}
+
+function updateBassamOutsideMap() {
+    if (currentMapId === 'hotel' || state !== 1 || !eventsEnabled || !monsters.some(enemy => enemy.name === 'BASSAM')) {
+        bassamDecoys = [];
+        return;
+    }
+    if (bassamDecoyCooldown > 0) bassamDecoyCooldown--;
+    else { spawnBassamDecoy(); bassamDecoyCooldown = 600 + Math.floor(Math.random() * 601); }
+    const survivors = [];
+    for (const decoy of bassamDecoys) {
+        decoy.life--;
+        if (decoy.life <= 0) continue;
+        const targetC = Math.floor(player.x / TS), targetR = Math.floor(player.y / TS);
+        if (decoy.lastTargetC !== targetC || decoy.lastTargetR !== targetR || !decoy.path.length) {
+            decoy.path = findPath(Math.floor(decoy.x / TS), Math.floor(decoy.y / TS), targetC, targetR);
+            decoy.lastTargetC = targetC; decoy.lastTargetR = targetR;
+        }
+        moveMonsterAlongPath(decoy.speed, decoy);
+        if (!player.hidden && player.dashTimer <= 0 && Math.hypot(player.x - decoy.x, player.y - decoy.y) < player.r + decoy.r + 2) {
+            player.stunTimer = Math.max(player.stunTimer, 105);
+            triggerBloodHunt();
+            notify('FALSE EMPLOYEE · STUNNED', 'warning');
+            continue;
+        }
+        survivors.push(decoy);
+    }
+    bassamDecoys = survivors;
+}
+
+function updateExtraAmineAbility(enemy) {
+    enemy.abilityVisibleTimer ??= 0; enemy.abilityFlashCooldown ??= 90; enemy.abilityTeleportCooldown ??= 240;
+    if (enemy.abilityVisibleTimer > 0) enemy.abilityVisibleTimer--;
+    if (enemy.abilityFlashCooldown > 0) enemy.abilityFlashCooldown--;
+    if (enemy.abilityTeleportCooldown > 0) enemy.abilityTeleportCooldown--;
+    if (enemy.abilityFlashCooldown <= 0) { enemy.abilityVisibleTimer = 50; enemy.abilityFlashCooldown = 150 + Math.floor(Math.random() * 180); }
+    enemy.invisible = enemy.abilityVisibleTimer <= 0;
+    const dist = Math.hypot(player.x - enemy.x, player.y - enemy.y);
+    const teleportChance = currentMapId === 'amine' ? 1 : .28;
+    if (enemy.abilityTeleportCooldown <= 0 && dist > 160 && dist < 520 && Math.random() < teleportChance) {
+        const angle = Math.atan2(player.y - enemy.y, player.x - enemy.x);
+        const candidates = floors.filter(tile => Math.hypot(tile.c * TS + TS / 2 - (player.x - Math.cos(angle) * TS * 4), tile.r * TS + TS / 2 - (player.y - Math.sin(angle) * TS * 4)) < TS * 3 && !amineHoles.some(hole => hole.c === tile.c && hole.r === tile.r));
+        const tile = candidates[Math.floor(Math.random() * Math.max(1, candidates.length))];
+        if (tile) { enemy.x = tile.c * TS + TS / 2; enemy.y = tile.r * TS + TS / 2; enemy.path = []; enemy.abilityVisibleTimer = 90; flashAlpha = .72; }
+        enemy.abilityTeleportCooldown = [420, 540, 720][currentDiff];
+    }
+}
+
+function updateExtraNoahAbility(enemy) {
+    enemy.abilityNoahRevealTimer ??= 0; enemy.abilityNoahCooldown ??= 360;
+    if (enemy.abilityNoahRevealTimer > 0) enemy.abilityNoahRevealTimer--;
+    if (enemy.abilityNoahCooldown > 0) enemy.abilityNoahCooldown--;
+    enemy.invisible = enemy.abilityNoahRevealTimer <= 0;
+    if (!player.hidden && !isSafeRoom(player.x, player.y) && Math.hypot(player.x - enemy.x, player.y - enemy.y) < 105) {
+        enemy.abilityNoahRevealTimer = 60; enemy.invisible = false;
+    }
+    if (!player.hidden && !isSafeRoom(player.x, player.y) && enemy.abilityNoahCooldown <= 0 && Math.hypot(player.x - enemy.x, player.y - enemy.y) < 380) {
+        for (let i = 0; i < 3; i++) {
+            const angle = Math.random() * Math.PI * 2, distance = 42 + Math.random() * 80;
+            noahLightningZones.push({ x:player.x + Math.cos(angle) * distance, y:player.y + Math.sin(angle) * distance, radius:30, life:300 });
+        }
+        enemy.abilityNoahCooldown = 720;
+        noahLightningFlashes = 3;
+        notify('NOAH CALLED LIGHTNING', 'warning');
+    }
+}
+
+function updateExtraRhysAbility(enemy) {
+    enemy.abilityRhysSpitCooldown ??= 180; enemy.abilityRhysDashCooldown ??= 300; enemy.abilityRhysDashTimer ??= 0; enemy.abilityRhysWindup ??= 0; enemy.abilityRhysAngle ??= 0;
+    if (enemy.abilityRhysSpitCooldown > 0) enemy.abilityRhysSpitCooldown--;
+    if (enemy.abilityRhysDashCooldown > 0) enemy.abilityRhysDashCooldown--;
+    if (enemy.abilityRhysWindup > 0) {
+        enemy.abilityRhysWindup--;
+        if (enemy.abilityRhysWindup <= 0) { enemy.abilityRhysDashTimer = 150; notify('RHYS CHARGES', 'danger'); }
+        return true;
+    }
+    if (enemy.abilityRhysDashTimer > 0) {
+        enemy.abilityRhysDashTimer--;
+        const beforeX = enemy.x, beforeY = enemy.y;
+        moveEntity(enemy, Math.cos(enemy.abilityRhysAngle) * 7.4, Math.sin(enemy.abilityRhysAngle) * 7.4);
+        if (Math.hypot(enemy.x - beforeX, enemy.y - beforeY) < 1 || enemy.abilityRhysDashTimer <= 0) { enemy.abilityRhysDashTimer = 0; enemy.stunTimer = 90; }
+        return true;
+    }
+    const canSee = !player.hidden && !player.breathing && !isSafeRoom(player.x, player.y) && monsterCanSeeUnhiddenPlayer(enemy);
+    const dist = Math.hypot(player.x - enemy.x, player.y - enemy.y);
+    if (enemy.abilityRhysSpitCooldown <= 0 && (canSee ? dist < 250 : Math.random() < .003)) {
+        const targetX = canSee ? player.x : enemy.x + (Math.random() - .5) * 180, targetY = canSee ? player.y : enemy.y + (Math.random() - .5) * 180;
+        const angle = Math.atan2(targetY - enemy.y, targetX - enemy.x);
+        goopShots.push({ x:enemy.x, y:enemy.y, vx:Math.cos(angle) * 4.4, vy:Math.sin(angle) * 4.4, life:Math.max(18, Math.min(58, dist / 4)) });
+        enemy.abilityRhysSpitCooldown = canSee ? 210 : 330;
+    }
+    if (canSee && enemy.abilityRhysDashCooldown <= 0 && dist > 100 && dist < 420 && Math.random() < .016) {
+        enemy.abilityRhysAngle = Math.atan2(player.y - enemy.y, player.x - enemy.x);
+        enemy.abilityRhysWindup = 28; enemy.abilityRhysDashCooldown = 300;
+        notify('RHYS IS BRACING', 'danger');
+        return true;
+    }
+    return false;
+}
+
+function updateExtraMonsterAbilities(enemy) {
+    if (state !== 1) return false;
+    if (enemy.name === 'AMINE') updateExtraAmineAbility(enemy);
+    if (enemy.name === 'NOAH') updateExtraNoahAbility(enemy);
+    if (enemy.name === 'RHYS') return updateExtraRhysAbility(enemy);
+    return false;
+}
+
 function modeMonsterCount() {
-    if (gameMode === 'survival') return survivalConfig?.count || 1;
+    if (gameMode === 'survival') return Math.max(1, Math.min(8, survivalConfig?.count || 1));
     if (gameMode === 'challenge' && challengeConfig?.id === 'double') return 2;
     if (gameMode === 'endless') return Math.min(4, 1 + Math.floor((endlessRound - 1) / 3));
     if ((gameMode === 'challenge' || gameMode === 'campaign') && currentMapId === 'boilerworks' && Math.random() < 0.06) return 2;
@@ -3769,17 +3942,17 @@ function startGame(diffLevel) {
         runLoadoutRemaining = Object.fromEntries(Object.entries(kit).map(([id, amount]) => [id, Math.min(amount, getOwnedItemCount(id))]));
     }
     playerTrail = []; trailLastX = player.x; trailLastY = player.y;
-    player.boostTimer = 0; player.stunTimer = 0; player.crouching = false; player.breathing = false; player.breathTimer = 0; player.breathCooldown = 0; player.heat = 0; player.inHeatZone = false; player.hidden = false; player.hideTimer = 0; player.hideCompromised = false; dashCooldown = 0;
+    player.boostTimer = 0; player.dashTimer = 0; player.stunTimer = 0; player.crouching = false; player.breathing = false; player.breathTimer = 0; player.breathCooldown = 0; player.heat = 0; player.inHeatZone = false; player.hidden = false; player.hideTimer = 0; player.hideCompromised = false; dashCooldown = 0;
     ambienceClock = 0;
     camera.targetZoom = 1.0; camera.zoom = 1.0;
     nearGen = null; nearValve = null; nearBoiler = false; flashAlpha = 0;
-    boilerShutdown = false; boilerReadyShown = false; heatZones = []; heatEventCooldown = currentMapId === 'boilerworks' ? 360 : 0;
+    boilerShutdown = false; boilerReadyShown = false; heatZones = []; heatEventCooldown = 360;
     rhysSealCollected = false; rhysTrapArmed = false; goopZones = []; goopShots = []; rhysSpitCooldown = 180; rhysDashTimer = 0; rhysChargeWindup = 0; rhysDashCooldown = 360; rhysEventCooldown = 900; rhysSweepTimer = 0; rhysSweepRadius = 0; rhysPressureZones = [];
     forestBeaconBattery = null; forestWatchtower = null; forestBeaconActive = false; forestFogTimer = 0; forestFogCooldown = currentMapId === 'forest' ? 720 : 0; forestGuideTimer = 0; forestGuideCooldown = currentMapId === 'forest' ? 1200 : 0; forestGuideMode = 'cabins'; noahCharge = null; noahLightningCooldown = 360; noahLightningZones = []; noahLightningPending = []; noahLightningWarning = 0; noahLightningFlashes = 0; noahShockTimer = 0;
     amineFocus = false; amineVisibleTimer = 0; amineFlashCooldown = 90; amineTeleportCooldown = 240; amineCallCount = 1; amineCallsRemaining = 0; amineCallActive = false; amineTurret = null; amineBullets = []; amineBurnTimer = 0; amineRoad = null; nizarClones = []; nizarCloneCooldown = 2400; nizarCrush = null; nizarCrushCooldown = 900; subwayControlPuzzle = null; luckyBlocks = [];
     document.getElementById('amineCall').style.display='none';
     hotelLockdownTimer = 0; hotelEventCooldown = currentMapId === 'hotel' ? 480 : 0; hotelLockdownActive = false; hotelBlockedDoor = null;
-    bassamState = 'roaming'; bassamRevealPending = false; bassamTrapTaskId = null; bassamFakeTask = null; bassamFakeLine = ''; bassamAmbushActive = false; bassamRelentlessChase = false; bassamLostTimer = 0; bassamAmbushCooldown = 900; hotelTaskGame = null; bassamStaffDepartment = ['FRONT DESK','MAINTENANCE','HOUSEKEEPING','KITCHEN'][Math.floor(Math.random() * 4)]; closeHotelDialogue();
+    bassamState = 'roaming'; bassamRevealPending = false; bassamTrapTaskId = null; bassamFakeTask = null; bassamFakeLine = ''; bassamAmbushActive = false; bassamRelentlessChase = false; bassamLostTimer = 0; bassamAmbushCooldown = 900; bassamDecoys = []; bassamDecoyCooldown = 600 + Math.floor(Math.random() * 601); hotelTaskGame = null; bassamStaffDepartment = ['FRONT DESK','MAINTENANCE','HOUSEKEEPING','KITCHEN'][Math.floor(Math.random() * 4)]; closeHotelDialogue();
     document.getElementById('hotelTaskHUD').style.display = currentMapId === 'hotel' ? 'block' : 'none';
     
     const roundScale = gameMode === 'endless' ? endlessRound - 1 : 0;
@@ -3824,8 +3997,12 @@ function startGame(diffLevel) {
     } else if (currentMapId === 'amine' && gameMode !== 'survival') {
         monsterName = 'AMINE';
     } else if (currentMapId === 'subway' && gameMode !== 'survival') {
-        const subwayRoster = ['NIZAR', 'CALEB', 'MALAKAI', 'AESON'];
-        monsterName = subwayRoster[Math.floor(Math.random() * subwayRoster.length)];
+        // Nizar owns the Last Line, but the other hunters can still appear for
+        // variety. Keep him as the clear statistical favorite on this map.
+        if (rand < .58) monsterName = 'NIZAR';
+        else if (rand < .74) monsterName = 'CALEB';
+        else if (rand < .88) monsterName = 'MALAKAI';
+        else monsterName = 'AESON';
     } else if (currentMapId === 'boilerworks' && gameMode !== 'survival') {
         if (rand < 0.58) monsterName = 'AESON';
         else if (rand < 0.78) monsterName = 'JORDAN';
@@ -4073,6 +4250,7 @@ function endGame(isWin, sourceMonster = monster) {
         const earned = Math.floor(rewardTokens * (upgCoin > 0 ? 1.5 : 1) * endlessMultiplier);
         tokens += earned;
         stats.wins++; stats.caught++; stats.bestEndless = Math.max(stats.bestEndless, endlessRound);
+        stats.endlessMapBest[currentMapId] = Math.max(stats.endlessMapBest[currentMapId] || 0, endlessRound);
         if (runItemsUsed === 0) stats.itemFreeWins++;
         if (endlessRound >= 3) unlockCosmetic('spark');
         if (endlessRound >= 10) unlockCosmetic('smileMask');
@@ -4337,12 +4515,12 @@ function updateHUD() {
     if (itemAllowed('neutralizer') && invNeutralizer > 0) invText.push(`Neutralizer: ${invNeutralizer} (G)`);
     if (itemAllowed('repairKit') && invRepairKit > 0) invText.push(`Repair Kit: ${invRepairKit} (K)${repairAssist ? ' READY' : ''}`);
     if (itemAllowed('flare') && invFlare > 0) invText.push(`Flare: ${invFlare} (L)${flareTimer > 0 ? ' LIT' : ''}`);
-    if (currentMapId === 'boilerworks' && player.heat > 0) invText.push(`HEAT: ${Math.round(player.heat / 3)}/100`);
+    if (player.heat > 0) invText.push(`HEAT: ${Math.round(player.heat / 3)}/100`);
     if (player.crouching) invText.push('CROUCHING');
     if (player.breathing) invText.push(`BREATH: ${Math.ceil(player.breathTimer / 60)}s`);
     if (fuses.some(fuse => !fuse.collected)) invText.push(`Fuses: ${fuses.filter(fuse => !fuse.collected).length}`);
     if (player.hidden) invText.push(`HIDDEN: ${Math.ceil(player.hideTimer / 60)}s`);
-    if (upgDash) invText.push(`Dash: ${dashCooldown > 0 ? `${Math.ceil(dashCooldown / 60)}s` : 'READY'} (Q)`);
+    if (upgDash) invText.push(`Dash: ${dashCooldown > 0 ? `${Math.ceil(dashCooldown / 60)}s` : 'READY'} (LEFT SHIFT)`);
     document.getElementById('inventory').innerText = invText.join(' | ');
     
     let mText = monsters.length > 1 ? '[Open roster]' : (monster.activeMutations.length > 0 ? `[${monster.activeMutations.join(', ')}]` : '[None]');
@@ -4366,9 +4544,25 @@ function toggleMonsterRoster() {
     document.getElementById('monsterRosterToggle').textContent = expanded ? 'MONSTERS ▾' : 'MONSTERS ▴';
 }
 
+function resolveNizarFrameCollision(ent, previousX = ent.x) {
+    if (ent !== player || !nizarCrush || state !== 1 || player.hidden) return;
+    const blocks = [nizarCrush.left, nizarCrush.right];
+    for (const block of blocks) {
+        if (Math.abs(player.y - block.y) >= block.height / 2 + player.r) continue;
+        const left = block.x - block.width / 2, right = block.x + block.width / 2;
+        if (player.x + player.r <= left || player.x - player.r >= right) continue;
+        if (previousX <= left) player.x = left - player.r - 2;
+        else if (previousX >= right) player.x = right + player.r + 2;
+        else player.x = Math.abs(player.x - left) < Math.abs(right - player.x) ? left - player.r - 2 : right + player.r + 2;
+    }
+}
+
 function moveEntity(ent, dx, dy) {
+    const previousX = ent.x;
     ent.x += dx; if (checkWall(ent)) ent.x -= dx;
+    resolveNizarFrameCollision(ent, previousX);
     ent.y += dy; if (checkWall(ent)) ent.y -= dy;
+    resolveNizarFrameCollision(ent, ent.x);
 }
 
 function checkWall(ent) {
@@ -4458,7 +4652,8 @@ function updateExtraMonsters() {
     for (const enemy of monsters.slice(1)) {
         triggerBearTrap(enemy);
         if (enemy.stunTimer > 0) { enemy.stunTimer--; continue; }
-        const protectedPlayer = player.hidden || isSafeRoom(player.x, player.y);
+        const specialMovement = updateExtraMonsterAbilities(enemy);
+        const protectedPlayer = player.hidden || player.dashTimer > 0 || isSafeRoom(player.x, player.y);
         const sawHide = player.hidden && player.hideCompromised;
         const tracksBlood = !protectedPlayer && enemy.name === 'MALAKAI' && enemy.bloodHuntTimer > 0;
         const tracksHeat = !protectedPlayer && enemy.name === 'AESON' && enemy.heatAlertTimer > 0;
@@ -4482,11 +4677,11 @@ function updateExtraMonsters() {
             const tile = floors[Math.floor(Math.random() * floors.length)];
             targetC = tile.c; targetR = tile.r;
         }
-        if (targetC !== undefined && (enemy.lastTargetC !== targetC || enemy.lastTargetR !== targetR || enemy.path.length === 0)) {
+        if (!specialMovement && targetC !== undefined && (enemy.lastTargetC !== targetC || enemy.lastTargetR !== targetR || enemy.path.length === 0)) {
             enemy.path = findPath(Math.floor(enemy.x / TS), Math.floor(enemy.y / TS), targetC, targetR);
             enemy.lastTargetC = targetC; enemy.lastTargetR = targetR;
         }
-        moveMonsterAlongPath(getMonsterSpeed(enemy), enemy);
+        if (!specialMovement) moveMonsterAlongPath(getMonsterSpeed(enemy), enemy);
         const touching = Math.hypot(player.x - enemy.x, player.y - enemy.y) < player.r + enemy.r - 2;
         if (state === 1 && (sawHide || (!protectedPlayer && touching))) { endGame(false, enemy); return; }
         if (state === 3 && touching) { endGame(true, enemy); return; }
@@ -4520,6 +4715,7 @@ function update() {
     if (scramblerTimer > 0) scramblerTimer--;
     if (flareTimer > 0) flareTimer--;
     if (dashCooldown > 0) dashCooldown--;
+    if (player.dashTimer > 0) player.dashTimer--;
     if (jordanSabotageCooldown > 0) jordanSabotageCooldown--;
     if (state===9) { rapidTimer--; if(rapidTimer<=0) failGeneratorTask('RESPONSE ARRAY'); }
     if (state===10 && simonFlashTimer > 0) simonFlashTimer--;
@@ -4568,12 +4764,14 @@ function update() {
     else if (noahShockTimer > 0) noahShockTimer--;
     if (noahLightningFlashes > 0 && ambienceClock % 12 === 0) { flashAlpha = .72; noahLightningFlashes--; }
     if (noahShockTimer > 0) { heatOverlay ||= document.getElementById('heatOverlay'); if (heatOverlay) { heatOverlay.style.opacity = '.48'; heatOverlay.style.backdropFilter = setOptimization ? 'blur(1px)' : 'blur(4px)'; } }
+    updateRhysHazards();
     updateAesonEvents();
     updateRhysEvents();
     updateForestEvent();
     updateForestGuidance();
     updateHotelEvents();
     updateHotelEmployees();
+    updateBassamOutsideMap();
     if (monsters.some(enemy => enemy.hasHallucinations) && state === 1 && Math.random() < 0.0025) {
         hallucinationHudTimer = 120;
         if (Math.random() < 0.3) showMsg('<span style="color:#77ffdd">POWER RESTORED</span>', 700);
@@ -4627,10 +4825,8 @@ function update() {
     if (player.stunTimer > 0) {
         player.stunTimer--;
     } else if (!player.hidden && !hotelDialogueOpen) {
-        const heatPenalty = currentMapId === 'boilerworks'
-            ? (player.inHeatZone ? 0.48 : 1 - Math.min(0.28, player.heat / 1070))
-            : 1;
-        const rhysSlow = currentMapId === 'crimson' && [...goopZones, ...rhysPressureZones].some(zone => Math.hypot(player.x - zone.x, player.y - zone.y) < zone.radius);
+        const heatPenalty = player.inHeatZone ? 0.48 : 1 - Math.min(0.28, player.heat / 1070);
+        const rhysSlow = [...goopZones, ...rhysPressureZones].some(zone => Math.hypot(player.x - zone.x, player.y - zone.y) < zone.radius);
         const normalSpeed = (player.crouching ? player.baseSpeed * 0.55 : player.baseSpeed) * heatPenalty * (rhysSlow ? 0.62 : 1) * (noahShockTimer > 0 ? .42 : 1) * (amineBurnTimer>0?.38:1);
         if (player.boostTimer > 0) {
             player.boostTimer--;
@@ -4643,6 +4839,7 @@ function update() {
         if (keys.a && (state === 1 || state === 3)) dx -= player.speed;
         if (keys.d && (state === 1 || state === 3)) dx += player.speed;
         if (dx !== 0 && dy !== 0) { dx *= 0.707; dy *= 0.707; }
+        if (dx !== 0 || dy !== 0) { const length = Math.hypot(dx, dy); lastMoveX = dx / length; lastMoveY = dy / length; }
         if (dx !== 0 || dy !== 0) moveEntity(player, dx, dy);
     }
     if ((state === 1 || state === 3) && !player.hidden) {
@@ -4779,7 +4976,7 @@ function update() {
                 moveMonsterAlongPath(getMonsterSpeed(monster) * 1.08);
                 if (!player.hidden && !isSafeRoom(player.x, player.y) && Math.hypot(player.x - monster.x, player.y - monster.y) < player.r + monster.r) endGame(false, monster);
             }
-        } else if (state === 1 && monster.name === 'RHYS' && currentMapId === 'crimson') {
+        } else if (state === 1 && monster.name === 'RHYS') {
             const dashing = updateRhysCombat(canSeePlayer);
             if (!dashing) {
                 const baitingWall = rhysBreakWall && !rhysBreakWall.broken && Math.hypot(player.x - rhysBreakWall.x, player.y - rhysBreakWall.y) < 170;
@@ -5051,6 +5248,13 @@ function draw() {
         if (nearEmployee === employee && state === 1) {
             ctx.fillStyle = '#fff'; ctx.font = 'bold 11px Arial'; ctx.fillText('[E] TALK', x, y + 28);
         }
+    }
+
+    for (const decoy of bassamDecoys) {
+        ctx.fillStyle = '#8a8274'; ctx.fillRect(decoy.x - 9, decoy.y - 14, 18, 28);
+        ctx.fillStyle = '#c9b89d'; ctx.beginPath(); ctx.arc(decoy.x, decoy.y - 19, 7, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#252525'; ctx.fillRect(decoy.x - 4, decoy.y - 6, 8, 6);
+        ctx.fillStyle = '#ffd9a1'; ctx.font = 'bold 8px Arial'; ctx.textAlign = 'center'; ctx.fillText(decoy.department, decoy.x, decoy.y - 30);
     }
 
     if (monster.name === 'BASSAM' && bassamState === 'disguised' && state !== 3) {
@@ -5355,6 +5559,8 @@ function draw() {
     }
 
     for (const enemy of monsters.slice(1)) {
+        const enemyAmineVisible = enemy.name === 'AMINE' && (amineFocus || enemy.abilityVisibleTimer > 0 || state === 8);
+        if (enemy.invisible && state === 1 && !enemyAmineVisible) continue;
         ctx.fillStyle = 'rgba(0,0,0,0.35)';
         ctx.beginPath(); ctx.ellipse(enemy.x, enemy.y + enemy.drawRadius * 0.65, enemy.drawRadius * 0.9, enemy.drawRadius * 0.35, 0, 0, Math.PI * 2); ctx.fill();
         ctx.fillStyle = enemy.stunTimer > 0 ? '#fff' : (state === 3 ? '#555' : enemy.color);
@@ -5404,7 +5610,7 @@ function draw() {
     }
     ctx.restore();
 
-    if(monster.name==='AMINE'&&amineFocus&&state===1){ctx.fillStyle='#000';ctx.fillRect(0,0,canvas.width,canvas.height);const sx=(monster.x-camera.x)*camera.zoom,sy=(monster.y-camera.y)*camera.zoom;ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(sx,sy,monster.drawRadius*camera.zoom,0,Math.PI*2);ctx.fill();ctx.fillStyle='#111';ctx.beginPath();ctx.arc(sx-4,sy-2,2,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.arc(sx+4,sy-2,2,0,Math.PI*2);ctx.fill();}
+    if(monsters.some(enemy => enemy.name === 'AMINE')&&amineFocus&&state===1){ctx.fillStyle='#000';ctx.fillRect(0,0,canvas.width,canvas.height);for(const enemy of monsters.filter(entry=>entry.name==='AMINE')){const sx=(enemy.x-camera.x)*camera.zoom,sy=(enemy.y-camera.y)*camera.zoom;ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(sx,sy,enemy.drawRadius*camera.zoom,0,Math.PI*2);ctx.fill();ctx.fillStyle='#111';ctx.beginPath();ctx.arc(sx-4,sy-2,2,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.arc(sx+4,sy-2,2,0,Math.PI*2);ctx.fill();}}
 
     drawHotelTaskArrows();
     drawForestGuidanceArrows();
@@ -5605,7 +5811,7 @@ function updateMobileSkillCheckButton() {
     button.style.display = active ? 'block' : 'none';
     button.disabled = !active || scDelay > 0;
     button.textContent = scDelay > 0 ? 'READY...' : state === 7 ? 'ALIGN' : 'HIT';
-    const focus=document.getElementById('touchFocus'); if(focus) focus.style.display=monster.name==='AMINE'&&state===1?'block':'none';
+    const focus=document.getElementById('touchFocus'); if(focus) focus.style.display=monsters.some(enemy => enemy.name === 'AMINE')&&state===1?'block':'none';
     const dash=document.getElementById('touchDash'); if(dash) { dash.style.display=upgDash && (state===1 || state===3) ? 'block' : 'none'; dash.disabled=!upgDash || dashCooldown>0; dash.textContent=dashCooldown>0 ? `${Math.ceil(dashCooldown/60)}s` : 'DASH'; }
     const mapButton=document.getElementById('mapButton'); if(mapButton) mapButton.style.display=mapIntel.includes(currentMapId) && (state===1 || state===3) ? 'block' : 'none';
     const roadControls=document.getElementById('amineRoadControls'); if(roadControls) roadControls.style.display=state===11 && isMobileClient()?'flex':'none';
@@ -5643,6 +5849,9 @@ function updateMobileSkillCheckButton() {
         knob.style.transform = `translate(${dx}px, ${dy}px)`;
         const deadzone = 12;
         if (Math.hypot(dx, dy) < deadzone) return;
+        const directionLength = Math.hypot(dx, dy);
+        lastMoveX = dx / directionLength;
+        lastMoveY = dy / directionLength;
         const horizontalThreshold = maxDistance * 0.28;
         const verticalThreshold = maxDistance * 0.28;
         if (Math.abs(dx) >= horizontalThreshold) keys[dx > 0 ? 'd' : 'a'] = true;
@@ -5712,7 +5921,7 @@ function updateMobileSkillCheckButton() {
     });
     const focus=document.getElementById('touchFocus');
     const releaseFocus=event=>{event.preventDefault();amineFocus=false;};
-    focus?.addEventListener('pointerdown',event=>{event.preventDefault();if(monster.name==='AMINE'&&state===1)amineFocus=true;});
+    focus?.addEventListener('pointerdown',event=>{event.preventDefault();if(monsters.some(enemy => enemy.name === 'AMINE')&&state===1)amineFocus=true;});
     focus?.addEventListener('pointerup',releaseFocus); focus?.addEventListener('pointercancel',releaseFocus); focus?.addEventListener('pointerleave',releaseFocus);
 
     document.querySelectorAll('[data-puzzle-key]').forEach(button => {
@@ -5727,7 +5936,7 @@ function updateMobileSkillCheckButton() {
         if (puzzlePad) puzzlePad.style.display = (state === 2 || state === 6) ? 'grid' : 'none';
         const touchActions = document.querySelector('.touch-actions');
         const joystickElement = document.getElementById('joystick');
-        const canvasPuzzle = state === 9 || state === 10 || state === 11;
+        const canvasPuzzle = state === 9 || state === 10 || state === 11 || state === 14;
         if (touchActions) touchActions.style.visibility = canvasPuzzle ? 'hidden' : 'visible';
         if (joystickElement) joystickElement.style.visibility = canvasPuzzle ? 'hidden' : 'visible';
         updateMobileSkillCheckButton();
