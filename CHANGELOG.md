@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.13.0
+- Made the Subway Gold Fare flickering-signal events fairer: they now appear less often, allow 30 seconds, and pause their countdown once the player reaches a flickering signal.
+- Added a rare chance for a Gold Fare event to affect two signal panels at once, with both panels clearly marked and tracked.
+- Added a warm gold lighting effect while the Gold Fare route is active.
+- Bumped the offline cache to `calebs-shift-v74`.
+
 ## 2.12.0
 
 - Made the Headlight challenge forgiving before the passenger train: Nizar automatically dodges early train collisions, which still count toward the three misses.

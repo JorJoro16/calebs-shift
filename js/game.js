@@ -124,7 +124,7 @@ function playNizarCrashSound() {
 }
 
 // Versioned local progress with a backup copy and import/export support.
-const GAME_VERSION = '2.12.0';
+const GAME_VERSION = '2.13.0';
 const SAVE_SCHEMA_VERSION = 10;
 const COSMETIC_REWARD_VERSION = 2;
 const SAVE_KEY = 'br_save_v2';
@@ -2895,6 +2895,8 @@ function failSubwayGoldRoute(reason) {
     subwayGoldPressure.failed = true;
     subwayGoldPressure.active = false;
     subwayGoldPressure.signalPanel = null;
+    subwayGoldPressure.signalPanels = [];
+    subwayGoldPressure.signalTimerPaused = false;
     subwayGoldPressure.lockedDoorCells = [];
     if (subwayGoldSphere) subwayGoldSphere.eligible = false;
     subwayTrains.forEach(train => { train.goldPassTimer = 0; });
@@ -2906,7 +2908,7 @@ function activateSubwayGoldPressure() {
     subwayGoldPressure = {
         active:true, failed:false, timeLeft:10800, sphereCharge:100,
         detectableTimer:300, detectableCooldown:1500,
-        signalCooldown:1500, signalPanel:null, signalTimer:0,
+        signalCooldown:2700, signalRollTimer:60, signalPanel:null, signalPanels:[], signalTimer:0, signalTimerPaused:false,
         doorCooldown:300, doorTimer:0, lockedDoorCells:[],
         trainCooldown:420
     };
@@ -2934,26 +2936,49 @@ function updateSubwayGoldPressure() {
     else pressure.sphereCharge -= .028;
     if (pressure.sphereCharge <= 0) { failSubwayGoldRoute('THE FARE LIGHT WENT OUT'); return; }
 
-    if (pressure.signalPanel) {
-        pressure.signalTimer--;
+    const flickeringPanels = pressure.signalPanels?.length ? pressure.signalPanels : (pressure.signalPanel ? [pressure.signalPanel] : []);
+    if (flickeringPanels.length) {
+        const reachedFlickeringPanel = flickeringPanels.some(panel => Math.hypot(player.x - panel.x, player.y - panel.y) < 72);
+        if (reachedFlickeringPanel && !pressure.signalTimerPaused) {
+            pressure.signalTimerPaused = true;
+            notify('SIGNAL AREA REACHED · FLICKER TIMER PAUSED', 'unlock');
+        }
+        if (!pressure.signalTimerPaused) pressure.signalTimer--;
         if (pressure.signalTimer <= 0) {
-            pressure.signalPanel.active = false;
+            flickeringPanels.forEach(panel => { panel.active = false; });
             activeGens = subwayPanels.filter(panel => panel.active).length;
             pressure.signalPanel = null;
+            pressure.signalPanels = [];
             pressure.signalTimer = 0;
-            notify('SIGNAL LOST · RETURN TO THE FLICKERING PANEL', 'danger');
+            pressure.signalTimerPaused = false;
+            notify(`${flickeringPanels.length > 1 ? 'SIGNALS' : 'SIGNAL'} LOST · RETURN TO THE FLICKERING PANEL`, 'danger');
             updateHUD();
         }
     } else if (pressure.signalCooldown > 0) pressure.signalCooldown--;
     else {
         const activePanels = subwayPanels.filter(panel => panel.active);
-        if (activePanels.length) {
-            pressure.signalPanel = activePanels[Math.floor(Math.random() * activePanels.length)];
-            pressure.signalTimer = 600;
-            pressure.signalCooldown = 1500;
-            notify(`${pressure.signalPanel.label} IS FLICKERING · 10 SECONDS`, 'warning');
-            playSound('tick');
-        } else pressure.signalCooldown = 120;
+        if (activePanels.length && pressure.signalRollTimer > 0) pressure.signalRollTimer--;
+        if (activePanels.length && pressure.signalRollTimer <= 0) {
+            pressure.signalRollTimer = 60;
+            if (Math.random() < .2) {
+                const first = activePanels[Math.floor(Math.random() * activePanels.length)];
+                const selected = [first];
+                if (activePanels.length > 1 && Math.random() < .22) {
+                    const alternatives = activePanels.filter(panel => panel !== first);
+                    selected.push(alternatives[Math.floor(Math.random() * alternatives.length)]);
+                }
+                pressure.signalPanels = selected;
+                pressure.signalPanel = selected[0];
+                pressure.signalTimer = 1800;
+                pressure.signalTimerPaused = false;
+                pressure.signalCooldown = 2700 + Math.floor(Math.random() * 1800);
+                notify(`${selected.length > 1 ? 'TWO SIGNALS' : pressure.signalPanel.label} IS FLICKERING · 30 SECONDS`, 'warning');
+                playSound('tick');
+            }
+        } else if (!activePanels.length) {
+            pressure.signalCooldown = 120;
+            pressure.signalRollTimer = 60;
+        }
     }
 
     if (pressure.doorTimer > 0) {
@@ -2985,16 +3010,18 @@ function subwayGoldStatusText() {
     if (!pressure?.active) return '';
     const timer = `${Math.floor(pressure.timeLeft / 3600)}:${String(Math.floor(pressure.timeLeft / 60) % 60).padStart(2, '0')}`;
     const charge = `${Math.ceil(pressure.sphereCharge)}%`;
-    if (pressure.signalPanel) return `GOLD FARE ${timer} · SIGNALS ${activeGens}/${totalGens} · SPHERE ${charge} · RE-STABILIZE ${pressure.signalPanel.label} (${Math.ceil(pressure.signalTimer / 60)}s)`;
+    if (pressure.signalPanel) return `GOLD FARE ${timer} · SIGNALS ${activeGens}/${totalGens} · SPHERE ${charge} · RE-STABILIZE ${pressure.signalPanels?.length > 1 ? `${pressure.signalPanels.length} SIGNALS` : pressure.signalPanel.label} (${pressure.signalTimerPaused ? 'TIMER PAUSED' : `${Math.ceil(pressure.signalTimer / 60)}s`})`;
     if (pressure.detectableTimer > 0) return `GOLD FARE ${timer} · SIGNALS ${activeGens}/${totalGens} · SPHERE ${charge} · NIZAR HAS YOUR SIGNAL (${Math.ceil(pressure.detectableTimer / 60)}s)`;
     return `GOLD FARE ${timer} · SIGNALS ${activeGens}/${totalGens} · SPHERE ${charge} · STAY IN LIT STATIONS TO RECHARGE`;
 }
 
 function completeSubwayPanel(panel) {
     if (!panel) return;
-    if (panel.active && subwayGoldPressure?.signalPanel === panel) {
-        subwayGoldPressure.signalPanel = null;
-        subwayGoldPressure.signalTimer = 0;
+    if (panel.active && subwayGoldPressure?.signalPanels?.includes(panel)) {
+        subwayGoldPressure.signalPanels = subwayGoldPressure.signalPanels.filter(entry => entry !== panel);
+        subwayGoldPressure.signalPanel = subwayGoldPressure.signalPanels[0] || null;
+        subwayGoldPressure.signalTimer = subwayGoldPressure.signalPanel ? 1800 : 0;
+        subwayGoldPressure.signalTimerPaused = false;
         playSound('success');
         notify(`${panel.label} RE-STABILIZED`, 'unlock');
         updateHUD();
@@ -3061,7 +3088,7 @@ function getSubwayControlBoardLayout() {
 function beginSubwayControlPuzzle() {
     if (!subwayObjectiveComplete()) { notify('RESTORE ALL SIGNAL PANELS FIRST', 'warning'); return; }
     if (!subwayControl || subwayControlPuzzle) return;
-    if (subwayGoldPressure?.signalPanel) { notify('THE FLICKERING SIGNAL MUST BE RE-STABILIZED FIRST', 'warning'); return; }
+    if (subwayGoldPressure?.signalPanels?.length || subwayGoldPressure?.signalPanel) { notify('THE FLICKERING SIGNAL MUST BE RE-STABILIZED FIRST', 'warning'); return; }
     if (monster.name === 'NIZAR' && subwayGoldSphere?.collected && subwayGoldSphere.eligible) {
         if (!cosmetics.unlocked.includes('stopSignMask')) { notify('THE STOP SIGN MASK MUST COME FIRST', 'warning'); return; }
         if (!cosmetics.unlocked.includes('headlightHat')) { notify('THE HEADLIGHT MUST COME SECOND', 'warning'); return; }
@@ -4963,7 +4990,7 @@ function drawSubwayGoldGuidanceArrow() {
     ctx.save(); ctx.translate(x, y); ctx.rotate(onScreen ? 0 : angle);
     ctx.fillStyle = '#ffe36b'; ctx.shadowColor = '#ffb52e'; ctx.shadowBlur = 16;
     ctx.beginPath(); ctx.moveTo(17, 0); ctx.lineTo(-10, -10); ctx.lineTo(-10, 10); ctx.closePath(); ctx.fill(); ctx.restore();
-    ctx.fillStyle = '#fff2ae'; ctx.font = 'bold 10px Arial'; ctx.textAlign = 'center'; ctx.fillText(`FLICKERING SIGNAL · ${Math.ceil(subwayGoldPressure.signalTimer / 60)}s`, x, y + 24);
+    ctx.fillStyle = '#fff2ae'; ctx.font = 'bold 10px Arial'; ctx.textAlign = 'center'; ctx.fillText(`FLICKERING SIGNAL · ${subwayGoldPressure.signalTimerPaused ? 'TIMER PAUSED' : `${Math.ceil(subwayGoldPressure.signalTimer / 60)}s`}`, x, y + 24);
 }
 
 function updateHUD() {
@@ -5422,9 +5449,8 @@ function update() {
             nearRhysTrap = Boolean(rhysTrap && Math.hypot(player.x-rhysTrap.x, player.y-rhysTrap.y) < 44);
         }
         if (currentMapId === 'subway') {
-            nearSubwayPanel = (subwayGoldPressure?.signalPanel && Math.hypot(player.x - subwayGoldPressure.signalPanel.x, player.y - subwayGoldPressure.signalPanel.y) < 38)
-                ? subwayGoldPressure.signalPanel
-                : subwayPanels.find(panel => !panel.active && Math.hypot(player.x - panel.x, player.y - panel.y) < 38) || null;
+            const flickeringPanel = subwayGoldPressure?.signalPanels?.find(panel => Math.hypot(player.x - panel.x, player.y - panel.y) < 38) || null;
+            nearSubwayPanel = flickeringPanel || subwayPanels.find(panel => !panel.active && Math.hypot(player.x - panel.x, player.y - panel.y) < 38) || null;
             nearSubwayControl = Boolean(subwayControl && Math.hypot(player.x - subwayControl.x, player.y - subwayControl.y) < 46);
         }
         if (currentMapId === 'hotel') {
@@ -5785,7 +5811,7 @@ function draw() {
             ctx.restore();
         }
         for (const sign of subwaySigns) { ctx.fillStyle='#111b23';ctx.fillRect(sign.x-82,sign.y-12,164,24);ctx.strokeStyle='#c7d5df';ctx.lineWidth=1;ctx.strokeRect(sign.x-82,sign.y-12,164,24);ctx.fillStyle='#e7f1f7';ctx.font='bold 10px Arial';ctx.textAlign='center';ctx.fillText(sign.text,sign.x,sign.y+4); }
-        for (const panel of subwayPanels) { const flickering = subwayGoldPressure?.signalPanel === panel; ctx.fillStyle=flickering && ambienceClock % 8 < 4 ? '#fff0a2' : panel.active?'#46d876':'#d7a943';ctx.fillRect(panel.x-13,panel.y-19,26,38);ctx.fillStyle='#091018';ctx.fillRect(panel.x-8,panel.y-13,16,11);if (flickering) {ctx.strokeStyle='#ffe36b';ctx.lineWidth=3;ctx.strokeRect(panel.x-18,panel.y-24,36,48);}if (nearSubwayPanel === panel && state===1) {ctx.fillStyle='#fff';ctx.font='bold 10px Arial';ctx.fillText('[E] '+(flickering?'RE-STABILIZE':panel.label),panel.x,panel.y-30);} }
+        for (const panel of subwayPanels) { const flickering = subwayGoldPressure?.signalPanels?.includes(panel) || subwayGoldPressure?.signalPanel === panel; ctx.fillStyle=flickering && ambienceClock % 8 < 4 ? '#fff0a2' : panel.active?'#46d876':'#d7a943';ctx.fillRect(panel.x-13,panel.y-19,26,38);ctx.fillStyle='#091018';ctx.fillRect(panel.x-8,panel.y-13,16,11);if (flickering) {ctx.strokeStyle='#ffe36b';ctx.lineWidth=3;ctx.strokeRect(panel.x-18,panel.y-24,36,48);}if (nearSubwayPanel === panel && state===1) {ctx.fillStyle='#fff';ctx.font='bold 10px Arial';ctx.fillText('[E] '+(flickering?'RE-STABILIZE':panel.label),panel.x,panel.y-30);} }
         if (subwayControl) { ctx.fillStyle=subwayObjectiveComplete()?'#52ec79':'#7ea7c1';ctx.fillRect(subwayControl.x-21,subwayControl.y-18,42,36);ctx.fillStyle='#101820';ctx.fillRect(subwayControl.x-15,subwayControl.y-12,30,13);if(nearSubwayControl&&state===1){ctx.fillStyle='#fff';ctx.font='bold 10px Arial';ctx.fillText('[E] '+(subwayObjectiveComplete()?'OPEN RAIL CONTROL':'SIGNALS REQUIRED'),subwayControl.x,subwayControl.y-29);} }
         for (const train of subwayTrains.filter(train=>train.active)) { ctx.save();ctx.translate(train.x,train.y);if(train.axis==='y')ctx.rotate(Math.PI/2);ctx.fillStyle=train.trapTrain?'#9d2222':'#45515a';ctx.fillRect(-train.length/2,-26,train.length,52);ctx.fillStyle='#111';for(let x=-train.length/2+14;x<train.length/2-6;x+=28)ctx.fillRect(x,-15,17,19);ctx.fillStyle='#e7d6a1';ctx.fillRect(train.direction>0?train.length/2-6:-train.length/2,-12,6,24);ctx.restore(); }
         if (subwayTornTicket && !subwayTornTicket.collected) {
@@ -6226,6 +6252,17 @@ function draw() {
             ctx.fillStyle = `rgba(0, 0, 0, ${darkness})`;
             ctx.fillRect(0, 0, canvas.width, canvas.height);
         }
+    }
+
+    if (currentMapId === 'subway' && subwayGoldPressure?.active && state === 1) {
+        const goldPulse = 0.10 + Math.sin(ambienceClock * 0.035) * 0.025;
+        ctx.fillStyle = `rgba(214, 166, 48, ${goldPulse})`;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        const goldGlow = ctx.createRadialGradient(canvas.width / 2, canvas.height / 2, 40, canvas.width / 2, canvas.height / 2, Math.max(canvas.width, canvas.height) * .72);
+        goldGlow.addColorStop(0, 'rgba(255, 220, 108, 0)');
+        goldGlow.addColorStop(1, 'rgba(117, 72, 8, .16)');
+        ctx.fillStyle = goldGlow;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
     }
 
     if (emergencyTimer > 0) {
