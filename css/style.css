@@ -461,6 +461,7 @@ canvas {
 
 /* Developer Studio ------------------------------------------------------- */
 .developer-menu-button { border-color:#9cd6ff !important; color:#9cd6ff !important; }
+.developer-disable-button { position:fixed; top:14px; right:14px; z-index:170; width:38px; min-width:38px !important; height:38px; padding:0 !important; color:#ffaaaa !important; border-color:#df7d7d !important; border-radius:50% !important; font-size:25px !important; line-height:30px; }
 .developer-dialog-backdrop { position:fixed; inset:0; z-index:500; display:flex; align-items:center; justify-content:center; padding:18px; box-sizing:border-box; background:rgba(0,0,0,.82); }
 .developer-dialog-card { width:min(440px,92vw); padding:24px; box-sizing:border-box; border:1px solid #9cd6ff; border-radius:12px; background:rgba(11,14,17,.98); box-shadow:0 15px 45px #000; color:#eee; text-align:left; }
 .developer-dialog-card h2 { margin:0 0 10px; color:#9cd6ff; letter-spacing:1px; }

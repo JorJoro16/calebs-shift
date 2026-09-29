@@ -1,5 +1,19 @@
 # Changelog
 
+## 2.11.0
+
+- Replaced the three Subway reward cosmetics with the Stop Sign Mask, Headlight, and Train Skin while preserving the torn-ticket, passenger-train, and Gold Fare cutscene routes.
+- Reset the old Subway reward line as a new cosmetic reward version so previously completed Subway rewards must be earned again.
+- Reassigned Bronze, Silver, and Gold to Endless Round 3, Round 6, and Round 10, with existing Endless records unlocking the appropriate rewards after migration.
+- Added the three new cosmetic images to the offline cache and bumped it to `calebs-shift-v68`.
+
+## 2.10.3
+
+- Made the Nizar-only Gold Fare route a high-pressure Subway variant with a three-minute timer, sphere charge, timed detection broadcasts, signal flickers, guidance arrows, temporary station doors, and accelerated train crossings.
+- Prevented Rail Control from opening while a Gold-route signal is still flickering.
+- Made developer unlock access session-only and added a main-menu `×` button to disable it immediately without deleting saved room files.
+- Bumped the offline cache to `calebs-shift-v67`.
+
 ## 2.10.2
 
 - Added the Bronze, Silver, and Gold Subway skins with their ordered Last Line challenges.

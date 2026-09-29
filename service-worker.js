@@ -1,4 +1,4 @@
-const CACHE_NAME = 'calebs-shift-v66';
+const CACHE_NAME = 'calebs-shift-v68';
 const FILES_TO_CACHE = [
   './',
   './index.html',
@@ -17,8 +17,11 @@ const FILES_TO_CACHE = [
   './assets/spongebob-mask.png',
   './assets/krusty-krab-hat.png',
   './assets/smile-mask.png',
+  './assets/stop-sign-mask.png',
+  './assets/headlight-hat.png',
   './assets/troll-face-skin.png',
   './assets/generator-skin.png',
+  './assets/train-skin.png',
   './assets/bronze-skin.png',
   './assets/silver-skin.png',
   './assets/gold-skin.png',

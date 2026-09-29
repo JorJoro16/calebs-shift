@@ -2,10 +2,10 @@
 
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
-const hatImages = { noahCap: new Image(), cowboyHat: new Image(), luffyHat: new Image(), krustyHat: new Image() };
-const maskImages = { idiotMask: new Image(), spongeMask: new Image(), jordanMask: new Image(), smileMask: new Image() };
+const hatImages = { noahCap: new Image(), cowboyHat: new Image(), luffyHat: new Image(), krustyHat: new Image(), headlightHat: new Image() };
+const maskImages = { idiotMask: new Image(), spongeMask: new Image(), jordanMask: new Image(), smileMask: new Image(), stopSignMask: new Image() };
 const skinImages = {
-    trollFace: new Image(), generator: new Image(),
+    trollFace: new Image(), generator: new Image(), trainSkin: new Image(),
     bronzeSkin: new Image(), silverSkin: new Image(), goldSkin: new Image()
 };
 hatImages.noahCap.src = 'assets/noah-cap.png';
@@ -16,8 +16,11 @@ maskImages.idiotMask.src = 'assets/idiot-mask.png';
 maskImages.spongeMask.src = 'assets/spongebob-mask.png';
 maskImages.jordanMask.src = 'assets/jordan-mask.png';
 maskImages.smileMask.src = 'assets/smile-mask.png';
+maskImages.stopSignMask.src = 'assets/stop-sign-mask.png';
+hatImages.headlightHat.src = 'assets/headlight-hat.png';
 skinImages.trollFace.src = 'assets/troll-face-skin.png';
 skinImages.generator.src = 'assets/generator-skin.png';
+skinImages.trainSkin.src = 'assets/train-skin.png';
 skinImages.bronzeSkin.src = 'assets/bronze-skin.png';
 skinImages.silverSkin.src = 'assets/silver-skin.png';
 skinImages.goldSkin.src = 'assets/gold-skin.png';
@@ -121,8 +124,9 @@ function playNizarCrashSound() {
 }
 
 // Versioned local progress with a backup copy and import/export support.
-const GAME_VERSION = '2.10.2';
+const GAME_VERSION = '2.11.0';
 const SAVE_SCHEMA_VERSION = 10;
+const COSMETIC_REWARD_VERSION = 2;
 const SAVE_KEY = 'br_save_v2';
 const SAVE_BACKUP_KEY = 'br_save_backup_v2';
 const DEVELOPER_UNLOCK_CODE = '00CaLeB00ShI1ft';
@@ -193,9 +197,9 @@ function normalizeCosmetics(value) {
     const source = value && typeof value === 'object' ? value : {};
     const colors = ['blue', 'crimson', 'violet', 'green', 'amber', 'gold', 'sepia', 'white'];
     const trails = ['none', 'spark', 'ghost', 'ember', 'static', 'circle', 'afterimage'];
-    const hats = ['none', 'noahCap', 'cowboyHat', 'luffyHat', 'krustyHat'];
-    const masks = ['none', 'idiotMask', 'spongeMask', 'jordanMask', 'smileMask'];
-    const skins = ['default', 'trollFace', 'generator', 'bronzeSkin', 'silverSkin', 'goldSkin'];
+    const hats = ['none', 'noahCap', 'cowboyHat', 'luffyHat', 'krustyHat', 'headlightHat'];
+    const masks = ['none', 'idiotMask', 'spongeMask', 'jordanMask', 'smileMask', 'stopSignMask'];
+    const skins = ['default', 'trollFace', 'generator', 'trainSkin', 'bronzeSkin', 'silverSkin', 'goldSkin'];
     const allCosmetics = [...colors, ...trails, ...hats, ...masks, ...skins];
     const unlocked = Array.isArray(source.unlocked) ? source.unlocked.filter(id => allCosmetics.includes(id)) : [];
     const legacyMask = masks.includes(source.mask) ? source.mask : masks.includes(source.hat) ? source.hat : 'none';
@@ -278,6 +282,7 @@ function normalizeProgress(raw) {
         customLoadouts: Array.isArray(source.customLoadouts) ? source.customLoadouts.slice(0, 3).map(normalizeCustomLoadout) : [{}, {}, {}],
         mapMastery: source.mapMastery && typeof source.mapMastery === 'object' ? source.mapMastery : {},
         mapIntel: Array.isArray(source.mapIntel) ? source.mapIntel.filter(id => MAP_DEFINITIONS[id]) : [],
+        cosmeticRewardVersion: boundedInt(source.cosmeticRewardVersion, 0, COSMETIC_REWARD_VERSION, 0),
         daily: { date: String(dailySource.date || ''), objectives: dailyObjectives, bonusClaimed: Boolean(dailySource.bonusClaimed) }
     };
 }
@@ -332,6 +337,7 @@ let customLoadouts = loadedProgress.customLoadouts || [{}, {}, {}];
 let runLoadoutRemaining = null;
 let mapMastery = loadedProgress.mapMastery || {};
 let mapIntel = loadedProgress.mapIntel || [];
+let cosmeticRewardVersion = loadedProgress.cosmeticRewardVersion || 0;
 let daily = loadedProgress.daily || { date: '', objectives: [], bonusClaimed: false };
 if (stats.generators >= 1000 && !cosmetics.unlocked.includes('generator')) cosmetics.unlocked.push('generator');
 
@@ -343,8 +349,39 @@ let setVolM = localStorage.getItem('br_volM') || 100;
 let setVolS = localStorage.getItem('br_volS') || 100;
 
 function currentProgress() {
-    return { tokens, upgShoe, upgHack, upgQuick, upgCoin, upgDash, invAdrenaline, invFlashbang, invNoiseMaker, invBearTrap, invBattery, invBreathFilter, invSignalScrambler, invNeutralizer, invRepairKit, invFlare, cosmetics, stats, unlockedMaps, campaignCleared, selectedLoadout, customLoadouts, mapMastery, mapIntel, daily };
+    return { tokens, upgShoe, upgHack, upgQuick, upgCoin, upgDash, invAdrenaline, invFlashbang, invNoiseMaker, invBearTrap, invBattery, invBreathFilter, invSignalScrambler, invNeutralizer, invRepairKit, invFlare, cosmetics, stats, unlockedMaps, campaignCleared, selectedLoadout, customLoadouts, mapMastery, mapIntel, cosmeticRewardVersion, daily };
 }
+
+function syncEndlessCosmeticUnlocks() {
+    const thresholds = [[3, 'bronzeSkin'], [6, 'silverSkin'], [10, 'goldSkin']];
+    let changed = false;
+    for (const [round, id] of thresholds) {
+        if (stats.bestEndless >= round && !cosmetics.unlocked.includes(id)) {
+            cosmetics.unlocked.push(id);
+            changed = true;
+        }
+    }
+    return changed;
+}
+
+function migrateSubwayCosmeticRewards() {
+    let changed = false;
+    if (cosmeticRewardVersion < COSMETIC_REWARD_VERSION) {
+        // Bronze/Silver/Gold used to be the Subway rewards. They are now
+        // Endless rewards, so the three new Subway cosmetics must be earned
+        // again after this reward-line reset.
+        const oldSubwayRewards = ['bronzeSkin', 'silverSkin', 'goldSkin', 'stopSignMask', 'headlightHat', 'trainSkin'];
+        const before = cosmetics.unlocked.length;
+        cosmetics.unlocked = cosmetics.unlocked.filter(id => !oldSubwayRewards.includes(id));
+        changed = cosmetics.unlocked.length !== before;
+        cosmeticRewardVersion = COSMETIC_REWARD_VERSION;
+        changed = true;
+    }
+    changed = syncEndlessCosmeticUnlocks() || changed;
+    return changed;
+}
+
+if (migrateSubwayCosmeticRewards()) saveData();
 
 function getDateKey(date = new Date()) {
     return `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;
@@ -615,6 +652,8 @@ function importSave(event) {
             invFlare = imported.invFlare;
             cosmetics = normalizeCosmetics(imported.cosmetics);
             stats = normalizeStats(imported.stats);
+            cosmeticRewardVersion = imported.cosmeticRewardVersion || 0;
+            migrateSubwayCosmeticRewards();
             saveData();
             setSaveStatus('Save imported successfully');
         } catch (error) {
@@ -689,9 +728,12 @@ function cosmeticProgress(id) {
     if (id === 'luffyHat') return `${Math.min(stats.generators, 56)}/56 generators repaired`;
     if (id === 'generator') return `${Math.min(stats.generators, 1000)}/1000 generators completed`;
     if (id === 'trollFace') return 'Flashbang Noah within one second of his reveal';
-    if (id === 'bronzeSkin') return 'Find the torn ticket, deliver it before any signal panel, then clear Subway.';
-    if (id === 'silverSkin') return 'Let three trains miss Nizar, then let the passenger train pass before catching him.';
-    if (id === 'goldSkin') return 'As Nizar, collect the gold sphere before restoring any signal, then open Rail Control.';
+    if (id === 'stopSignMask') return 'Find the torn ticket, deliver it before any signal panel, then clear Subway.';
+    if (id === 'headlightHat') return 'Let three trains miss Nizar, then let the passenger train pass before catching him.';
+    if (id === 'trainSkin') return 'As Nizar, collect the gold sphere before restoring any signal, then open Rail Control.';
+    if (id === 'bronzeSkin') return `${Math.min(stats.bestEndless, 3)}/3 Endless rounds`;
+    if (id === 'silverSkin') return `${Math.min(stats.bestEndless, 6)}/6 Endless rounds`;
+    if (id === 'goldSkin') return `${Math.min(stats.bestEndless, 10)}/10 Endless rounds`;
     if (id === 'afterimage') return stats.fastestWin ? `Best: ${(stats.fastestWin / 1000).toFixed(1)}s · target under 60s` : '0/1 under-one-minute win';
     if (id === 'spongeMask') return `${Math.min(stats.boilerworksHardStreak, 3)}/3 Hard Boilerworks wins in a row`;
     if (id === 'smileMask') return `${Math.min(stats.bestEndless, 10)}/10 Endless rounds`;
@@ -727,22 +769,25 @@ function renderCosmetics() {
             { id:'noahCap', label:'Noah’s Cap', desc:'The cap worn by the Stalker.', how:'Beat The Blackwood Forest.', preview:'#bbb', image:'noah-cap.png' },
             { id:'cowboyHat', label:'Cowboy Hat', desc:'For surviving on your own terms.', how:'Complete a Challenge with no items equipped.', preview:'#d7a94b', image:'cowboy-hat.png' },
             { id:'luffyHat', label:'Luffy’s Straw Hat', desc:'A famous hat with a very specific number attached.', how:'Repair 56 generators across your career.', preview:'#e5bd43', image:'luffy-hat.png' },
-            { id:'krustyHat', label:'Krusty Krab Hat', desc:'A hotel uniform for a dangerous assignment.', how:'Complete the hotel after accidentally completing Bassam’s task, then survive his chase for the rest of the run.', preview:'#4aa8e8', image:'krusty-krab-hat.png' }
+            { id:'krustyHat', label:'Krusty Krab Hat', desc:'A hotel uniform for a dangerous assignment.', how:'Complete the hotel after accidentally completing Bassam’s task, then survive his chase for the rest of the run.', preview:'#4aa8e8', image:'krusty-krab-hat.png' },
+            { id:'headlightHat', label:'Headlight', desc:'A beam for finding the next platform in the dark.', how:'Let three trains miss Nizar, let the passenger pass, then catch him.', preview:'#d8e8ff', image:'headlight-hat.png' }
         ]},
         masks: { type:'mask', items:[
             { id:'none', label:'No Mask', desc:'No face covering equipped.', how:'Available from the start.', preview:'#888' },
             { id:'idiotMask', label:'Idiot Mask', desc:'A smile that appears after too many mistakes.', how:'Fail the same generator task three times in one run.', preview:'#fff', image:'idiot-mask.png' },
             { id:'spongeMask', label:'SpongeBob Mask', desc:'A cheerful face for deeply uncheerful places.', how:'Complete Boilerworks three times in a row on Hard.', preview:'#f6d34a', image:'spongebob-mask.png' },
             { id:'jordanMask', label:'Jordan Mask', desc:'Jordan’s face, earned through his own color.', how:'Catch Jordan while Green is equipped.', preview:'#6cce77', image:'jordan-mask.png' },
-            { id:'smileMask', label:'Smile Mask', desc:'A grin earned through endurance.', how:'Clear Endless Round 10.', preview:'#fff', image:'smile-mask.png' }
+            { id:'smileMask', label:'Smile Mask', desc:'A grin earned through endurance.', how:'Clear Endless Round 10.', preview:'#fff', image:'smile-mask.png' },
+            { id:'stopSignMask', label:'Stop Sign Mask', desc:'A warning from the platform edge.', how:'Deliver the torn ticket before restoring any Subway signal, then clear the level.', preview:'#f33', image:'stop-sign-mask.png' }
         ]},
         skins: { type:'skin', items:[
             { id:'default', label:'Default Survivor', desc:'Your standard survivor body.', how:'Available from the start.', preview:'#00f' },
             { id:'trollFace', label:'Troll Face Skin', desc:'A deeply unhelpful face for a deeply hostile place.', how:'Flashbang Noah within one second of his reveal.', preview:'#fff', image:'troll-face-skin.png' },
             { id:'generator', label:'Generator Skin', desc:'Become the objective everyone is looking for.', how:'Complete 1,000 generators across your career.', preview:'#777', image:'generator-skin.png' },
-            { id:'bronzeSkin', label:'Bronze Skin', desc:'A ticket stamped by the Last Line.', how:'Deliver the torn ticket before restoring any Subway signal, then clear the level.', preview:'#bf7a32', image:'bronze-skin.png' },
-            { id:'silverSkin', label:'Silver Skin', desc:'A cold finish earned by reading the rails.', how:'Let three trains miss Nizar, let the passenger pass, then catch him.', preview:'#d8e1ea', image:'silver-skin.png' },
-            { id:'goldSkin', label:'Gold Skin', desc:'The fare paid for the final journey.', how:'As Nizar, take the gold sphere before the signals and open Rail Control.', preview:'#e5c34e', image:'gold-skin.png' }
+            { id:'trainSkin', label:'Train Skin', desc:'A little engine for a very long last line.', how:'As Nizar, take the gold sphere before the signals and open Rail Control.', preview:'#9aa8b1', image:'train-skin.png' },
+            { id:'bronzeSkin', label:'Bronze Skin', desc:'A worn metal finish from the early rounds.', how:'Clear Endless Round 3.', preview:'#bf7a32', image:'bronze-skin.png' },
+            { id:'silverSkin', label:'Silver Skin', desc:'A polished finish for surviving the middle stretch.', how:'Clear Endless Round 6.', preview:'#d8e1ea', image:'silver-skin.png' },
+            { id:'goldSkin', label:'Gold Skin', desc:'A final-round finish earned at the end of the line.', how:'Clear Endless Round 10.', preview:'#e5c34e', image:'gold-skin.png' }
         ]}
     };
     const content = document.getElementById('cosmeticsContent'); if (!content) return;
@@ -780,6 +825,7 @@ let developerStudioOpen = false;
 let developerRoomDialogAction = null;
 let developerUnlockDialogOpen = false;
 let developerChordArmed = false;
+let developerUnlockedSession = false;
 let developerRooms = loadDeveloperRooms();
 const developerState = {
     room: null,
@@ -888,12 +934,16 @@ function cloneDeveloperRoom(room) {
 }
 
 function isDeveloperUnlocked() {
-    return safeStorageGet(DEVELOPER_UNLOCK_KEY) === 'true';
+    // Developer access is deliberately session-only. Room files still persist,
+    // but the unlock itself must be entered again after a fresh game load.
+    return developerUnlockedSession;
 }
 
 function refreshDeveloperAccess() {
     const button = document.getElementById('developerStudioButton');
+    const disableButton = document.getElementById('developerDisableButton');
     if (button) button.style.display = isDeveloperUnlocked() ? 'block' : 'none';
+    if (disableButton) disableButton.style.display = isDeveloperUnlocked() ? 'block' : 'none';
 }
 
 function openDeveloperUnlock() {
@@ -917,7 +967,8 @@ function submitDeveloperUnlock() {
     const input = document.getElementById('developerCodeInput');
     const error = document.getElementById('developerUnlockError');
     if (input?.value === DEVELOPER_UNLOCK_CODE) {
-        try { localStorage.setItem(DEVELOPER_UNLOCK_KEY, 'true'); } catch (_) {}
+        developerUnlockedSession = true;
+        try { localStorage.removeItem(DEVELOPER_UNLOCK_KEY); sessionStorage.removeItem(DEVELOPER_UNLOCK_KEY); } catch (_) {}
         closeDeveloperUnlock();
         refreshDeveloperAccess();
         playSound('unlock');
@@ -926,6 +977,20 @@ function submitDeveloperUnlock() {
         error.textContent = 'That code was not accepted.';
         input?.focus();
     }
+}
+
+function disableDeveloperAccess() {
+    if (developerState.dirty && developerRoomHasContent() && !confirm('Disable developer mode without saving this room?')) return;
+    developerUnlockedSession = false;
+    developerStudioOpen = false;
+    developerState.playtesting = false;
+    developerUnlockDialogOpen = false;
+    document.getElementById('developerStudio').style.display = 'none';
+    document.getElementById('developerUnlockDialog').style.display = 'none';
+    document.getElementById('developerRoomDialog').style.display = 'none';
+    try { localStorage.removeItem(DEVELOPER_UNLOCK_KEY); sessionStorage.removeItem(DEVELOPER_UNLOCK_KEY); } catch (_) {}
+    refreshDeveloperAccess();
+    showMenu('mainMenu');
 }
 
 function developerRoomHasContent(room = developerState.room) {
@@ -1611,7 +1676,7 @@ let rhysSeal = null, rhysChest = null, rhysChestKey = null, rhysBreakWall = null
 let forestCabins = [], forestBreakers = [], forestTrees = [], forestBeaconBattery = null, forestWatchtower = null, forestBeaconActive = false, forestFogTimer = 0, forestFogCooldown = 0, forestGuideTimer = 0, forestGuideCooldown = 1200, forestGuideMode = 'cabins', noahState = 'hidden', noahTimer = 0, noahPathTimer = 0, noahCharge = null, noahLightningCooldown = 0, noahLightningZones = [], noahLightningPending = [], noahLightningWarning = 0, noahLightningFlashes = 0, noahShockTimer = 0, noahAppearanceWindow = 0;
 let amineHoles = [], amineFireZones = [], amineExitGate = null, amineFocus = false, amineVisibleTimer = 0, amineFlashCooldown = 0, amineTeleportCooldown = 0, amineCallCount = 1, amineCallsRemaining = 0, amineCallActive = false, amineTurret = null, amineBullets = [], amineBurnTimer = 0, amineRoad = null;
 let subwayPanels = [], subwayTrains = [], subwayTrackRows = [], subwayTrackSegments = [], subwayTrap = null, subwayControl = null, subwayRouteReady = false, subwayTrapArmed = false, subwayTrainWarning = 0, subwayTrainTriggered = false, subwayDecor = [], subwaySigns = [], subwayCommitTimer = 0, subwayCommitTarget = null, subwayRouteMinX = 0, subwayRouteMaxX = 0, subwayTrainPaths = [], subwayControlPuzzle = null;
-let subwayTornTicket = null, subwayGoldSphere = null, subwayBronzeEligible = true, subwayFareCutscene = null;
+let subwayTornTicket = null, subwayGoldSphere = null, subwayBronzeEligible = true, subwayFareCutscene = null, subwayGoldPressure = null;
 let routeBoard = null;
 const nizarCrashAudio = new Audio('assets/WallCrashSoundEffect.mp3');
 nizarCrashAudio.preload = 'auto';
@@ -2078,7 +2143,8 @@ window.addEventListener('keydown', (e) => {
         if (currentMapId === 'subway' && subwayGoldSphere && !subwayGoldSphere.collected && Math.hypot(player.x - subwayGoldSphere.x, player.y - subwayGoldSphere.y) < 34) {
             subwayGoldSphere.collected = true;
             subwayGoldSphere.eligible = activeGens === 0;
-            notify(subwayGoldSphere.eligible ? 'GOLD FARE SPHERE RECOVERED · RESTORE THE SIGNALS' : 'GOLD FARE SPHERE RECOVERED · THE FARE WAS LATE', subwayGoldSphere.eligible ? 'unlock' : 'warning');
+            if (subwayGoldSphere.eligible) activateSubwayGoldPressure();
+            else notify('GOLD FARE SPHERE RECOVERED · THE FARE WAS LATE', 'warning');
             updateHUD();
             return;
         }
@@ -2646,7 +2712,7 @@ function generateSubway() {
     map = Array.from({ length: ROWS }, () => Array(COLS).fill(1));
     rooms = []; hidingSpots = []; coolingValves = []; fuses = []; employees = []; reservedObjectTiles = new Set();
     subwayPanels = []; subwayTrains = []; subwayTrackRows = []; subwayTrackSegments = []; subwayDecor = []; subwaySigns = []; subwayTrainPaths = []; routeBoard = null; subwayControlPuzzle = null;
-    subwayTornTicket = null; subwayGoldSphere = null; subwayBronzeEligible = true; subwayFareCutscene = null;
+    subwayTornTicket = null; subwayGoldSphere = null; subwayBronzeEligible = true; subwayFareCutscene = null; subwayGoldPressure = null;
     subwayTrap = null; subwayControl = null; subwayRouteReady = false; subwayTrapArmed = false; subwayTrainWarning = 0; subwayTrainTriggered = false; subwayCommitTimer = 0; subwayCommitTarget = null;
     const stations = [];
     const decorFootprints = [];
@@ -2780,8 +2846,158 @@ function spawnSubwaySecrets(hasNizar) {
     }
 }
 
+function isSubwayGoldLitArea(x, y) {
+    if (currentMapId !== 'subway') return false;
+    const room = getRoomAt(x, y);
+    return Boolean(room && (room.type.startsWith('platform_') || ['ticket_hall', 'control_room'].includes(room.type)));
+}
+
+function subwayGoldPathStillOpen(cells) {
+    if (!subwayGoldPressure) return true;
+    const previous = subwayGoldPressure.lockedDoorCells;
+    subwayGoldPressure.lockedDoorCells = cells;
+    const fromC = Math.floor(player.x / TS), fromR = Math.floor(player.y / TS);
+    const targets = [...subwayPanels.filter(panel => !panel.active), subwayControl].filter(Boolean);
+    const open = targets.every(target => {
+        const targetC = Math.floor(target.x / TS), targetR = Math.floor(target.y / TS);
+        return (fromC === targetC && fromR === targetR) || findPath(fromC, fromR, targetC, targetR).length > 0;
+    });
+    subwayGoldPressure.lockedDoorCells = previous;
+    return open;
+}
+
+function chooseSubwayGoldDoors() {
+    if (!subwayGoldPressure) return [];
+    const candidates = floors.filter(tile => {
+        const x = tile.c * TS + TS / 2, y = tile.r * TS + TS / 2;
+        const neighbors = [[1,0],[-1,0],[0,1],[0,-1]].filter(([dc, dr]) => map[tile.r + dr]?.[tile.c + dc] === 0).length;
+        return neighbors === 2
+            && !getRoomAt(x, y)
+            && !isReservedObjectSpot(x, y, TS)
+            && Math.hypot(player.x - x, player.y - y) > TS * 2
+            && Math.hypot(subwayControl.x - x, subwayControl.y - y) > TS * 2
+            && !subwayPanels.some(panel => Math.hypot(panel.x - x, panel.y - y) < TS * 2);
+    }).sort(() => Math.random() - .5);
+    const selected = [];
+    for (const candidate of candidates) {
+        const next = [...selected, { c:candidate.c, r:candidate.r }];
+        if (subwayGoldPathStillOpen(next)) selected.push(next.at(-1));
+        if (selected.length >= 3) break;
+    }
+    return selected;
+}
+
+function failSubwayGoldRoute(reason) {
+    if (!subwayGoldPressure || subwayGoldPressure.failed) return;
+    subwayGoldPressure.failed = true;
+    subwayGoldPressure.active = false;
+    subwayGoldPressure.signalPanel = null;
+    subwayGoldPressure.lockedDoorCells = [];
+    if (subwayGoldSphere) subwayGoldSphere.eligible = false;
+    subwayTrains.forEach(train => { train.goldPassTimer = 0; });
+    notify(`GOLD FARE LOST · ${reason}`, 'danger');
+    updateHUD();
+}
+
+function activateSubwayGoldPressure() {
+    subwayGoldPressure = {
+        active:true, failed:false, timeLeft:10800, sphereCharge:100,
+        detectableTimer:300, detectableCooldown:1500,
+        signalCooldown:1500, signalPanel:null, signalTimer:0,
+        doorCooldown:300, doorTimer:0, lockedDoorCells:[],
+        trainCooldown:420
+    };
+    subwayTrains.forEach(train => { train.goldPassTimer = 0; });
+    notify('GOLD FARE ACCEPTED · THE STATION HAS NOTICED YOU', 'danger');
+    updateHUD();
+}
+
+function updateSubwayGoldPressure() {
+    const pressure = subwayGoldPressure;
+    if (!pressure?.active || currentMapId !== 'subway' || ![1, 13].includes(state)) return;
+    pressure.timeLeft--;
+    if (pressure.timeLeft <= 0) { failSubwayGoldRoute('FARE VALIDATION EXPIRED'); return; }
+
+    if (pressure.detectableTimer > 0) pressure.detectableTimer--;
+    else if (pressure.detectableCooldown > 0) pressure.detectableCooldown--;
+    else {
+        pressure.detectableTimer = 300;
+        pressure.detectableCooldown = 1500;
+        notify('THE SPHERE IS BROADCASTING YOUR POSITION · 5 SECONDS', 'danger');
+        playSound('alarm');
+    }
+
+    if (isSubwayGoldLitArea(player.x, player.y)) pressure.sphereCharge = Math.min(100, pressure.sphereCharge + .10);
+    else pressure.sphereCharge -= .028;
+    if (pressure.sphereCharge <= 0) { failSubwayGoldRoute('THE FARE LIGHT WENT OUT'); return; }
+
+    if (pressure.signalPanel) {
+        pressure.signalTimer--;
+        if (pressure.signalTimer <= 0) {
+            pressure.signalPanel.active = false;
+            activeGens = subwayPanels.filter(panel => panel.active).length;
+            pressure.signalPanel = null;
+            pressure.signalTimer = 0;
+            notify('SIGNAL LOST · RETURN TO THE FLICKERING PANEL', 'danger');
+            updateHUD();
+        }
+    } else if (pressure.signalCooldown > 0) pressure.signalCooldown--;
+    else {
+        const activePanels = subwayPanels.filter(panel => panel.active);
+        if (activePanels.length) {
+            pressure.signalPanel = activePanels[Math.floor(Math.random() * activePanels.length)];
+            pressure.signalTimer = 600;
+            pressure.signalCooldown = 1500;
+            notify(`${pressure.signalPanel.label} IS FLICKERING · 10 SECONDS`, 'warning');
+            playSound('tick');
+        } else pressure.signalCooldown = 120;
+    }
+
+    if (pressure.doorTimer > 0) {
+        pressure.doorTimer--;
+        if (pressure.doorTimer <= 0) {
+            pressure.lockedDoorCells = [];
+            notify('STATION DOORS RELEASED', 'info');
+        }
+    } else if (pressure.doorCooldown > 0) pressure.doorCooldown--;
+    else {
+        pressure.lockedDoorCells = chooseSubwayGoldDoors();
+        pressure.doorTimer = pressure.lockedDoorCells.length ? 420 : 30;
+        pressure.doorCooldown = 900;
+        if (pressure.lockedDoorCells.length) { notify(`${pressure.lockedDoorCells.length} STATION DOORS LOCKED · FIND ANOTHER ROUTE`, 'warning'); playSound('alarm'); }
+    }
+
+    if (pressure.trainCooldown > 0) pressure.trainCooldown--;
+    else {
+        const train = subwayTrains[Math.floor(Math.random() * Math.max(1, subwayTrains.length))];
+        if (train) { train.goldPassTimer = 240; notify('TRAIN CROSSING · STEP OFF THE RAIL', 'danger'); playSound('alarm'); }
+        pressure.trainCooldown = 960;
+    }
+    subwayTrains.forEach(train => { if (train.goldPassTimer > 0) train.goldPassTimer--; });
+    if (ambienceClock % 15 === 0) updateHUD();
+}
+
+function subwayGoldStatusText() {
+    const pressure = subwayGoldPressure;
+    if (!pressure?.active) return '';
+    const timer = `${Math.floor(pressure.timeLeft / 3600)}:${String(Math.floor(pressure.timeLeft / 60) % 60).padStart(2, '0')}`;
+    const charge = `${Math.ceil(pressure.sphereCharge)}%`;
+    if (pressure.signalPanel) return `GOLD FARE ${timer} · SIGNALS ${activeGens}/${totalGens} · SPHERE ${charge} · RE-STABILIZE ${pressure.signalPanel.label} (${Math.ceil(pressure.signalTimer / 60)}s)`;
+    if (pressure.detectableTimer > 0) return `GOLD FARE ${timer} · SIGNALS ${activeGens}/${totalGens} · SPHERE ${charge} · NIZAR HAS YOUR SIGNAL (${Math.ceil(pressure.detectableTimer / 60)}s)`;
+    return `GOLD FARE ${timer} · SIGNALS ${activeGens}/${totalGens} · SPHERE ${charge} · STAY IN LIT STATIONS TO RECHARGE`;
+}
+
 function completeSubwayPanel(panel) {
-    if (!panel || panel.active) return;
+    if (!panel) return;
+    if (panel.active && subwayGoldPressure?.signalPanel === panel) {
+        subwayGoldPressure.signalPanel = null;
+        subwayGoldPressure.signalTimer = 0;
+        playSound('success');
+        notify(`${panel.label} RE-STABILIZED`, 'unlock');
+        updateHUD();
+        return;
+    }
+    if (panel.active) return;
     if (currentMapId === 'subway' && subwayTornTicket && !subwayTornTicket.delivered) subwayBronzeEligible = false;
     panel.active = true; activeGens = subwayPanels.filter(item => item.active).length;
     currentGen = null; generatorFailureStreak = 0; generatorFailureTarget = null; repairAssist = 0; state = 1;
@@ -2842,6 +3058,7 @@ function getSubwayControlBoardLayout() {
 function beginSubwayControlPuzzle() {
     if (!subwayObjectiveComplete()) { notify('RESTORE ALL SIGNAL PANELS FIRST', 'warning'); return; }
     if (!subwayControl || subwayControlPuzzle) return;
+    if (subwayGoldPressure?.signalPanel) { notify('THE FLICKERING SIGNAL MUST BE RE-STABILIZED FIRST', 'warning'); return; }
     if (monster.name === 'NIZAR' && subwayGoldSphere?.collected && subwayGoldSphere.eligible) {
         beginSubwayFareCutscene();
         return;
@@ -2887,14 +3104,14 @@ function finishSubwayControlPuzzle(won) {
     if (!subwayControlPuzzle || subwayControlPuzzle.ended) return;
     const puzzle = subwayControlPuzzle;
     puzzle.ended = true;
-    const earnedBronze = won && subwayBronzeEligible && subwayTornTicket?.delivered;
-    const earnedSilver = won && puzzle.silverEligible && puzzle.passengerSeen;
+    const earnedStopSignMask = won && subwayBronzeEligible && subwayTornTicket?.delivered;
+    const earnedHeadlightHat = won && puzzle.silverEligible && puzzle.passengerSeen;
     subwayControlPuzzle = null;
     state = 8;
     clearMovementKeys();
-    if (earnedBronze) unlockCosmetic('bronzeSkin');
-    if (earnedSilver) unlockCosmetic('silverSkin');
-    const rewardText = [earnedBronze ? 'BRONZE SKIN UNLOCKED.' : '', earnedSilver ? 'SILVER SKIN UNLOCKED.' : ''].filter(Boolean).join(' ');
+    if (earnedStopSignMask) unlockCosmetic('stopSignMask');
+    if (earnedHeadlightHat) unlockCosmetic('headlightHat');
+    const rewardText = [earnedStopSignMask ? 'STOP SIGN MASK UNLOCKED.' : '', earnedHeadlightHat ? 'HEADLIGHT UNLOCKED.' : ''].filter(Boolean).join(' ');
     showStoryLine(`${won ? 'THE SIGNALS TURN AGAINST NIZAR.' : 'THE LAST LINE LEAVES YOU BEHIND.'}${rewardText ? ` ${rewardText}` : ''}`, won ? 2200 : 1100);
     setTimeout(() => { if (state === 8) endGame(won, monster); }, won ? 1500 : 1100);
 }
@@ -2915,7 +3132,7 @@ function finishSubwayFareCutscene() {
     if (!subwayFareCutscene || subwayFareCutscene.ended) return;
     subwayFareCutscene.ended = true;
     subwayFareCutscene = null;
-    unlockCosmetic('goldSkin');
+    unlockCosmetic('trainSkin');
     state = 8;
     showStoryLine('THANK YOU FOR RIDING THE LAST LINE.', 2200);
     setTimeout(() => { if (state === 8) endGame(true, monster); }, 2200);
@@ -3139,8 +3356,9 @@ function updateSubwayTrains() {
         const target = { x:train.path[nextIndex].x * TS + TS / 2, y:train.path[nextIndex].y * TS + TS / 2 };
         const dx = target.x - train.x, dy = target.y - train.y, distance = Math.hypot(dx, dy);
         train.axis = Math.abs(dx) >= Math.abs(dy) ? 'x' : 'y';
-        if (distance <= train.speed) { train.x = target.x; train.y = target.y; train.point = nextIndex; }
-        else { train.x += dx / distance * train.speed; train.y += dy / distance * train.speed; }
+        const movementSpeed = train.speed * (train.goldPassTimer > 0 ? 1.75 : subwayGoldPressure?.active ? 1.12 : 1);
+        if (distance <= movementSpeed) { train.x = target.x; train.y = target.y; train.point = nextIndex; }
+        else { train.x += dx / distance * movementSpeed; train.y += dy / distance * movementSpeed; }
         const hit = entity => train.axis === 'x'
             ? Math.abs(entity.y - train.y) < 24 && Math.abs(entity.x - train.x) < train.length / 2
             : Math.abs(entity.x - train.x) < 24 && Math.abs(entity.y - train.y) < train.length / 2;
@@ -3567,7 +3785,8 @@ function updateAesonEvents() {
 
 function isDynamicBlockedCell(c, r) {
     return (currentMapId === 'hotel' && hotelLockdownActive && hotelBlockedDoor?.cells?.some(cell => cell.c === c && cell.r === r))
-        || (currentMapId === 'crimson' && rhysBreakWall && !rhysBreakWall.broken && rhysBreakWall.cells?.some(cell => cell.c === c && cell.r === r));
+        || (currentMapId === 'crimson' && rhysBreakWall && !rhysBreakWall.broken && rhysBreakWall.cells?.some(cell => cell.c === c && cell.r === r))
+        || (currentMapId === 'subway' && subwayGoldPressure?.active && subwayGoldPressure.lockedDoorCells?.some(cell => cell.c === c && cell.r === r));
 }
 
 function isRhysEarlyLockedTile(tile) {
@@ -4161,7 +4380,7 @@ function startGame(diffLevel) {
     boilerShutdown = false; boilerReadyShown = false; heatZones = []; heatEventCooldown = 360;
     rhysSealCollected = false; rhysTrapArmed = false; goopZones = []; goopShots = []; rhysSpitCooldown = 180; rhysDashTimer = 0; rhysChargeWindup = 0; rhysDashCooldown = 360; rhysEventCooldown = 900; rhysSweepTimer = 0; rhysSweepRadius = 0; rhysPressureZones = [];
     forestBeaconBattery = null; forestWatchtower = null; forestBeaconActive = false; forestFogTimer = 0; forestFogCooldown = currentMapId === 'forest' ? 720 : 0; forestGuideTimer = 0; forestGuideCooldown = currentMapId === 'forest' ? 1200 : 0; forestGuideMode = 'cabins'; noahCharge = null; noahLightningCooldown = 360; noahLightningZones = []; noahLightningPending = []; noahLightningWarning = 0; noahLightningFlashes = 0; noahShockTimer = 0; noahAppearanceWindow = 0;
-    amineFocus = false; amineVisibleTimer = 0; amineFlashCooldown = 90; amineTeleportCooldown = 240; amineCallCount = 1; amineCallsRemaining = 0; amineCallActive = false; amineTurret = null; amineBullets = []; amineBurnTimer = 0; amineRoad = null; nizarClones = []; nizarCloneCooldown = 2400; nizarCrush = null; nizarCrushCooldown = 900; subwayControlPuzzle = null; subwayFareCutscene = null; subwayTornTicket = null; subwayGoldSphere = null; subwayBronzeEligible = true; luckyBlocks = [];
+    amineFocus = false; amineVisibleTimer = 0; amineFlashCooldown = 90; amineTeleportCooldown = 240; amineCallCount = 1; amineCallsRemaining = 0; amineCallActive = false; amineTurret = null; amineBullets = []; amineBurnTimer = 0; amineRoad = null; nizarClones = []; nizarCloneCooldown = 2400; nizarCrush = null; nizarCrushCooldown = 900; subwayControlPuzzle = null; subwayFareCutscene = null; subwayGoldPressure = null; subwayTornTicket = null; subwayGoldSphere = null; subwayBronzeEligible = true; luckyBlocks = [];
     document.getElementById('amineCall').style.display='none';
     hotelLockdownTimer = 0; hotelEventCooldown = currentMapId === 'hotel' ? 480 : 0; hotelLockdownActive = false; hotelBlockedDoor = null;
     bassamState = 'roaming'; bassamRevealPending = false; bassamTrapTaskId = null; bassamFakeTask = null; bassamFakeLine = ''; bassamAmbushActive = false; bassamRelentlessChase = false; bassamLostTimer = 0; bassamAmbushCooldown = 900; bassamDecoys = []; bassamDecoyCooldown = 600 + Math.floor(Math.random() * 601); hotelTaskGame = null; bassamStaffDepartment = ['FRONT DESK','MAINTENANCE','HOUSEKEEPING','KITCHEN'][Math.floor(Math.random() * 4)]; closeHotelDialogue();
@@ -4467,6 +4686,9 @@ function endGame(isWin, sourceMonster = monster) {
         stats.wins++; stats.caught++; stats.bestEndless = Math.max(stats.bestEndless, endlessRound);
         stats.endlessMapBest[currentMapId] = Math.max(stats.endlessMapBest[currentMapId] || 0, endlessRound);
         if (runItemsUsed === 0) stats.itemFreeWins++;
+        if (endlessRound >= 3) unlockCosmetic('bronzeSkin');
+        if (endlessRound >= 6) unlockCosmetic('silverSkin');
+        if (endlessRound >= 10) unlockCosmetic('goldSkin');
         if (endlessRound >= 3) unlockCosmetic('spark');
         if (endlessRound >= 10) unlockCosmetic('smileMask');
         if (sourceMonster.name === 'BASSAM' && currentMapId === 'hotel' && bassamRelentlessChase) unlockCosmetic('krustyHat');
@@ -4696,6 +4918,23 @@ function drawForestGuidanceArrows() {
     });
 }
 
+function drawSubwayGoldGuidanceArrow() {
+    const target = subwayGoldPressure?.signalPanel;
+    if (currentMapId !== 'subway' || state !== 1 || !subwayGoldPressure?.active || !target) return;
+    const sx = canvas.width / 2 + (target.x - camera.x - canvas.width / 2) * camera.zoom;
+    const sy = canvas.height / 2 + (target.y - camera.y - canvas.height / 2) * camera.zoom;
+    const centerX = canvas.width / 2, centerY = canvas.height / 2;
+    const angle = Math.atan2(sy - centerY, sx - centerX);
+    const onScreen = sx > 38 && sx < canvas.width - 38 && sy > 38 && sy < canvas.height - 38;
+    const radius = Math.min(canvas.width, canvas.height) * .40;
+    const x = onScreen ? sx : centerX + Math.cos(angle) * radius;
+    const y = onScreen ? Math.max(36, sy - 30) : centerY + Math.sin(angle) * radius;
+    ctx.save(); ctx.translate(x, y); ctx.rotate(onScreen ? 0 : angle);
+    ctx.fillStyle = '#ffe36b'; ctx.shadowColor = '#ffb52e'; ctx.shadowBlur = 16;
+    ctx.beginPath(); ctx.moveTo(17, 0); ctx.lineTo(-10, -10); ctx.lineTo(-10, 10); ctx.closePath(); ctx.fill(); ctx.restore();
+    ctx.fillStyle = '#fff2ae'; ctx.font = 'bold 10px Arial'; ctx.textAlign = 'center'; ctx.fillText(`FLICKERING SIGNAL · ${Math.ceil(subwayGoldPressure.signalTimer / 60)}s`, x, y + 24);
+}
+
 function updateHUD() {
     const shownGens = hallucinationHudTimer > 0 ? `${Math.max(0, activeGens + (ambienceClock % 2 ? 1 : -1))}/${totalGens}` : `${activeGens}/${totalGens}`;
     document.getElementById('genCount').innerText = currentMapId === 'subway' ? `Signals: ${activeGens}/${totalGens}` : (monsters.some(enemy => enemy.hasScrambler) ? "?/?" : shownGens);
@@ -4706,7 +4945,7 @@ function updateHUD() {
         objective.textContent = falseObjective
             ? 'Objective signal corrupted · CHECK THE LANDMARKS'
             : currentMapId === 'subway'
-                ? `Last Line: ${activeGens}/${totalGens} signal panels · ${!subwayObjectiveComplete() ? 'RESTORE THE ROUTE' : 'USE RAIL CONTROL TO INTERCEPT THE HUNTER'}`
+                ? (subwayGoldStatusText() || `Last Line: ${activeGens}/${totalGens} signal panels · ${!subwayObjectiveComplete() ? 'RESTORE THE ROUTE' : 'USE RAIL CONTROL TO INTERCEPT THE HUNTER'}`)
             : currentMapId === 'boilerworks'
                 ? `Cooling valves: ${coolingValves.filter(valve => valve.active).length}/${coolingValves.length || 3}${boilerReadyShown ? ' · FIND THE BOILER' : ''}`
                 : currentMapId === 'hotel'
@@ -5039,6 +5278,7 @@ function update() {
         empActive = 0; empWarning = 0;
     }
 
+    updateSubwayGoldPressure();
     updateSubwayTrains();
     if (state === 4 || state === 8) return;
 
@@ -5091,7 +5331,9 @@ function update() {
             nearRhysTrap = Boolean(rhysTrap && Math.hypot(player.x-rhysTrap.x, player.y-rhysTrap.y) < 44);
         }
         if (currentMapId === 'subway') {
-            nearSubwayPanel = subwayPanels.find(panel => !panel.active && Math.hypot(player.x - panel.x, player.y - panel.y) < 38) || null;
+            nearSubwayPanel = (subwayGoldPressure?.signalPanel && Math.hypot(player.x - subwayGoldPressure.signalPanel.x, player.y - subwayGoldPressure.signalPanel.y) < 38)
+                ? subwayGoldPressure.signalPanel
+                : subwayPanels.find(panel => !panel.active && Math.hypot(player.x - panel.x, player.y - panel.y) < 38) || null;
             nearSubwayControl = Boolean(subwayControl && Math.hypot(player.x - subwayControl.x, player.y - subwayControl.y) < 46);
         }
         if (currentMapId === 'hotel') {
@@ -5131,7 +5373,8 @@ function update() {
     if (monster.stunTimer > 0) {
         monster.stunTimer--;
     } else if (state === 1 || state === 3) {
-        let canSeePlayer = !player.hidden && !player.breathing && !isSafeRoom(player.x, player.y) && (monsterCanSeeUnhiddenPlayer() || (monster.name === 'AESON' && player.heat > 120));
+        const goldFareDetectable = currentMapId === 'subway' && monster.name === 'NIZAR' && subwayGoldPressure?.active && subwayGoldPressure.detectableTimer > 0;
+        let canSeePlayer = !player.hidden && !player.breathing && (goldFareDetectable || (!isSafeRoom(player.x, player.y) && (monsterCanSeeUnhiddenPlayer() || (monster.name === 'AESON' && player.heat > 120))));
         let tracksBlood = !player.hidden && !isSafeRoom(player.x, player.y) && monster.name === 'MALAKAI' && monster.bloodHuntTimer > 0;
         let tracksHeat = !player.hidden && !isSafeRoom(player.x, player.y) && monster.name === 'AESON' && monster.heatAlertTimer > 0;
         
@@ -5449,7 +5692,7 @@ function draw() {
             ctx.restore();
         }
         for (const sign of subwaySigns) { ctx.fillStyle='#111b23';ctx.fillRect(sign.x-82,sign.y-12,164,24);ctx.strokeStyle='#c7d5df';ctx.lineWidth=1;ctx.strokeRect(sign.x-82,sign.y-12,164,24);ctx.fillStyle='#e7f1f7';ctx.font='bold 10px Arial';ctx.textAlign='center';ctx.fillText(sign.text,sign.x,sign.y+4); }
-        for (const panel of subwayPanels) { ctx.fillStyle=panel.active?'#46d876':'#d7a943';ctx.fillRect(panel.x-13,panel.y-19,26,38);ctx.fillStyle='#091018';ctx.fillRect(panel.x-8,panel.y-13,16,11);if (nearSubwayPanel === panel && state===1) {ctx.fillStyle='#fff';ctx.font='bold 10px Arial';ctx.fillText('[E] '+panel.label,panel.x,panel.y-30);} }
+        for (const panel of subwayPanels) { const flickering = subwayGoldPressure?.signalPanel === panel; ctx.fillStyle=flickering && ambienceClock % 8 < 4 ? '#fff0a2' : panel.active?'#46d876':'#d7a943';ctx.fillRect(panel.x-13,panel.y-19,26,38);ctx.fillStyle='#091018';ctx.fillRect(panel.x-8,panel.y-13,16,11);if (flickering) {ctx.strokeStyle='#ffe36b';ctx.lineWidth=3;ctx.strokeRect(panel.x-18,panel.y-24,36,48);}if (nearSubwayPanel === panel && state===1) {ctx.fillStyle='#fff';ctx.font='bold 10px Arial';ctx.fillText('[E] '+(flickering?'RE-STABILIZE':panel.label),panel.x,panel.y-30);} }
         if (subwayControl) { ctx.fillStyle=subwayObjectiveComplete()?'#52ec79':'#7ea7c1';ctx.fillRect(subwayControl.x-21,subwayControl.y-18,42,36);ctx.fillStyle='#101820';ctx.fillRect(subwayControl.x-15,subwayControl.y-12,30,13);if(nearSubwayControl&&state===1){ctx.fillStyle='#fff';ctx.font='bold 10px Arial';ctx.fillText('[E] '+(subwayObjectiveComplete()?'OPEN RAIL CONTROL':'SIGNALS REQUIRED'),subwayControl.x,subwayControl.y-29);} }
         for (const train of subwayTrains.filter(train=>train.active)) { ctx.save();ctx.translate(train.x,train.y);if(train.axis==='y')ctx.rotate(Math.PI/2);ctx.fillStyle=train.trapTrain?'#9d2222':'#45515a';ctx.fillRect(-train.length/2,-26,train.length,52);ctx.fillStyle='#111';for(let x=-train.length/2+14;x<train.length/2-6;x+=28)ctx.fillRect(x,-15,17,19);ctx.fillStyle='#e7d6a1';ctx.fillRect(train.direction>0?train.length/2-6:-train.length/2,-12,6,24);ctx.restore(); }
         if (subwayTornTicket && !subwayTornTicket.collected) {
@@ -5462,6 +5705,9 @@ function draw() {
             const pulse = 1 + Math.sin(ambienceClock / 8) * .12;
             ctx.save(); ctx.translate(subwayGoldSphere.x, subwayGoldSphere.y); ctx.fillStyle='rgba(255,214,71,.18)'; ctx.beginPath(); ctx.arc(0,0,26*pulse,0,Math.PI*2); ctx.fill(); ctx.fillStyle='#e5c34e'; ctx.beginPath(); ctx.arc(0,0,11*pulse,0,Math.PI*2); ctx.fill(); ctx.strokeStyle='#fff0a2'; ctx.lineWidth=2; ctx.stroke(); ctx.restore();
             if (Math.hypot(player.x - subwayGoldSphere.x, player.y - subwayGoldSphere.y) < 50) { ctx.fillStyle='#fff3ad'; ctx.font='bold 10px Arial'; ctx.textAlign='center'; ctx.fillText('[E] TAKE GOLD FARE SPHERE', subwayGoldSphere.x, subwayGoldSphere.y - 22); }
+        }
+        if (subwayGoldPressure?.lockedDoorCells?.length) {
+            for (const door of subwayGoldPressure.lockedDoorCells) { const dx=door.c*TS+TS/2,dy=door.r*TS+TS/2;ctx.fillStyle='rgba(174,48,42,.88)';ctx.fillRect(dx-7,dy-20,14,40);ctx.strokeStyle='#ffd36b';ctx.lineWidth=2;ctx.strokeRect(dx-10,dy-23,20,46);ctx.fillStyle='#fff0a2';ctx.font='bold 8px Arial';ctx.textAlign='center';ctx.fillText('LOCKED',dx,dy-28); }
         }
     }
     if(currentMapId==='amine'){
@@ -5856,6 +6102,7 @@ function draw() {
 
     drawHotelTaskArrows();
     drawForestGuidanceArrows();
+    drawSubwayGoldGuidanceArrow();
 
     if (flareTimer > 0 && (state === 1 || state === 3) && Math.hypot(monster.x - player.x, monster.y - player.y) > 260) {
         const angle = Math.atan2(monster.y - player.y, monster.x - player.x), radius = Math.min(canvas.width, canvas.height) * .42;
