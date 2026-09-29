@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.10.2
+
+- Added the Bronze, Silver, and Gold Subway skins with their ordered Last Line challenges.
+- Added the Gold Fare cutscene for the Nizar-only sphere route at Rail Control.
+- Hid the desktop notification stack on mobile and prevented Parted Grid fuses from spawning on sinkholes.
+- Added the three skin images to the offline cache and bumped it to `calebs-shift-v66`.
+
 ## 2.10.1
 
 - Added a Skins tab to the Collector's Book.
