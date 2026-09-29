@@ -124,7 +124,7 @@ function playNizarCrashSound() {
 }
 
 // Versioned local progress with a backup copy and import/export support.
-const GAME_VERSION = '2.11.1';
+const GAME_VERSION = '2.11.3';
 const SAVE_SCHEMA_VERSION = 10;
 const COSMETIC_REWARD_VERSION = 2;
 const SAVE_KEY = 'br_save_v2';
@@ -2849,9 +2849,15 @@ function spawnSubwaySecrets(hasNizar) {
     subwayGoldSphere = null;
     subwayBronzeEligible = true;
     if (currentMapId !== 'subway') return;
-    const ticketTile = pickSubwaySecretTile();
-    if (ticketTile) subwayTornTicket = { x:ticketTile.c * TS + TS / 2, y:ticketTile.r * TS + TS / 2, collected:false, delivered:false };
-    if (hasNizar) {
+    const hasStopSignMask = cosmetics.unlocked.includes('stopSignMask');
+    const hasHeadlightHat = cosmetics.unlocked.includes('headlightHat');
+    if (!hasStopSignMask) {
+        const ticketTile = pickSubwaySecretTile();
+        if (ticketTile) subwayTornTicket = { x:ticketTile.c * TS + TS / 2, y:ticketTile.r * TS + TS / 2, collected:false, delivered:false };
+    }
+    // The Gold Fare route stays available after Train Skin is earned, but only
+    // after the two earlier Subway rewards have been completed.
+    if (hasNizar && hasStopSignMask && hasHeadlightHat) {
         const sphereTile = pickSubwaySecretTile(subwayTornTicket ? [subwayTornTicket] : []);
         if (sphereTile) subwayGoldSphere = { x:sphereTile.c * TS + TS / 2, y:sphereTile.r * TS + TS / 2, collected:false, eligible:false };
     }
@@ -3085,7 +3091,7 @@ function beginSubwayControlPuzzle() {
     }
     subwayControlPuzzle = {
         lanes, cols, timer: 7200, switches, ended: false,
-        silverEligible: monster.name === 'NIZAR', missedTrains: 0, passengerPending: false, passengerSeen: false,
+        silverEligible: monster.name === 'NIZAR' && cosmetics.unlocked.includes('stopSignMask'), missedTrains: 0, passengerPending: false, passengerSeen: false,
         target: { lane: 2 + Math.floor(Math.random() * 2), progress: 5.5, direction: Math.random() < .5 ? -1 : 1, speed: .016, changeTimer: 48, collisionGrace: 180 },
         trains: [
             { lane: 0, progress: -0.2, speed: .021, color: '#f2c14e', usedSwitches: new Set(), passenger:false },

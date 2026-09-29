@@ -1,5 +1,17 @@
 # Changelog
 
+## 2.11.3
+
+- Replaced the Stop Sign Mask, Headlight, and Train Skin assets with the new 128×128 versions.
+- Bumped the offline cache to `calebs-shift-v71` so the updated PNGs are downloaded.
+
+## 2.11.2
+
+- Only spawn the torn ticket until the Stop Sign Mask is earned.
+- Only enable the passenger-train condition after the Stop Sign Mask is earned.
+- Only spawn the Gold Fare sphere after both the Stop Sign Mask and Headlight are earned; it remains replayable after Train Skin is unlocked.
+- Bumped the offline cache to `calebs-shift-v70`.
+
 ## 2.11.1
 
 - Made the Subway cosmetic route sequential: Stop Sign Mask first, Headlight second, and Train Skin third.
