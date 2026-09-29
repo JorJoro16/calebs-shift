@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.10.1
+
+- Added a Skins tab to the Collector's Book.
+- Added the Troll Face Skin, earned by flashbanging Noah within one second of his reveal.
+- Added the Generator Skin, earned at 1,000 completed generators using the existing career record total.
+- Added both skin images to the offline cache and bumped it to `calebs-shift-v65`.
+
 ## 2.10.0
 
 - Expanded Endless map selection with a saved round high score for each map.

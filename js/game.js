@@ -4,6 +4,7 @@ const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 const hatImages = { noahCap: new Image(), cowboyHat: new Image(), luffyHat: new Image(), krustyHat: new Image() };
 const maskImages = { idiotMask: new Image(), spongeMask: new Image(), jordanMask: new Image(), smileMask: new Image() };
+const skinImages = { trollFace: new Image(), generator: new Image() };
 hatImages.noahCap.src = 'assets/noah-cap.png';
 hatImages.cowboyHat.src = 'assets/cowboy-hat.png';
 hatImages.luffyHat.src = 'assets/luffy-hat.png';
@@ -12,6 +13,8 @@ maskImages.idiotMask.src = 'assets/idiot-mask.png';
 maskImages.spongeMask.src = 'assets/spongebob-mask.png';
 maskImages.jordanMask.src = 'assets/jordan-mask.png';
 maskImages.smileMask.src = 'assets/smile-mask.png';
+skinImages.trollFace.src = 'assets/troll-face-skin.png';
+skinImages.generator.src = 'assets/generator-skin.png';
 const hud = document.getElementById('gameHUD');
 const msgBox = document.getElementById('message');
 
@@ -112,7 +115,7 @@ function playNizarCrashSound() {
 }
 
 // Versioned local progress with a backup copy and import/export support.
-const GAME_VERSION = '2.10.0';
+const GAME_VERSION = '2.10.1';
 const SAVE_SCHEMA_VERSION = 10;
 const SAVE_KEY = 'br_save_v2';
 const SAVE_BACKUP_KEY = 'br_save_backup_v2';
@@ -186,7 +189,8 @@ function normalizeCosmetics(value) {
     const trails = ['none', 'spark', 'ghost', 'ember', 'static', 'circle', 'afterimage'];
     const hats = ['none', 'noahCap', 'cowboyHat', 'luffyHat', 'krustyHat'];
     const masks = ['none', 'idiotMask', 'spongeMask', 'jordanMask', 'smileMask'];
-    const allCosmetics = [...colors, ...trails, ...hats, ...masks];
+    const skins = ['default', 'trollFace', 'generator'];
+    const allCosmetics = [...colors, ...trails, ...hats, ...masks, ...skins];
     const unlocked = Array.isArray(source.unlocked) ? source.unlocked.filter(id => allCosmetics.includes(id)) : [];
     const legacyMask = masks.includes(source.mask) ? source.mask : masks.includes(source.hat) ? source.hat : 'none';
     return {
@@ -194,7 +198,8 @@ function normalizeCosmetics(value) {
         trail: trails.includes(source.trail) ? source.trail : 'none',
         hat: hats.includes(source.hat) ? source.hat : 'none',
         mask: legacyMask,
-        unlocked: Array.from(new Set(['blue', 'none', ...unlocked]))
+        skin: skins.includes(source.skin) ? source.skin : 'default',
+        unlocked: Array.from(new Set(['blue', 'none', 'default', ...unlocked]))
     };
 }
 
@@ -322,6 +327,7 @@ let runLoadoutRemaining = null;
 let mapMastery = loadedProgress.mapMastery || {};
 let mapIntel = loadedProgress.mapIntel || [];
 let daily = loadedProgress.daily || { date: '', objectives: [], bonusClaimed: false };
+if (stats.generators >= 1000 && !cosmetics.unlocked.includes('generator')) cosmetics.unlocked.push('generator');
 
 // Settings Data
 let setFPS = localStorage.getItem('br_fps') === 'true';
@@ -664,7 +670,7 @@ function renderStats() {
 
 let cosmeticTab = 'colors';
 function selectCosmetic(type, value) {
-    if (!['color','trail','hat','mask'].includes(type) || !cosmetics.unlocked.includes(value)) return;
+    if (!['color','trail','hat','mask','skin'].includes(type) || !cosmetics.unlocked.includes(value)) return;
     cosmetics[type] = value;
     saveData(); renderCosmetics();
 }
@@ -675,6 +681,8 @@ function cosmeticProgress(id) {
     const unlocked = cosmetics.unlocked.includes(id);
     if (unlocked) return 'UNLOCKED';
     if (id === 'luffyHat') return `${Math.min(stats.generators, 56)}/56 generators repaired`;
+    if (id === 'generator') return `${Math.min(stats.generators, 1000)}/1000 generators completed`;
+    if (id === 'trollFace') return 'Flashbang Noah within one second of his reveal';
     if (id === 'afterimage') return stats.fastestWin ? `Best: ${(stats.fastestWin / 1000).toFixed(1)}s · target under 60s` : '0/1 under-one-minute win';
     if (id === 'spongeMask') return `${Math.min(stats.boilerworksHardStreak, 3)}/3 Hard Boilerworks wins in a row`;
     if (id === 'smileMask') return `${Math.min(stats.bestEndless, 10)}/10 Endless rounds`;
@@ -718,6 +726,11 @@ function renderCosmetics() {
             { id:'spongeMask', label:'SpongeBob Mask', desc:'A cheerful face for deeply uncheerful places.', how:'Complete Boilerworks three times in a row on Hard.', preview:'#f6d34a', image:'spongebob-mask.png' },
             { id:'jordanMask', label:'Jordan Mask', desc:'Jordan’s face, earned through his own color.', how:'Catch Jordan while Green is equipped.', preview:'#6cce77', image:'jordan-mask.png' },
             { id:'smileMask', label:'Smile Mask', desc:'A grin earned through endurance.', how:'Clear Endless Round 10.', preview:'#fff', image:'smile-mask.png' }
+        ]},
+        skins: { type:'skin', items:[
+            { id:'default', label:'Default Survivor', desc:'Your standard survivor body.', how:'Available from the start.', preview:'#00f' },
+            { id:'trollFace', label:'Troll Face Skin', desc:'A deeply unhelpful face for a deeply hostile place.', how:'Flashbang Noah within one second of his reveal.', preview:'#fff', image:'troll-face-skin.png' },
+            { id:'generator', label:'Generator Skin', desc:'Become the objective everyone is looking for.', how:'Complete 1,000 generators across your career.', preview:'#777', image:'generator-skin.png' }
         ]}
     };
     const content = document.getElementById('cosmeticsContent'); if (!content) return;
@@ -1583,7 +1596,7 @@ let reservedObjectTiles = new Set(), hotelDoorTiles = [], hotelBlockedDoor = nul
 let centralBoiler = null, boilerShutdown = false, boilerReadyShown = false;
 let hotelElevator = null, hotelLockdownTimer = 0, hotelEventCooldown = 0, hotelLockdownActive = false;
 let rhysSeal = null, rhysChest = null, rhysChestKey = null, rhysBreakWall = null, rhysTrap = null, rhysRoute = 'search', rhysSealCollected = false, rhysTrapArmed = false;
-let forestCabins = [], forestBreakers = [], forestTrees = [], forestBeaconBattery = null, forestWatchtower = null, forestBeaconActive = false, forestFogTimer = 0, forestFogCooldown = 0, forestGuideTimer = 0, forestGuideCooldown = 1200, forestGuideMode = 'cabins', noahState = 'hidden', noahTimer = 0, noahPathTimer = 0, noahCharge = null, noahLightningCooldown = 0, noahLightningZones = [], noahLightningPending = [], noahLightningWarning = 0, noahLightningFlashes = 0, noahShockTimer = 0;
+let forestCabins = [], forestBreakers = [], forestTrees = [], forestBeaconBattery = null, forestWatchtower = null, forestBeaconActive = false, forestFogTimer = 0, forestFogCooldown = 0, forestGuideTimer = 0, forestGuideCooldown = 1200, forestGuideMode = 'cabins', noahState = 'hidden', noahTimer = 0, noahPathTimer = 0, noahCharge = null, noahLightningCooldown = 0, noahLightningZones = [], noahLightningPending = [], noahLightningWarning = 0, noahLightningFlashes = 0, noahShockTimer = 0, noahAppearanceWindow = 0;
 let amineHoles = [], amineFireZones = [], amineExitGate = null, amineFocus = false, amineVisibleTimer = 0, amineFlashCooldown = 0, amineTeleportCooldown = 0, amineCallCount = 1, amineCallsRemaining = 0, amineCallActive = false, amineTurret = null, amineBullets = [], amineBurnTimer = 0, amineRoad = null;
 let subwayPanels = [], subwayTrains = [], subwayTrackRows = [], subwayTrackSegments = [], subwayTrap = null, subwayControl = null, subwayRouteReady = false, subwayTrapArmed = false, subwayTrainWarning = 0, subwayTrainTriggered = false, subwayDecor = [], subwaySigns = [], subwayCommitTimer = 0, subwayCommitTarget = null, subwayRouteMinX = 0, subwayRouteMaxX = 0, subwayTrainPaths = [], subwayControlPuzzle = null;
 let routeBoard = null;
@@ -1734,7 +1747,7 @@ function openLuckyBlock(block) {
     if (!block || block.opened) return; block.opened=true; noiseTarget={x:block.x,y:block.y}; noiseTimer=300;
     const roll=Math.random();
     if (roll<.42) { const types=Object.keys(ITEM_DEFINITIONS); const type=types[Math.floor(Math.random()*types.length)]; if (addSupply(type)) notify(`SHIFT CACHE · ${ITEM_DEFINITIONS[type].toUpperCase()}`, 'unlock'); else notify('SHIFT CACHE · INVENTORY FULL','warning'); }
-    else if (roll<.67) { const gen=generators.find(g=>!g.active&&!g.isFalse); if (gen) { gen.active=true; gen.repairFlash=45; activeGens++; stats.generators++; notify('SHIFT CACHE · GENERATOR COMPLETED','unlock'); checkPhase(); } }
+    else if (roll<.67) { const gen=generators.find(g=>!g.active&&!g.isFalse); if (gen) { gen.active=true; gen.repairFlash=45; activeGens++; stats.generators++; if (stats.generators >= 1000) unlockCosmetic('generator'); notify('SHIFT CACHE · GENERATOR COMPLETED','unlock'); checkPhase(); } }
     else if (roll<.84) { const tile=floors.find(t=>!isRhysEarlyLockedTile(t)&&!amineHoles.some(h=>h.c===t.c&&h.r===t.r)&&!amineFireZones.some(z=>Math.hypot(z.x-(t.c*TS+TS/2),z.y-(t.r*TS+TS/2))<z.radius+20)&&isOpenObjectSpot(t.c*TS+TS/2,t.r*TS+TS/2,TS*4)); if (tile) { generators.push({x:tile.c*TS+TS/2,y:tile.r*TS+TS/2,r:12,active:false,type:'normal',isFalse:false,repairFlash:0,stage:0,requiredStages:3,requiredFuses:2,collectedFuses:0}); totalGens++; notify('SHIFT CACHE · NEW GENERATOR DETECTED','danger'); updateHUD(); } }
     else { player.boostTimer=Math.max(player.boostTimer,300); notify('SHIFT CACHE · SURGE BOOST','unlock'); }
 }
@@ -1939,6 +1952,7 @@ function finishGeneratorInteraction() {
     noiseTimer = 300;
     activeGens++;
     stats.generators++;
+    if (stats.generators >= 1000) unlockCosmetic('generator');
     if (stats.generators >= 56) { unlockCosmetic('luffyHat'); saveData(); }
     advanceDailyObjective('generators');
     playSound('success');
@@ -2010,6 +2024,7 @@ window.addEventListener('keydown', (e) => {
 
     // Flashbang
     if (itemAllowed('flashbang') && (state === 1 || state === 3) && k === 'f' && invFlashbang > 0 && monsters.some(enemy => enemy.stunTimer <= 0)) {
+        const caughtNoahAtReveal = noahAppearanceWindow > 0 && monsters.some(enemy => enemy.name === 'NOAH' && !enemy.invisible && Math.hypot(player.x - enemy.x, player.y - enemy.y) < 180);
         invFlashbang--; consumeLoadoutItem('flashbang');
         runItemsUsed++; stats.itemsUsed++; advanceDailyObjective('items');
         for (const enemy of monsters) enemy.stunTimer = enemy.isResilient ? 120 : 240;
@@ -2018,6 +2033,8 @@ window.addEventListener('keydown', (e) => {
             const tile = far[Math.floor(Math.random() * Math.max(1, far.length))] || floors.at(-1);
             enemy.x = tile.c * TS + TS / 2; enemy.y = tile.r * TS + TS / 2; enemy.path = []; noahState = 'hidden'; noahTimer = 0;
         }
+        if (caughtNoahAtReveal) unlockCosmetic('trollFace');
+        noahAppearanceWindow = 0;
         flashAlpha = 1.0;
         playSound('emp');
         saveData(); updateHUD();
@@ -3003,7 +3020,7 @@ function updateNoah() {
         else if (!monster.path.length) { const tile = floors[Math.floor(Math.random() * floors.length)]; monster.path = findPath(Math.floor(monster.x / TS), Math.floor(monster.y / TS), tile.c, tile.r); }
         const oldX = monster.x, oldY = monster.y; moveMonsterAlongPath(getMonsterSpeed(monster) * 1.18, monster);
         if (isSafeRoom(monster.x, monster.y)) { monster.x = oldX; monster.y = oldY; monster.path = []; }
-        if (!lit && !player.hidden && Math.hypot(player.x-monster.x, player.y-monster.y) < 92) { noahState = 'reveal'; noahTimer = 60; monster.invisible = false; notify('NOAH REVEALS HIMSELF', 'danger'); }
+        if (!lit && !player.hidden && Math.hypot(player.x-monster.x, player.y-monster.y) < 92) { noahState = 'reveal'; noahTimer = 60; noahAppearanceWindow = 60; monster.invisible = false; notify('NOAH REVEALS HIMSELF', 'danger'); }
     } else if (noahState === 'reveal') { monster.invisible = false; if (noahTimer <= 0) { noahState = 'burst'; noahTimer = 34; const intercept = { x: player.x + moveX * TS * 4, y: player.y + moveY * TS * 4 }; const angle = Math.atan2(intercept.y - monster.y, intercept.x - monster.x); noahCharge = { angle, x:intercept.x, y:intercept.y }; } }
     else {
         const oldX = monster.x, oldY = monster.y;
@@ -3802,6 +3819,7 @@ function updateExtraNoahAbility(enemy) {
     if (enemy.abilityNoahCooldown > 0) enemy.abilityNoahCooldown--;
     enemy.invisible = enemy.abilityNoahRevealTimer <= 0;
     if (!player.hidden && !isSafeRoom(player.x, player.y) && Math.hypot(player.x - enemy.x, player.y - enemy.y) < 105) {
+        if (enemy.abilityNoahRevealTimer <= 0) noahAppearanceWindow = 60;
         enemy.abilityNoahRevealTimer = 60; enemy.invisible = false;
     }
     if (!player.hidden && !isSafeRoom(player.x, player.y) && enemy.abilityNoahCooldown <= 0 && Math.hypot(player.x - enemy.x, player.y - enemy.y) < 380) {
@@ -3948,7 +3966,7 @@ function startGame(diffLevel) {
     nearGen = null; nearValve = null; nearBoiler = false; flashAlpha = 0;
     boilerShutdown = false; boilerReadyShown = false; heatZones = []; heatEventCooldown = 360;
     rhysSealCollected = false; rhysTrapArmed = false; goopZones = []; goopShots = []; rhysSpitCooldown = 180; rhysDashTimer = 0; rhysChargeWindup = 0; rhysDashCooldown = 360; rhysEventCooldown = 900; rhysSweepTimer = 0; rhysSweepRadius = 0; rhysPressureZones = [];
-    forestBeaconBattery = null; forestWatchtower = null; forestBeaconActive = false; forestFogTimer = 0; forestFogCooldown = currentMapId === 'forest' ? 720 : 0; forestGuideTimer = 0; forestGuideCooldown = currentMapId === 'forest' ? 1200 : 0; forestGuideMode = 'cabins'; noahCharge = null; noahLightningCooldown = 360; noahLightningZones = []; noahLightningPending = []; noahLightningWarning = 0; noahLightningFlashes = 0; noahShockTimer = 0;
+    forestBeaconBattery = null; forestWatchtower = null; forestBeaconActive = false; forestFogTimer = 0; forestFogCooldown = currentMapId === 'forest' ? 720 : 0; forestGuideTimer = 0; forestGuideCooldown = currentMapId === 'forest' ? 1200 : 0; forestGuideMode = 'cabins'; noahCharge = null; noahLightningCooldown = 360; noahLightningZones = []; noahLightningPending = []; noahLightningWarning = 0; noahLightningFlashes = 0; noahShockTimer = 0; noahAppearanceWindow = 0;
     amineFocus = false; amineVisibleTimer = 0; amineFlashCooldown = 90; amineTeleportCooldown = 240; amineCallCount = 1; amineCallsRemaining = 0; amineCallActive = false; amineTurret = null; amineBullets = []; amineBurnTimer = 0; amineRoad = null; nizarClones = []; nizarCloneCooldown = 2400; nizarCrush = null; nizarCrushCooldown = 900; subwayControlPuzzle = null; luckyBlocks = [];
     document.getElementById('amineCall').style.display='none';
     hotelLockdownTimer = 0; hotelEventCooldown = currentMapId === 'hotel' ? 480 : 0; hotelLockdownActive = false; hotelBlockedDoor = null;
@@ -4232,6 +4250,7 @@ function unlockCosmetic(id) {
     if (!cosmetics.unlocked.includes(id)) {
         cosmetics.unlocked.push(id);
         notify(`UNLOCKED: ${id.toUpperCase()}`, 'unlock');
+        saveData();
     }
 }
 
@@ -4712,6 +4731,7 @@ function update() {
 
     if (flashAlpha > 0) flashAlpha -= 0.02;
     ambienceClock++;
+    if (noahAppearanceWindow > 0) noahAppearanceWindow--;
     if (scramblerTimer > 0) scramblerTimer--;
     if (flareTimer > 0) flareTimer--;
     if (dashCooldown > 0) dashCooldown--;
@@ -5600,9 +5620,17 @@ function draw() {
         }
         ctx.fillStyle = 'rgba(0,0,0,0.35)';
         ctx.beginPath(); ctx.ellipse(player.x, player.y + player.r * 0.7, player.r * 0.9, player.r * 0.35, 0, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = player.boostTimer > 0 ? '#0ff' : (player.stunTimer > 0 ? '#ff0' : (playerColors[cosmetics.color] || '#00f'));
-        ctx.beginPath(); ctx.arc(player.x, player.y, player.r, 0, Math.PI * 2); ctx.fill();
-        if (cosmetics.color === 'sepia' && player.boostTimer <= 0 && player.stunTimer <= 0) { ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(player.x-player.r*.3, player.y-2, 2, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(player.x+player.r*.3, player.y-2, 2, 0, Math.PI*2); ctx.fill(); }
+        const equippedSkin = skinImages[cosmetics.skin];
+        if (cosmetics.skin !== 'default' && equippedSkin?.complete) {
+            const skinSize = player.r * 3.35;
+            ctx.globalAlpha = player.stunTimer > 0 ? .72 : 1;
+            ctx.drawImage(equippedSkin, player.x - skinSize / 2, player.y - skinSize / 2, skinSize, skinSize);
+            ctx.globalAlpha = 1;
+        } else {
+            ctx.fillStyle = player.boostTimer > 0 ? '#0ff' : (player.stunTimer > 0 ? '#ff0' : (playerColors[cosmetics.color] || '#00f'));
+            ctx.beginPath(); ctx.arc(player.x, player.y, player.r, 0, Math.PI * 2); ctx.fill();
+            if (cosmetics.color === 'sepia' && player.boostTimer <= 0 && player.stunTimer <= 0) { ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(player.x-player.r*.3, player.y-2, 2, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(player.x+player.r*.3, player.y-2, 2, 0, Math.PI*2); ctx.fill(); }
+        }
         const equippedMask = maskImages[cosmetics.mask];
         if (cosmetics.mask !== 'none' && equippedMask?.complete) { ctx.drawImage(equippedMask, player.x - player.r * 2, player.y - player.r * 2.15, player.r * 4, player.r * 4); }
         const equippedHat = hatImages[cosmetics.hat];
