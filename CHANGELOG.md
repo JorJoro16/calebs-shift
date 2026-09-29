@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.11.1
+
+- Made the Subway cosmetic route sequential: Stop Sign Mask first, Headlight second, and Train Skin third.
+- Existing saves with out-of-order Subway rewards are corrected to the same sequence.
+- Bumped the offline cache to `calebs-shift-v69`.
+
 ## 2.11.0
 
 - Replaced the three Subway reward cosmetics with the Stop Sign Mask, Headlight, and Train Skin while preserving the torn-ticket, passenger-train, and Gold Fare cutscene routes.

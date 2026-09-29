@@ -124,7 +124,7 @@ function playNizarCrashSound() {
 }
 
 // Versioned local progress with a backup copy and import/export support.
-const GAME_VERSION = '2.11.0';
+const GAME_VERSION = '2.11.1';
 const SAVE_SCHEMA_VERSION = 10;
 const COSMETIC_REWARD_VERSION = 2;
 const SAVE_KEY = 'br_save_v2';
@@ -364,6 +364,16 @@ function syncEndlessCosmeticUnlocks() {
     return changed;
 }
 
+function enforceSubwayRewardSequence() {
+    const before = cosmetics.unlocked.length;
+    if (!cosmetics.unlocked.includes('stopSignMask')) {
+        cosmetics.unlocked = cosmetics.unlocked.filter(id => !['headlightHat', 'trainSkin'].includes(id));
+    } else if (!cosmetics.unlocked.includes('headlightHat')) {
+        cosmetics.unlocked = cosmetics.unlocked.filter(id => id !== 'trainSkin');
+    }
+    return cosmetics.unlocked.length !== before;
+}
+
 function migrateSubwayCosmeticRewards() {
     let changed = false;
     if (cosmeticRewardVersion < COSMETIC_REWARD_VERSION) {
@@ -378,6 +388,7 @@ function migrateSubwayCosmeticRewards() {
         changed = true;
     }
     changed = syncEndlessCosmeticUnlocks() || changed;
+    changed = enforceSubwayRewardSequence() || changed;
     return changed;
 }
 
@@ -729,8 +740,8 @@ function cosmeticProgress(id) {
     if (id === 'generator') return `${Math.min(stats.generators, 1000)}/1000 generators completed`;
     if (id === 'trollFace') return 'Flashbang Noah within one second of his reveal';
     if (id === 'stopSignMask') return 'Find the torn ticket, deliver it before any signal panel, then clear Subway.';
-    if (id === 'headlightHat') return 'Let three trains miss Nizar, then let the passenger train pass before catching him.';
-    if (id === 'trainSkin') return 'As Nizar, collect the gold sphere before restoring any signal, then open Rail Control.';
+    if (id === 'headlightHat') return 'Stop Sign Mask first: let three trains miss Nizar, then let the passenger train pass before catching him.';
+    if (id === 'trainSkin') return 'Headlight first: as Nizar, collect the gold sphere before restoring any signal, then open Rail Control.';
     if (id === 'bronzeSkin') return `${Math.min(stats.bestEndless, 3)}/3 Endless rounds`;
     if (id === 'silverSkin') return `${Math.min(stats.bestEndless, 6)}/6 Endless rounds`;
     if (id === 'goldSkin') return `${Math.min(stats.bestEndless, 10)}/10 Endless rounds`;
@@ -770,7 +781,7 @@ function renderCosmetics() {
             { id:'cowboyHat', label:'Cowboy Hat', desc:'For surviving on your own terms.', how:'Complete a Challenge with no items equipped.', preview:'#d7a94b', image:'cowboy-hat.png' },
             { id:'luffyHat', label:'Luffy’s Straw Hat', desc:'A famous hat with a very specific number attached.', how:'Repair 56 generators across your career.', preview:'#e5bd43', image:'luffy-hat.png' },
             { id:'krustyHat', label:'Krusty Krab Hat', desc:'A hotel uniform for a dangerous assignment.', how:'Complete the hotel after accidentally completing Bassam’s task, then survive his chase for the rest of the run.', preview:'#4aa8e8', image:'krusty-krab-hat.png' },
-            { id:'headlightHat', label:'Headlight', desc:'A beam for finding the next platform in the dark.', how:'Let three trains miss Nizar, let the passenger pass, then catch him.', preview:'#d8e8ff', image:'headlight-hat.png' }
+            { id:'headlightHat', label:'Headlight', desc:'A beam for finding the next platform in the dark.', how:'First earn the Stop Sign Mask. Then let three trains miss Nizar, let the passenger pass, and catch him.', preview:'#d8e8ff', image:'headlight-hat.png' }
         ]},
         masks: { type:'mask', items:[
             { id:'none', label:'No Mask', desc:'No face covering equipped.', how:'Available from the start.', preview:'#888' },
@@ -784,7 +795,7 @@ function renderCosmetics() {
             { id:'default', label:'Default Survivor', desc:'Your standard survivor body.', how:'Available from the start.', preview:'#00f' },
             { id:'trollFace', label:'Troll Face Skin', desc:'A deeply unhelpful face for a deeply hostile place.', how:'Flashbang Noah within one second of his reveal.', preview:'#fff', image:'troll-face-skin.png' },
             { id:'generator', label:'Generator Skin', desc:'Become the objective everyone is looking for.', how:'Complete 1,000 generators across your career.', preview:'#777', image:'generator-skin.png' },
-            { id:'trainSkin', label:'Train Skin', desc:'A little engine for a very long last line.', how:'As Nizar, take the gold sphere before the signals and open Rail Control.', preview:'#9aa8b1', image:'train-skin.png' },
+            { id:'trainSkin', label:'Train Skin', desc:'A little engine for a very long last line.', how:'First earn the Headlight. Then, as Nizar, take the gold sphere before the signals and open Rail Control.', preview:'#9aa8b1', image:'train-skin.png' },
             { id:'bronzeSkin', label:'Bronze Skin', desc:'A worn metal finish from the early rounds.', how:'Clear Endless Round 3.', preview:'#bf7a32', image:'bronze-skin.png' },
             { id:'silverSkin', label:'Silver Skin', desc:'A polished finish for surviving the middle stretch.', how:'Clear Endless Round 6.', preview:'#d8e1ea', image:'silver-skin.png' },
             { id:'goldSkin', label:'Gold Skin', desc:'A final-round finish earned at the end of the line.', how:'Clear Endless Round 10.', preview:'#e5c34e', image:'gold-skin.png' }
@@ -3060,6 +3071,8 @@ function beginSubwayControlPuzzle() {
     if (!subwayControl || subwayControlPuzzle) return;
     if (subwayGoldPressure?.signalPanel) { notify('THE FLICKERING SIGNAL MUST BE RE-STABILIZED FIRST', 'warning'); return; }
     if (monster.name === 'NIZAR' && subwayGoldSphere?.collected && subwayGoldSphere.eligible) {
+        if (!cosmetics.unlocked.includes('stopSignMask')) { notify('THE STOP SIGN MASK MUST COME FIRST', 'warning'); return; }
+        if (!cosmetics.unlocked.includes('headlightHat')) { notify('THE HEADLIGHT MUST COME SECOND', 'warning'); return; }
         beginSubwayFareCutscene();
         return;
     }
@@ -3105,7 +3118,7 @@ function finishSubwayControlPuzzle(won) {
     const puzzle = subwayControlPuzzle;
     puzzle.ended = true;
     const earnedStopSignMask = won && subwayBronzeEligible && subwayTornTicket?.delivered;
-    const earnedHeadlightHat = won && puzzle.silverEligible && puzzle.passengerSeen;
+    const earnedHeadlightHat = won && cosmetics.unlocked.includes('stopSignMask') && puzzle.silverEligible && puzzle.passengerSeen;
     subwayControlPuzzle = null;
     state = 8;
     clearMovementKeys();
