@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.11.4
+
+- Replaced the Subway cosmetic assets with the new 144×144 versions.
+- Bumped the offline cache to `calebs-shift-v72`.
+
 ## 2.11.3
 
 - Replaced the Stop Sign Mask, Headlight, and Train Skin assets with the new 128×128 versions.
