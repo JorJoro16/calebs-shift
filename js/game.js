@@ -132,7 +132,7 @@ function playNizarCrashSound() {
 }
 
 // Versioned local progress with a backup copy and import/export support.
-const GAME_VERSION = '2.18.0';
+const GAME_VERSION = '2.18.1';
 const SAVE_SCHEMA_VERSION = 10;
 const COSMETIC_REWARD_VERSION = 2;
 const SAVE_KEY = 'br_save_v2';
@@ -1551,6 +1551,11 @@ function selectMap(mapId) {
     if (!MAP_DEFINITIONS[mapId] || !unlockedMaps.includes(mapId)) return;
     if (gameMode === 'campaign' && MAP_DEFINITIONS[mapId].campaignOrder > campaignCleared.length) return;
     currentMapId = mapId;
+    campaignStartAtBoss = false;
+    if (gameMode === 'campaign' && mapId === 'lucas' && campaignCleared.includes('lucas')) {
+        showMenu('lucasCampaignChoice');
+        return;
+    }
     if (gameMode === 'survival') {
         const survivalMap = document.getElementById('survivalMap');
         if (survivalMap) survivalMap.value = mapId;
@@ -1558,9 +1563,20 @@ function selectMap(mapId) {
     showMenu('diffMenu');
 }
 
+function chooseLucasCampaignStart(startAtBoss) {
+    if (gameMode !== 'campaign' || currentMapId !== 'lucas' || !campaignCleared.includes('lucas')) {
+        showMenu('mapMenu');
+        return;
+    }
+    campaignStartAtBoss = Boolean(startAtBoss);
+    showMenu('diffMenu');
+}
+
 function startSelectedGame(diffLevel) {
     if (gameMode === 'survival') { startSurvival(); return; }
-    startGame(diffLevel);
+    const startAtBoss = campaignStartAtBoss;
+    campaignStartAtBoss = false;
+    startGame(diffLevel, startAtBoss);
 }
 
 function startSurvival() {
@@ -1688,6 +1704,7 @@ const MAZE_LEFT = 5, MAZE_TOP = 5, MAZE_COLS = 31, MAZE_ROWS = 23;
 let state = 0; let currentDiff = 0; let rewardTokens = 0;
 let gameMode = 'challenge', endlessRound = 1, survivalConfig = null, challengeConfig = null, eventsEnabled = true, safeRoomsReliable = true;
 let currentMapId = 'level0';
+let campaignStartAtBoss = false;
 
 let map = [], floors = [], rooms = [], fuses = [], hidingSpots = [], coolingValves = [], employees = [];
 let reservedObjectTiles = new Set(), hotelDoorTiles = [], hotelBlockedDoor = null, hotelCorridorSections = [];
@@ -5515,7 +5532,7 @@ function createExtraMonster(name, diffData, index) {
     return enemy;
 }
 
-function startGame(diffLevel) {
+function startGame(diffLevel, startAtBoss = false) {
     initAudio();
     currentDiff = diffLevel;
     runStartedAt = performance.now(); runItemsUsed = 0;
@@ -5849,6 +5866,10 @@ function startGame(diffLevel) {
     stats.favoriteMonster = Object.entries(stats.encounters).sort((a,b) => b[1] - a[1])[0]?.[0] || 'None';
     canvas.classList.remove('shake');
     state = 1; updateHUD(); renderHotelTasks();
+    if (startAtBoss && currentMapId === 'lucas') {
+        beginCalebBossIntro();
+        return;
+    }
     if (monsterName === 'RHYS' && currentMapId === 'crimson') showStoryLine('“Dread it, run from it, destiny arrives all at the same time.”', 4600);
 }
 

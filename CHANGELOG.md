@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.18.1
+- Added a campaign-only Lucas replay choice after Lucas has been cleared: restart Lucas's level or begin the Caleb boss fight.
+- Bumped the offline cache to `calebs-shift-v82`.
+
 ## 2.18.0
 - Added Caleb’s first boss encounter after the Lucas gate ending, with an intro cinematic, health bars, player health, attack telegraphs, reflected dark-orb counterplay, rare eye cores, eye-rain, Schiminis, hand sweeps, ground slams, and a collapsing-floor second stage.
 - Added Caleb’s split cutscene and the playable Cal/Leb continuation: reflect Cal’s fireballs with resonance switches and seal Leb’s nests before he can eat them.
