@@ -124,7 +124,7 @@ function playNizarCrashSound() {
 }
 
 // Versioned local progress with a backup copy and import/export support.
-const GAME_VERSION = '2.13.0';
+const GAME_VERSION = '2.14.0';
 const SAVE_SCHEMA_VERSION = 10;
 const COSMETIC_REWARD_VERSION = 2;
 const SAVE_KEY = 'br_save_v2';
@@ -140,7 +140,8 @@ const MAP_DEFINITIONS = {
     crimson: { id: 'crimson', name: 'THE CRIMSON CONTAINMENT', description: 'Break the seal route, survive Rhys, and trap him.', campaignOrder: 3 },
     forest: { id: 'forest', name: 'THE BLACKWOOD FOREST', description: 'Dark trails, powered cabins, and Noah the Stalker.', campaignOrder: 4 },
     amine: { id: 'amine', name: 'THE PARTED GRID', description: 'A burning grid where closing your eyes reveals Amine.', campaignOrder: 5 },
-    subway: { id: 'subway', name: 'THE LAST LINE', description: 'Restore the signal panels, then route a train into the moving hunter from Rail Control.', campaignOrder: 6 }
+    subway: { id: 'subway', name: 'THE LAST LINE', description: 'Restore the signal panels, then route a train into the moving hunter from Rail Control.', campaignOrder: 6 },
+    lucas: { id: 'lucas', name: 'THE SHADOW GATE', description: 'Recover Caleb fragments, bring them to the sealed gate, and survive Lucas’s final blockade.', campaignOrder: 7 }
 };
 
 const LOADOUT_DEFINITIONS = {
@@ -215,7 +216,7 @@ function normalizeCosmetics(value) {
 
 function normalizeStats(value) {
     const source = value && typeof value === 'object' ? value : {};
-    const names = ['CALEB', 'MALAKAI', 'JORDAN', 'AESON', 'BASSAM', 'RHYS', 'NOAH', 'AMINE', 'NIZAR'];
+    const names = ['CALEB', 'MALAKAI', 'JORDAN', 'AESON', 'BASSAM', 'RHYS', 'NOAH', 'AMINE', 'NIZAR', 'LUCAS'];
     const endlessMapBest = {};
     Object.keys(MAP_DEFINITIONS).forEach(mapId => endlessMapBest[mapId] = boundedInt(source.endlessMapBest?.[mapId], 0, 999999, 0));
     const encounters = {};
@@ -251,6 +252,7 @@ function normalizeProgress(raw) {
     if (raw.schemaVersion !== undefined && raw.schemaVersion > SAVE_SCHEMA_VERSION) return null;
     if (source.tokens === undefined && source.upgShoe === undefined) return null;
     const unlockedMaps = Array.isArray(source.unlockedMaps) ? source.unlockedMaps.filter(id => MAP_DEFINITIONS[id]) : ['level0'];
+    if (unlockedMaps.includes('subway')) unlockedMaps.push('lucas');
     const dailySource = source.daily && typeof source.daily === 'object' ? source.daily : {};
     const dailyObjectives = Array.isArray(dailySource.objectives) ? dailySource.objectives.map(item => ({
         id: String(item.id || ''), label: String(item.label || 'Daily objective'), type: String(item.type || ''),
@@ -1688,6 +1690,7 @@ let forestCabins = [], forestBreakers = [], forestTrees = [], forestBeaconBatter
 let amineHoles = [], amineFireZones = [], amineExitGate = null, amineFocus = false, amineVisibleTimer = 0, amineFlashCooldown = 0, amineTeleportCooldown = 0, amineTurret = null, amineBullets = [], amineBurnTimer = 0, amineRoad = null;
 let subwayPanels = [], subwayTrains = [], subwayTrackRows = [], subwayTrackSegments = [], subwayTrap = null, subwayControl = null, subwayRouteReady = false, subwayTrapArmed = false, subwayTrainWarning = 0, subwayTrainTriggered = false, subwayDecor = [], subwaySigns = [], subwayCommitTimer = 0, subwayCommitTarget = null, subwayRouteMinX = 0, subwayRouteMaxX = 0, subwayTrainPaths = [], subwayControlPuzzle = null;
 let subwayTornTicket = null, subwayGoldSphere = null, subwayBronzeEligible = true, subwayFareCutscene = null, subwayGoldPressure = null;
+let lucasFragments = [], lucasAltar = null, lucasGate = null, lucasShadow = null, lucasArrows = [], lucasMonsterStart = null, lucasState = 'searching', lucasAbilityCooldown = 0, lucasCharge = null, lucasGateEndTimer = 0;
 let routeBoard = null;
 const nizarCrashAudio = new Audio('assets/WallCrashSoundEffect.mp3');
 nizarCrashAudio.preload = 'auto';
@@ -1695,7 +1698,7 @@ let luckyBlocks = [];
 let playerTrail = [], trailLastX = 0, trailLastY = 0;
 let hotelEmployeesRequired = 3, hotelDialogueOpen = false, hotelTaskSerial = 0;
 let nearFuse = null, nearHide = null, nearValve = null, nearBoiler = false, nearEmployee = null, nearElevator = false, nearHotelTask = null, nearRhysSeal = false, nearRhysKey = false, nearRhysChest = false, nearRhysTrap = false;
-let nearSubwayPanel = null, nearSubwayControl = false;
+let nearSubwayPanel = null, nearSubwayControl = false, nearLucasFragment = null, nearLucasAltar = false;
 let nizarClones = [], nizarCloneCooldown = 2400, nizarCrush = null, nizarCrushCooldown = 900;
 let player = { x: 0, y: 0, r: 12, baseSpeed: 3.8, speed: 3.8, boostTimer: 0, dashTimer: 0, stunTimer: 0, crouching: false, breathing: false, breathTimer: 0, breathCooldown: 0, heat: 0, inHeatZone: false, hidden: false, hideTimer: 0, hideCompromised: false };
 let lastMoveX = 1, lastMoveY = 0;
@@ -2131,6 +2134,31 @@ window.addEventListener('keydown', (e) => {
     if (state === 1 && k === 'e' && player.stunTimer <= 0) {
         const lucky = luckyBlocks.find(block => !block.opened && Math.hypot(player.x-block.x,player.y-block.y)<36);
         if (lucky) { openLuckyBlock(lucky); return; }
+        if (currentMapId === 'lucas') {
+            if (nearLucasFragment) {
+                nearLucasFragment.collected = true;
+                playSound('success');
+                notify(`CALEB FRAGMENT ${lucasFragments.filter(fragment => fragment.collected).length}/${lucasFragments.length} RECOVERED`, 'unlock');
+                updateHUD();
+                return;
+            }
+            if (nearLucasAltar) {
+                if (!lucasFragments.length || !lucasFragments.every(fragment => fragment.collected)) {
+                    notify('THE SHADOW GATE NEEDS ALL THREE CALEB FRAGMENTS', 'warning');
+                    return;
+                }
+                if (!lucasAltar.placed) {
+                    lucasAltar.placed = true;
+                    lucasState = 'runningToGate';
+                    lucasGate.open = false;
+                    monster.path = [];
+                    notify('THE FRAGMENTS HUM · LUCAS RUNS FOR THE GATE', 'danger');
+                    playSound('alarm');
+                    updateHUD();
+                }
+                return;
+            }
+        }
         if (currentMapId === 'amine' && activeGens >= totalGens && amineExitGate && Math.hypot(player.x-amineExitGate.x,player.y-amineExitGate.y)<44) { beginAmineFinalChase(); return; }
         if (currentMapId === 'subway' && subwayTornTicket && !subwayTornTicket.collected && Math.hypot(player.x - subwayTornTicket.x, player.y - subwayTornTicket.y) < 34) {
             subwayTornTicket.collected = true;
@@ -2625,6 +2653,62 @@ function generateForest() {
         if (!used.some(cabin => Math.abs(cabin.c - c) < 5 && Math.abs(cabin.r - r) < 5) && !forestCabins.some(cabin => cabin.c === c && cabin.r + 2 === r)) { map[r][c] = 1; forestTrees.push({ x:c * TS + TS / 2, y:r * TS + TS / 2, radius:16 + Math.floor(Math.random() * 8) }); }
     }
     rebuildFloors();
+}
+
+function generateLucasArea() {
+    map = Array.from({ length: ROWS }, () => Array(COLS).fill(1));
+    rooms = []; hidingSpots = []; coolingValves = []; fuses = []; employees = [];
+    reservedObjectTiles = new Set(); hotelDoorTiles = [];
+    lucasFragments = []; lucasAltar = null; lucasGate = null; lucasShadow = null; lucasArrows = [];
+    const nodes = [
+        { type:'entry', c:8, r:29, width:9, height:7 },
+        { type:'archive', c:24, r:13, width:11, height:9 },
+        { type:'service', c:40, r:44, width:11, height:9 },
+        { type:'underpass', c:56, r:16, width:13, height:11 },
+        { type:'vessel', c:68, r:31, width:9, height:7 },
+        { type:'gate', c:80, r:30, width:11, height:13 }
+    ];
+    for (const node of nodes) {
+        carveBoilerRect(node.c, node.r, node.width, node.height);
+        node.x = node.c * TS + TS / 2;
+        node.y = node.r * TS + TS / 2;
+        rooms.push(node);
+    }
+    for (let index = 1; index < nodes.length; index++) carveBoilerCorridor(nodes[index - 1], nodes[index]);
+    carveBoilerCorridor(nodes[0], nodes[2]);
+    carveBoilerCorridor(nodes[1], nodes[3]);
+    const gateRoom = nodes[5], gateCell = gateRoom.c + Math.floor(gateRoom.width / 2) + 1;
+    map[gateRoom.r][gateCell] = 0;
+    map[gateRoom.r - 1][gateCell] = 0;
+    map[gateRoom.r + 1][gateCell] = 0;
+    rebuildFloors();
+
+    const fragmentRooms = [nodes[1], nodes[2], nodes[3]];
+    lucasFragments = fragmentRooms.map((room, index) => {
+        const offsetX = index === 1 ? -TS : index === 2 ? TS : 0;
+        const offsetY = index === 0 ? TS : index === 1 ? -TS : 0;
+        const fragment = { id:index + 1, x:room.x + offsetX, y:room.y + offsetY, collected:false };
+        reserveObjectTile(Math.floor(fragment.x / TS), Math.floor(fragment.y / TS), 1);
+        return fragment;
+    });
+    lucasAltar = { x:nodes[4].x, y:nodes[4].y, placed:false };
+    lucasGate = { x:gateCell * TS + TS / 2, y:gateRoom.y, blockX:(gateCell - 2) * TS + TS / 2, blockY:gateRoom.y, open:false };
+    lucasShadow = { x:lucasGate.x + TS * .65, y:lucasGate.y, radius:48 };
+    lucasMonsterStart = { x:nodes[3].x, y:nodes[3].y };
+    reserveObjectTile(Math.floor(lucasAltar.x / TS), Math.floor(lucasAltar.y / TS), 2);
+    reserveObjectTile(Math.floor(lucasGate.x / TS), Math.floor(lucasGate.y / TS), 2);
+
+    const arrowPoints = [
+        { x:14 * TS + TS / 2, y:22 * TS + TS / 2, angle:-.8 },
+        { x:17 * TS + TS / 2, y:34 * TS + TS / 2, angle:.8 },
+        { x:31 * TS + TS / 2, y:24 * TS + TS / 2, angle:.2 },
+        { x:47 * TS + TS / 2, y:28 * TS + TS / 2, angle:-.55 },
+        { x:64 * TS + TS / 2, y:22 * TS + TS / 2, angle:.6 },
+        { x:67 * TS + TS / 2, y:37 * TS + TS / 2, angle:-.35 }
+    ];
+    lucasArrows = arrowPoints
+        .filter(point => map[Math.floor(point.y / TS)]?.[Math.floor(point.x / TS)] === 0)
+        .map((point, index) => ({ ...point, misleading:index % 2 === 1 }));
 }
 
 // This is the normalized walkable shape from the user's PillarRoom editor
@@ -4409,6 +4493,7 @@ function startGame(diffLevel) {
     else if (currentMapId === 'crimson' || currentMapId === 'forest') { COLS = 93; ROWS = 65; }
     else if (currentMapId === 'amine') { COLS = 61; ROWS = 45; }
     else if (currentMapId === 'subway') { COLS = 122; ROWS = 72; }
+    else if (currentMapId === 'lucas') { COLS = 89; ROWS = 59; }
     else { COLS = 41; ROWS = 33; }
     hotelTaskSerial = 0;
     if (currentMapId === 'boilerworks') generateBoilerworks();
@@ -4417,11 +4502,12 @@ function startGame(diffLevel) {
     else if (currentMapId === 'forest') generateForest();
     else if (currentMapId === 'amine') generateAmineGrid();
     else if (currentMapId === 'subway') generateSubway();
+    else if (currentMapId === 'lucas') generateLucasArea();
     else { generateMaze(); generateSpecialRooms(); }
     if (currentMapId !== 'hotel') hotelElevator = null;
     if (currentMapId !== 'boilerworks') { centralBoiler = null; coolingValves = []; }
     
-    const spawnRoom = (currentMapId === 'boilerworks' || currentMapId === 'hotel' || currentMapId === 'crimson' || currentMapId === 'forest' || currentMapId === 'subway') ? rooms[0] : null;
+    const spawnRoom = (currentMapId === 'boilerworks' || currentMapId === 'hotel' || currentMapId === 'crimson' || currentMapId === 'forest' || currentMapId === 'subway' || currentMapId === 'lucas') ? rooms[0] : null;
     player.x = spawnRoom?.x || (MAZE_LEFT + 1.5) * TS; player.y = spawnRoom?.y || (MAZE_TOP + 1.5) * TS;
     if(currentMapId==='amine'){const safeStart=floors.find(t=>t.c<9&&t.r<9&&!amineHoles.some(h=>h.c===t.c&&h.r===t.r)&&!amineFireZones.some(z=>Math.hypot(z.x-(t.c*TS+TS/2),z.y-(t.r*TS+TS/2))<z.radius+30))||floors[0];player.x=safeStart.c*TS+TS/2;player.y=safeStart.r*TS+TS/2;}
     player.baseSpeed = 3.85 * (1 + (upgShoe * 0.05));
@@ -4439,13 +4525,13 @@ function startGame(diffLevel) {
     boilerShutdown = false; boilerReadyShown = false; heatZones = []; heatEventCooldown = 360;
     rhysSealCollected = false; rhysTrapArmed = false; goopZones = []; goopShots = []; rhysSpitCooldown = 180; rhysDashTimer = 0; rhysChargeWindup = 0; rhysDashCooldown = 360; rhysEventCooldown = 900; rhysSweepTimer = 0; rhysSweepRadius = 0; rhysPressureZones = [];
     forestBeaconBattery = null; forestWatchtower = null; forestBeaconActive = false; forestFogTimer = 0; forestFogCooldown = currentMapId === 'forest' ? 720 : 0; forestGuideTimer = 0; forestGuideCooldown = currentMapId === 'forest' ? 1200 : 0; forestGuideMode = 'cabins'; noahCharge = null; noahLightningCooldown = 360; noahLightningZones = []; noahLightningPending = []; noahLightningWarning = 0; noahLightningFlashes = 0; noahShockTimer = 0; noahAppearanceWindow = 0;
-    amineFocus = false; amineVisibleTimer = 0; amineFlashCooldown = 90; amineTeleportCooldown = 240; amineTurret = null; amineBullets = []; amineBurnTimer = 0; amineRoad = null; nizarClones = []; nizarCloneCooldown = 2400; nizarCrush = null; nizarCrushCooldown = 900; subwayControlPuzzle = null; subwayFareCutscene = null; subwayGoldPressure = null; subwayTornTicket = null; subwayGoldSphere = null; subwayBronzeEligible = true; luckyBlocks = [];
+    amineFocus = false; amineVisibleTimer = 0; amineFlashCooldown = 90; amineTeleportCooldown = 240; amineTurret = null; amineBullets = []; amineBurnTimer = 0; amineRoad = null; nizarClones = []; nizarCloneCooldown = 2400; nizarCrush = null; nizarCrushCooldown = 900; subwayControlPuzzle = null; subwayFareCutscene = null; subwayGoldPressure = null; subwayTornTicket = null; subwayGoldSphere = null; subwayBronzeEligible = true; lucasState = 'searching'; lucasAbilityCooldown = 300; lucasCharge = null; lucasGateEndTimer = 0; luckyBlocks = [];
     hotelLockdownTimer = 0; hotelEventCooldown = currentMapId === 'hotel' ? 480 : 0; hotelLockdownActive = false; hotelBlockedDoor = null;
     bassamState = 'roaming'; bassamRevealPending = false; bassamTrapTaskId = null; bassamFakeTask = null; bassamFakeLine = ''; bassamAmbushActive = false; bassamRelentlessChase = false; bassamLostTimer = 0; bassamAmbushCooldown = 900; bassamDecoys = []; bassamDecoyCooldown = 600 + Math.floor(Math.random() * 601); hotelTaskGame = null; bassamStaffDepartment = ['FRONT DESK','MAINTENANCE','HOUSEKEEPING','KITCHEN'][Math.floor(Math.random() * 4)]; closeHotelDialogue();
     document.getElementById('hotelTaskHUD').style.display = currentMapId === 'hotel' ? 'block' : 'none';
     
     const roundScale = gameMode === 'endless' ? endlessRound - 1 : 0;
-    eventsEnabled = gameMode !== 'survival' || survivalConfig?.events !== false;
+    eventsEnabled = currentMapId !== 'lucas' && (gameMode !== 'survival' || survivalConfig?.events !== false);
     safeRoomsReliable = gameMode !== 'endless' || Math.random() < Math.max(0.35, 1 - roundScale * 0.14);
     let diffData = [
         { t: 10, gMin: 3, gMax: 4, mMin: 0, mMax: 1, mSpd: 2.65 },
@@ -4477,7 +4563,9 @@ function startGame(diffLevel) {
 
     let rand = Math.random();
     let monsterName = 'CALEB';
-    if (currentMapId === 'crimson' && gameMode !== 'survival') {
+    if (currentMapId === 'lucas') {
+        monsterName = 'LUCAS';
+    } else if (currentMapId === 'crimson' && gameMode !== 'survival') {
         monsterName = 'RHYS';
     } else if (currentMapId === 'hotel' && gameMode !== 'survival') {
         monsterName = 'BASSAM';
@@ -4516,6 +4604,7 @@ function startGame(diffLevel) {
         return !isSafeRoom(x, y) && !isReservedObjectSpot(x, y, TS * 2) && !isRhysEarlyLockedTile(tile) && (currentMapId === 'level0' || !getRoomAt(x, y)) && Math.hypot(player.x - x, player.y - y) > TS * 8;
     });
     let startTile = monsterTiles.at(-1) || floors.at(-1);
+    if (currentMapId === 'lucas' && lucasMonsterStart) startTile = { c:Math.floor(lucasMonsterStart.x / TS), r:Math.floor(lucasMonsterStart.y / TS) };
     
     monster = { 
         name: monsterName,
@@ -4559,11 +4648,13 @@ function startGame(diffLevel) {
         monster.baseSpeed += 0.18; monster.speed = monster.baseSpeed; monster.color = '#e8e8e8'; monster.textColor = '#fff'; monster.invisible = true;
     } else if (monsterName === 'NIZAR') {
         monster.baseSpeed += 0.14; monster.speed = monster.baseSpeed; monster.color = '#37546a'; monster.textColor = '#9cd6ff';
+    } else if (monsterName === 'LUCAS') {
+        monster.baseSpeed += 0.08; monster.speed = monster.baseSpeed; monster.color = '#211c32'; monster.textColor = '#c5a9ff';
     } else if (monsterName === 'CALEB') {
         empTimer = Math.floor(Math.random() * 600) + 600; 
     }
 
-    let numMutations = Math.floor(Math.random() * (diffData.mMax - diffData.mMin + 1)) + diffData.mMin;
+    let numMutations = currentMapId === 'lucas' ? 0 : Math.floor(Math.random() * (diffData.mMax - diffData.mMin + 1)) + diffData.mMin;
     let possibleMutations = [
         { name: 'Speed Demon', apply: (m) => { m.baseSpeed += 0.6; m.speed = m.baseSpeed; } }, 
         { name: 'Phantom', apply: (m) => { m.isPhantom = true; m.color = 'rgba(136, 0, 0, 0.3)'; m.baseSpeed *= 0.45; m.speed = m.baseSpeed; } },
@@ -4615,7 +4706,7 @@ function startGame(diffLevel) {
     }
     lastSingleMutation = monster.activeMutations.length === 1 ? monster.activeMutations[0] : null;
 
-    const requestedCount = modeMonsterCount();
+    const requestedCount = currentMapId === 'lucas' ? 1 : modeMonsterCount();
     const survivalNames = survivalConfig?.names || [];
     for (let i = 1; i < requestedCount; i++) {
         let name = gameMode === 'survival'
@@ -4634,6 +4725,8 @@ function startGame(diffLevel) {
         generators = subwayPanels;
         totalGens = subwayPanels.length;
         activeGens = 0;
+    } else if (currentMapId === 'lucas') {
+        generators = []; totalGens = 0; activeGens = 0; fuses = [];
     } else {
     totalGens = Math.floor(Math.random() * (diffData.gMax - diffData.gMin + 1)) + diffData.gMin;
     if (currentMapId === 'hotel') totalGens = Math.max(4, Math.min(7, totalGens + 1));
@@ -4705,7 +4798,7 @@ function startGame(diffLevel) {
     }
     setupForestBeacon();
     spawnGroundLoot();
-    spawnLuckyBlocks();
+    if (currentMapId !== 'lucas') spawnLuckyBlocks();
     const storageRoom = rooms.find(room => room.type === 'storage');
     if (storageRoom && !generators.some(generator => generator.x === storageRoom.x && generator.y === storageRoom.y)) {
         hidingSpots.push({ x: storageRoom.x, y: storageRoom.y, occupied: false });
@@ -4807,8 +4900,9 @@ function endGame(isWin, sourceMonster = monster) {
         }
         saveData();
         playSound('success');
-        const progressLabel = currentMapId === 'subway' ? `${activeGens}/${totalGens} signal panels` : `${activeGens}/${totalGens} generators`;
-        document.getElementById('endDesc').innerHTML = `You caught ${sourceMonster.name}.<br>${(elapsed / 1000).toFixed(1)}s · ${progressLabel} · ${runItemsUsed} items used<br>+${earned} Tokens${gameMode === 'endless' ? ` · x${endlessMultiplier.toFixed(2)} Endless` : ''}`;
+        const progressLabel = currentMapId === 'subway' ? `${activeGens}/${totalGens} signal panels` : currentMapId === 'lucas' ? `${lucasFragments.filter(fragment => fragment.collected).length}/${lucasFragments.length || 3} Caleb fragments` : `${activeGens}/${totalGens} generators`;
+        const victoryText = currentMapId === 'lucas' ? 'THE SHADOW DRAGGED LUCAS INTO THE GATE.' : `You caught ${sourceMonster.name}.`;
+        document.getElementById('endDesc').innerHTML = `${victoryText}<br>${(elapsed / 1000).toFixed(1)}s · ${progressLabel} · ${runItemsUsed} items used<br>+${earned} Tokens${gameMode === 'endless' ? ` · x${endlessMultiplier.toFixed(2)} Endless` : ''}`;
     } else {
         stats.losses++; stats.timesCaught++;
         saveData();
@@ -4837,6 +4931,7 @@ function returnToMainMenu() {
 
 function checkPhase() {
     updateHUD();
+    if (currentMapId === 'lucas') return;
     if (activeGens >= totalGens) {
         if (currentMapId === 'subway') {
             notify('SIGNALS RESTORED · FIND THE RAIL CONTROL ROOM', 'unlock');
@@ -4995,8 +5090,11 @@ function drawSubwayGoldGuidanceArrow() {
 
 function updateHUD() {
     const shownGens = hallucinationHudTimer > 0 ? `${Math.max(0, activeGens + (ambienceClock % 2 ? 1 : -1))}/${totalGens}` : `${activeGens}/${totalGens}`;
+    const lucasFragmentCount = lucasFragments.filter(fragment => fragment.collected).length;
+    if (currentMapId === 'lucas') document.getElementById('genCount').innerText = `Fragments: ${lucasFragmentCount}/${lucasFragments.length || 3}`;
     document.getElementById('genCount').innerText = currentMapId === 'subway' ? `Signals: ${activeGens}/${totalGens}` : (monsters.some(enemy => enemy.hasScrambler) ? "?/?" : shownGens);
     const objective = document.getElementById('mapObjective');
+    if (currentMapId === 'lucas') document.getElementById('genCount').innerText = `Fragments: ${lucasFragmentCount}/${lucasFragments.length || 3}`;
     if (objective) {
         const objectiveGens = monsters.some(enemy => enemy.hasScrambler) ? '?/?' : `${activeGens}/${totalGens}`;
         const falseObjective = monster.hasFalseObjective && Math.floor(ambienceClock / 180) % 2 === 1;
@@ -5012,9 +5110,18 @@ function updateHUD() {
                         ? `Containment: ${objectiveGens} generators · ${monster.name !== 'RHYS' ? (activeGens >= totalGens ? `CATCH ${monster.name}` : 'Restore facility power') : activeGens < totalGens ? 'Restore facility power' : !rhysSealCollected ? rhysRoute === 'break' && !rhysBreakWall?.broken ? 'Bait Rhys into the cracked wall' : rhysRoute === 'chest' && !rhysChestKey?.collected ? 'Find the chest key' : rhysRoute === 'chest' && !rhysChest?.opened ? 'Open the Crimson Chest' : 'Recover the Crimson Seal' : !rhysTrapArmed ? 'Arm the containment trap' : 'Lure Rhys into containment'}`
                     : currentMapId === 'forest'
                         ? `Forest: ${objectiveGens} generators · ${forestBreakers.filter(breaker => breaker.active).length}/${forestBreakers.length} cabin breakers${forestObjectiveComplete() ? ` · CATCH ${monster.name}` : activeGens < totalGens ? ' · REPAIR GENERATORS FIRST' : !forestBreakers.every(breaker => breaker.active) ? ' · RESTORE DARK CABINS' : !forestBeaconBattery?.collected ? ' · RECOVER RANGER BATTERY' : ' · INSTALL AT WATCHTOWER'}`
-                    : currentMapId === 'amine'
+            : currentMapId === 'amine'
                         ? `Parted Grid: ${objectiveGens} generators · ${activeGens>=totalGens?'FIND EXIT GATE':'RESTORE POWER'} · HOLD V / FOCUS TO SEE AMINE`
                     : 'Find and repair every generator';
+        if (currentMapId === 'lucas') {
+            objective.textContent = lucasState === 'searching'
+                ? lucasFragmentCount >= lucasFragments.length && lucasFragments.length > 0
+                    ? 'Shadow Gate: PLACE THE FRAGMENTS AT THE CALEB VESSEL'
+                    : `Shadow Gate: RECOVER CALEB FRAGMENTS · ${lucasFragmentCount}/${lucasFragments.length || 3}`
+                : lucasState === 'runningToGate' || lucasState === 'blocking' || lucasState === 'dragging'
+                    ? 'Shadow Gate: LUCAS IS BLOCKING THE EXIT'
+                    : 'Shadow Gate: PLACE THE FRAGMENTS AT THE SEALED GATE';
+        }
     }
     
     let invText = [];
@@ -5036,6 +5143,7 @@ function updateHUD() {
     if (fuses.some(fuse => !fuse.collected)) invText.push(`Fuses: ${fuses.filter(fuse => !fuse.collected).length}`);
     if (currentMapId === 'subway' && subwayTornTicket?.collected && !subwayTornTicket.delivered) invText.push('TORN TICKET: CARRY TO CONTROL');
     if (currentMapId === 'subway' && subwayGoldSphere?.collected) invText.push('GOLD FARE SPHERE: RECOVERED');
+    if (currentMapId === 'lucas' && lucasFragmentCount > 0) invText.push(`CALEB FRAGMENTS: ${lucasFragmentCount}/${lucasFragments.length || 3}`);
     if (player.hidden) invText.push(`HIDDEN: ${Math.ceil(player.hideTimer / 60)}s`);
     if (upgDash) invText.push(`Dash: ${dashCooldown > 0 ? `${Math.ceil(dashCooldown / 60)}s` : 'READY'} (LEFT SHIFT)`);
     document.getElementById('inventory').innerText = invText.join(' | ');
@@ -5217,6 +5325,73 @@ function moveMonsterAlongPath(spd, enemy = monster) {
 
 function getMonsterSpeed(enemy = monster) {
     return enemy.speed * (player.crouching ? 0.55 : 1);
+}
+
+function updateLucasMonster() {
+    if (currentMapId !== 'lucas' || !monster || monster.name !== 'LUCAS') return false;
+    if (lucasState === 'dragging') return true;
+    const canSeePlayer = !player.hidden && getLineOfSight(monster.x, monster.y, player.x, player.y);
+    if (lucasState === 'runningToGate') {
+        const targetC = Math.floor(lucasGate.blockX / TS), targetR = Math.floor(lucasGate.blockY / TS);
+        if (monster.lastTargetC !== targetC || monster.lastTargetR !== targetR || monster.path.length === 0) {
+            monster.path = findPath(Math.floor(monster.x / TS), Math.floor(monster.y / TS), targetC, targetR);
+            monster.lastTargetC = targetC; monster.lastTargetR = targetR;
+        }
+        moveMonsterAlongPath(getMonsterSpeed(monster) * 1.18, monster);
+        if (Math.hypot(monster.x - lucasGate.blockX, monster.y - lucasGate.blockY) < 24) {
+            monster.x = lucasGate.blockX; monster.y = lucasGate.blockY; monster.path = [];
+            lucasState = 'blocking';
+            notify('LUCAS REACHES THE GATE · STEP INTO HIS SIGHT', 'danger');
+            updateHUD();
+        }
+        return true;
+    }
+    if (lucasState === 'blocking') {
+        monster.x = lucasGate.blockX; monster.y = lucasGate.blockY;
+        if (canSeePlayer && Math.hypot(player.x - monster.x, player.y - monster.y) < 620) {
+            lucasState = 'dragging'; lucasGate.open = true; state = 8; clearMovementKeys();
+            canvas.classList.add('shake'); playSound('emp');
+            showStoryLine('THE SHADOW TAKES LUCAS.', 1900);
+            updateHUD();
+            setTimeout(() => { canvas.classList.remove('shake'); if (state === 8) endGame(true, monster); }, 1900);
+        }
+        return true;
+    }
+    if (lucasAbilityCooldown > 0) lucasAbilityCooldown--;
+    if (lucasCharge) {
+        lucasCharge.life--;
+        const oldX = monster.x, oldY = monster.y;
+        moveEntity(monster, lucasCharge.vx, lucasCharge.vy);
+        if (Math.hypot(monster.x - player.x, monster.y - player.y) < player.r + monster.r + 4 && !player.hidden) {
+            endGame(false, monster); return true;
+        }
+        if (lucasCharge.life <= 0 || Math.hypot(monster.x - oldX, monster.y - oldY) < .2) {
+            lucasCharge = null; monster.stunTimer = 42; monster.path = [];
+            notify('LUCAS MISSES · THE SHADOW RECOILS', 'unlock');
+        }
+        return true;
+    }
+    const distance = Math.hypot(player.x - monster.x, player.y - monster.y);
+    if (canSeePlayer && lucasAbilityCooldown <= 0 && distance > 150 && distance < 500 && Math.random() < .018) {
+        const angle = Math.atan2(player.y - monster.y, player.x - monster.x);
+        lucasCharge = { vx:Math.cos(angle) * 7.2, vy:Math.sin(angle) * 7.2, life:48 };
+        lucasAbilityCooldown = 420;
+        notify('LUCAS CHARGES THROUGH THE SERVICEWAY', 'danger');
+        return true;
+    }
+    if (canSeePlayer) {
+        const targetC = Math.floor(player.x / TS), targetR = Math.floor(player.y / TS);
+        if (monster.lastTargetC !== targetC || monster.lastTargetR !== targetR || monster.path.length === 0) {
+            monster.path = findPath(Math.floor(monster.x / TS), Math.floor(monster.y / TS), targetC, targetR);
+            monster.lastTargetC = targetC; monster.lastTargetR = targetR;
+        }
+        moveMonsterAlongPath(getMonsterSpeed(monster), monster);
+    } else if (monster.path.length === 0) {
+        const tile = pickMonsterWanderTile(monster);
+        monster.path = findPath(Math.floor(monster.x / TS), Math.floor(monster.y / TS), tile.c, tile.r);
+    } else moveMonsterAlongPath(getMonsterSpeed(monster), monster);
+    if (!player.hidden && Math.hypot(player.x - monster.x, player.y - monster.y) < player.r + monster.r - 2) endGame(false, monster);
+    return true;
 }
 
 function updateExtraMonsters() {
@@ -5431,7 +5606,7 @@ function update() {
         trailLastX = player.x; trailLastY = player.y;
     }
 
-    nearGen = null; nearFuse = null; nearHide = null; nearValve = null; nearBoiler = false; nearEmployee = null; nearElevator = false; nearHotelTask = null; nearRhysSeal = false; nearRhysKey = false; nearRhysChest = false; nearRhysTrap = false; nearSubwayPanel = null; nearSubwayControl = false;
+    nearGen = null; nearFuse = null; nearHide = null; nearValve = null; nearBoiler = false; nearEmployee = null; nearElevator = false; nearHotelTask = null; nearRhysSeal = false; nearRhysKey = false; nearRhysChest = false; nearRhysTrap = false; nearSubwayPanel = null; nearSubwayControl = false; nearLucasFragment = null; nearLucasAltar = false;
     if (state === 1 && player.stunTimer <= 0) {
         for (let g of generators) {
             if (!g.active && Math.hypot(player.x - g.x, player.y - g.y) < player.r + g.r + 15) {
@@ -5452,6 +5627,10 @@ function update() {
             const flickeringPanel = subwayGoldPressure?.signalPanels?.find(panel => Math.hypot(player.x - panel.x, player.y - panel.y) < 38) || null;
             nearSubwayPanel = flickeringPanel || subwayPanels.find(panel => !panel.active && Math.hypot(player.x - panel.x, player.y - panel.y) < 38) || null;
             nearSubwayControl = Boolean(subwayControl && Math.hypot(player.x - subwayControl.x, player.y - subwayControl.y) < 46);
+        }
+        if (currentMapId === 'lucas') {
+            nearLucasFragment = lucasFragments.find(fragment => !fragment.collected && Math.hypot(player.x - fragment.x, player.y - fragment.y) < 36) || null;
+            nearLucasAltar = Boolean(lucasAltar && Math.hypot(player.x - lucasAltar.x, player.y - lucasAltar.y) < 52);
         }
         if (currentMapId === 'hotel') {
             nearEmployee = employees.find(employee => !employee.evacuated && Math.hypot(player.x - employee.x, player.y - employee.y) < 34) || null;
@@ -5496,7 +5675,9 @@ function update() {
         let tracksBlood = !player.hidden && !isSafeRoom(player.x, player.y) && monster.name === 'MALAKAI' && monster.bloodHuntTimer > 0;
         let tracksHeat = !player.hidden && !isSafeRoom(player.x, player.y) && monster.name === 'AESON' && monster.heatAlertTimer > 0;
         
-        if (state === 1 && currentMapId === 'subway' && subwayCommitTimer > 0 && subwayCommitTarget) {
+        if (currentMapId === 'lucas' && updateLucasMonster()) {
+            // Lucas owns the pre-boss route and gate sequence.
+        } else if (state === 1 && currentMapId === 'subway' && subwayCommitTimer > 0 && subwayCommitTarget) {
             subwayCommitTimer--;
             const targetC = Math.floor(subwayCommitTarget.x / TS), targetR = Math.floor(subwayCommitTarget.y / TS);
             if (monster.lastTargetC !== targetC || monster.lastTargetR !== targetR || monster.path.length === 0) {
@@ -5749,10 +5930,10 @@ function draw() {
     for (let r = 0; r < ROWS; r++) {
         for (let c = 0; c < COLS; c++) {
             if (map[r][c] === 1) {
-                ctx.fillStyle = currentMapId === 'boilerworks' ? '#171a1d' : currentMapId === 'hotel' ? '#211a20' : currentMapId === 'crimson' ? '#241012' : currentMapId === 'forest' ? '#17351c' : currentMapId === 'amine' ? '#252525' : currentMapId === 'subway' ? '#15191d' : '#2d2216'; ctx.fillRect(c * TS, r * TS, TS, TS);
-                if (!setOptimization) { ctx.strokeStyle = currentMapId === 'boilerworks' ? '#0b0d0f' : currentMapId === 'hotel' ? '#0e0a10' : currentMapId === 'crimson' ? '#100506' : '#181109'; ctx.strokeRect(c * TS, r * TS, TS, TS); }
+                ctx.fillStyle = currentMapId === 'boilerworks' ? '#171a1d' : currentMapId === 'hotel' ? '#211a20' : currentMapId === 'crimson' ? '#241012' : currentMapId === 'forest' ? '#17351c' : currentMapId === 'amine' ? '#252525' : currentMapId === 'subway' ? '#15191d' : currentMapId === 'lucas' ? '#171326' : '#2d2216'; ctx.fillRect(c * TS, r * TS, TS, TS);
+                if (!setOptimization) { ctx.strokeStyle = currentMapId === 'boilerworks' ? '#0b0d0f' : currentMapId === 'hotel' ? '#0e0a10' : currentMapId === 'crimson' ? '#100506' : currentMapId === 'lucas' ? '#080610' : '#181109'; ctx.strokeRect(c * TS, r * TS, TS, TS); }
             } else {
-                ctx.fillStyle = currentMapId === 'boilerworks' ? '#4b4540' : currentMapId === 'hotel' ? ((r + c) % 2 ? '#5b4850' : '#65505a') : currentMapId === 'crimson' ? ((r + c) % 2 ? '#6f2429' : '#7d2b30') : currentMapId === 'forest' ? ((r + c) % 2 ? '#326d36' : '#39793d') : currentMapId === 'amine' ? '#555555' : currentMapId === 'subway' ? ((r + c) % 2 ? '#31383d' : '#3a4247') : '#8b7355'; ctx.fillRect(c * TS, r * TS, TS, TS);
+                ctx.fillStyle = currentMapId === 'boilerworks' ? '#4b4540' : currentMapId === 'hotel' ? ((r + c) % 2 ? '#5b4850' : '#65505a') : currentMapId === 'crimson' ? ((r + c) % 2 ? '#6f2429' : '#7d2b30') : currentMapId === 'forest' ? ((r + c) % 2 ? '#326d36' : '#39793d') : currentMapId === 'amine' ? '#555555' : currentMapId === 'subway' ? ((r + c) % 2 ? '#31383d' : '#3a4247') : currentMapId === 'lucas' ? ((r + c) % 2 ? '#3d3156' : '#493968') : '#8b7355'; ctx.fillRect(c * TS, r * TS, TS, TS);
                 if (!setOptimization && currentMapId === 'boilerworks' && (r + c) % 7 === 0) {
                     ctx.fillStyle = 'rgba(180,120,55,0.2)'; ctx.fillRect(c * TS + 5, r * TS + 7, TS - 10, 3);
                 }
@@ -5771,6 +5952,7 @@ function draw() {
                     ? ({ intake:'rgba(180,80,55,.24)', archive:'rgba(140,35,48,.28)', medical:'rgba(170,95,95,.25)', storage:'rgba(110,80,65,.27)', processing:'rgba(215,145,48,.22)', security:'rgba(90,110,145,.26)', maintenance:'rgba(150,130,55,.25)', containment:'rgba(205,55,45,.31)', vault:'rgba(150,35,65,.32)', service:'rgba(105,65,70,.24)', trap:'rgba(240,200,70,.24)' }[room.type] || 'rgba(120,35,45,.22)')
                 : currentMapId === 'forest' ? (room.lit ? 'rgba(255,220,100,.28)' : 'rgba(42,28,20,.6)')
                 : currentMapId === 'subway' ? (room.type.startsWith('platform_') ? 'rgba(81,94,102,.78)' : room.type === 'ticket_hall' ? 'rgba(91,79,62,.68)' : 'rgba(56,67,74,.76)')
+                : currentMapId === 'lucas' ? ({ entry:'rgba(80,55,105,.34)', archive:'rgba(155,115,205,.24)', service:'rgba(80,120,150,.24)', underpass:'rgba(30,20,48,.55)', vessel:'rgba(116,70,158,.36)', gate:'rgba(18,7,29,.72)' }[room.type] || 'rgba(80,55,105,.24)')
                 : (room.type === 'safe' ? 'rgba(40,110,255,0.28)' : room.type === 'maintenance' ? 'rgba(255,190,40,0.22)' : room.type === 'storage' ? 'rgba(180,180,180,0.16)' : 'rgba(80,80,80,0.14)');
         ctx.fillStyle = roomColor;
         const roomWidth = room.width || 3, roomHeight = room.height || 3;
@@ -5778,9 +5960,45 @@ function draw() {
         ctx.strokeStyle = room.type === 'safe' ? '#5790ff' : currentMapId === 'boilerworks' && room.type === 'boiler' ? '#ff6622' : currentMapId === 'hotel' && room.type === 'elevator' ? '#e7e7ff' : 'rgba(255,255,255,0.2)';
         ctx.lineWidth = 2;
         ctx.strokeRect((room.c - Math.floor(roomWidth / 2)) * TS, (room.r - Math.floor(roomHeight / 2)) * TS, TS * roomWidth, TS * roomHeight);
-        ctx.fillStyle = room.type === 'safe' ? '#fff0a0' : currentMapId === 'boilerworks' && room.type === 'boiler' ? '#ff9a66' : currentMapId === 'hotel' ? '#f1d9c4' : currentMapId === 'crimson' ? '#ffd0ad' : '#ddd';
+        ctx.fillStyle = room.type === 'safe' ? '#fff0a0' : currentMapId === 'boilerworks' && room.type === 'boiler' ? '#ff9a66' : currentMapId === 'hotel' ? '#f1d9c4' : currentMapId === 'crimson' ? '#ffd0ad' : currentMapId === 'lucas' ? '#d5baff' : '#ddd';
         ctx.font = 'bold 9px Arial'; ctx.textAlign = 'center';
         if (currentMapId !== 'subway') ctx.fillText(room.type.toUpperCase(), room.x, room.y - 24);
+    }
+
+    if (currentMapId === 'lucas') {
+        for (const arrow of lucasArrows) {
+            ctx.save(); ctx.translate(arrow.x, arrow.y); ctx.rotate(arrow.angle + Math.sin(ambienceClock * .025 + arrow.x) * .025);
+            ctx.fillStyle = arrow.misleading ? 'rgba(255,94,177,.75)' : 'rgba(202,166,255,.82)';
+            ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = 10;
+            ctx.beginPath(); ctx.moveTo(18, 0); ctx.lineTo(-11, -10); ctx.lineTo(-7, 0); ctx.lineTo(-11, 10); ctx.closePath(); ctx.fill();
+            ctx.restore();
+        }
+        for (const fragment of lucasFragments) {
+            if (fragment.collected) continue;
+            const pulse = 1 + Math.sin(ambienceClock * .08 + fragment.id) * .12;
+            ctx.save(); ctx.translate(fragment.x, fragment.y); ctx.rotate(.35);
+            ctx.fillStyle = 'rgba(216,174,255,.18)'; ctx.beginPath(); ctx.arc(0, 0, 25 * pulse, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#d7b0ff'; ctx.beginPath(); ctx.moveTo(0, -13 * pulse); ctx.lineTo(10 * pulse, 8 * pulse); ctx.lineTo(-11 * pulse, 9 * pulse); ctx.closePath(); ctx.fill();
+            ctx.strokeStyle = '#fff1ff'; ctx.lineWidth = 2; ctx.stroke(); ctx.restore();
+            if (nearLucasFragment === fragment && state === 1) { ctx.fillStyle='#fff1ff'; ctx.font='bold 10px Arial'; ctx.textAlign='center'; ctx.fillText('[E] RECOVER CALEB FRAGMENT', fragment.x, fragment.y - 24); }
+        }
+        if (lucasAltar) {
+            ctx.fillStyle = lucasAltar.placed ? 'rgba(205,158,255,.42)' : 'rgba(76,41,102,.7)';
+            ctx.fillRect(lucasAltar.x - 30, lucasAltar.y - 24, 60, 48);
+            ctx.strokeStyle = lucasAltar.placed ? '#f0d9ff' : '#a77bd1'; ctx.lineWidth = 3; ctx.strokeRect(lucasAltar.x - 30, lucasAltar.y - 24, 60, 48);
+            ctx.fillStyle = '#f0d9ff'; ctx.font='bold 9px Arial'; ctx.textAlign='center'; ctx.fillText(lucasAltar.placed ? 'FRAGMENTS PLACED' : 'CALEB VESSEL', lucasAltar.x, lucasAltar.y + 4);
+            if (nearLucasAltar && state === 1 && !lucasAltar.placed) ctx.fillText('[E] PLACE FRAGMENTS', lucasAltar.x, lucasAltar.y - 34);
+            if (lucasAltar.placed) for (let index = 0; index < 3; index++) { const angle = ambienceClock * .02 + index * Math.PI * 2 / 3; ctx.fillStyle='#edcbff'; ctx.beginPath(); ctx.arc(lucasAltar.x + Math.cos(angle) * 18, lucasAltar.y + Math.sin(angle) * 13, 5, 0, Math.PI * 2); ctx.fill(); }
+        }
+        if (lucasGate && lucasShadow) {
+            const shadowPulse = 1 + Math.sin(ambienceClock * .06) * .08;
+            const shadowGradient = ctx.createRadialGradient(lucasShadow.x, lucasShadow.y, 4, lucasShadow.x, lucasShadow.y, lucasShadow.radius * shadowPulse);
+            shadowGradient.addColorStop(0, 'rgba(0,0,0,.98)'); shadowGradient.addColorStop(1, 'rgba(11,3,18,0)');
+            ctx.fillStyle = shadowGradient; ctx.beginPath(); ctx.ellipse(lucasShadow.x, lucasShadow.y, lucasShadow.radius * shadowPulse, lucasShadow.radius * .62, 0, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = lucasGate.open ? 'rgba(196,148,255,.35)' : '#1b1027'; ctx.fillRect(lucasGate.x - 8, lucasGate.y - 54, 16, 108);
+            ctx.strokeStyle = lucasGate.open ? '#dcb8ff' : '#6f4b89'; ctx.lineWidth = 3; ctx.strokeRect(lucasGate.x - 12, lucasGate.y - 58, 24, 116);
+            ctx.fillStyle = '#ead7ff'; ctx.font='bold 10px Arial'; ctx.textAlign='center'; ctx.fillText(lucasGate.open ? 'OPEN' : 'SHADOW GATE', lucasGate.x, lucasGate.y - 70);
+        }
     }
 
     if (currentMapId === 'forest') {

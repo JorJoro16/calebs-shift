@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.14.0
+- Added The Shadow Gate, a dedicated pre-boss Lucas map with a connected serviceway, three Caleb fragments, misleading physical arrows, a Caleb Vessel, and a sealed shadow gate.
+- Added Lucas’s first encounter behavior: patrol pursuit, a corridor charge, a fragment-triggered run to the gate, line-of-sight gate blocking, and a shadow-drag ending that awards the normal run rewards.
+- Added the Shadow Gate to map selection after The Last Line and documented that Caleb’s boss arena will arrive separately.
+- Bumped the offline cache to `calebs-shift-v75`.
+
 ## 2.13.0
 - Made the Subway Gold Fare flickering-signal events fairer: they now appear less often, allow 30 seconds, and pause their countdown once the player reaches a flickering signal.
 - Added a rare chance for a Gold Fare event to affect two signal panels at once, with both panels clearly marked and tracked.
