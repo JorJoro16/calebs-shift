@@ -8,6 +8,9 @@ const skinImages = {
     trollFace: new Image(), generator: new Image(), trainSkin: new Image(),
     bronzeSkin: new Image(), silverSkin: new Image(), goldSkin: new Image()
 };
+const bossImages = {
+    caleb: new Image(), leftHand: new Image(), rightHand: new Image(), cal: new Image(), leb: new Image()
+};
 hatImages.noahCap.src = 'assets/noah-cap.png';
 hatImages.cowboyHat.src = 'assets/cowboy-hat.png';
 hatImages.luffyHat.src = 'assets/luffy-hat.png';
@@ -24,6 +27,11 @@ skinImages.trainSkin.src = 'assets/train-skin.png';
 skinImages.bronzeSkin.src = 'assets/bronze-skin.png';
 skinImages.silverSkin.src = 'assets/silver-skin.png';
 skinImages.goldSkin.src = 'assets/gold-skin.png';
+bossImages.caleb.src = 'assets/caleb-boss.png';
+bossImages.leftHand.src = 'assets/caleb-left-hand.png';
+bossImages.rightHand.src = 'assets/caleb-right-hand.png';
+bossImages.cal.src = 'assets/cal.png';
+bossImages.leb.src = 'assets/leb.png';
 const hud = document.getElementById('gameHUD');
 const msgBox = document.getElementById('message');
 
@@ -124,7 +132,7 @@ function playNizarCrashSound() {
 }
 
 // Versioned local progress with a backup copy and import/export support.
-const GAME_VERSION = '2.17.1';
+const GAME_VERSION = '2.18.0';
 const SAVE_SCHEMA_VERSION = 10;
 const COSMETIC_REWARD_VERSION = 2;
 const SAVE_KEY = 'br_save_v2';
@@ -1691,6 +1699,7 @@ let amineHoles = [], amineFireZones = [], amineExitGate = null, amineFocus = fal
 let subwayPanels = [], subwayTrains = [], subwayTrackRows = [], subwayTrackSegments = [], subwayTrap = null, subwayControl = null, subwayRouteReady = false, subwayTrapArmed = false, subwayTrainWarning = 0, subwayTrainTriggered = false, subwayDecor = [], subwaySigns = [], subwayCommitTimer = 0, subwayCommitTarget = null, subwayRouteMinX = 0, subwayRouteMaxX = 0, subwayTrainPaths = [], subwayControlPuzzle = null;
 let subwayTornTicket = null, subwayGoldSphere = null, subwayBronzeEligible = true, subwayFareCutscene = null, subwayGoldPressure = null;
 let lucasFragments = [], lucasLevers = [], lucasAltar = null, lucasGate = null, lucasShadow = null, lucasArrows = [], lucasShadowPools = [], lucasRouteLocks = [], lucasLockSpots = [], lucasHazards = [], lucasMonsterStart = null, lucasState = 'searching', lucasObjectiveStage = 'fragment1', lucasAbilityCooldown = 0, lucasPoolCooldown = 0, lucasTeleportFlash = null, lucasCharge = null, lucasPull = null, lucasCarryFragment = null, lucasFragmentPuzzle = null, lucasEndingAnimation = null, lucasGateEndTimer = 0, lucasShadowEvent = null, lucasShadowEventCooldown = 0, lucasShadowEventTriggered = false;
+let calebBoss = null;
 let routeBoard = null;
 const nizarCrashAudio = new Audio('assets/WallCrashSoundEffect.mp3');
 nizarCrashAudio.preload = 'auto';
@@ -2348,7 +2357,7 @@ function updateLucasEndingAnimation() {
     if (lucasEndingAnimation.time >= lucasEndingAnimation.duration) {
         canvas.classList.remove('shake');
         lucasEndingAnimation = null;
-        endGame(true, monster);
+        beginCalebBossIntro();
     }
 }
 
@@ -2390,6 +2399,508 @@ function drawLucasEndingAnimation() {
     ctx.fillStyle = '#d8c2ff'; ctx.font = 'bold 13px Arial'; ctx.fillText('LUCAS', lucasX, lucasY - 42);
     if (t > 125) { ctx.fillStyle = `rgba(255,255,255,${Math.min(.95, (t - 125) / 45)})`; ctx.fillRect(0, 0, canvas.width, canvas.height); }
 }
+
+function calebBossArena() {
+    const width = canvas.width, height = canvas.height;
+    return { left:Math.min(42, width * .075), right:Math.max(width - 42, width * .925), top:104, bottom:Math.max(height - 58, 300) };
+}
+
+function calebBossImage(image, x, y, width, height, angle = 0, alpha = 1) {
+    if (!image?.complete || !image.naturalWidth) return;
+    ctx.save(); ctx.translate(x, y); ctx.rotate(angle); ctx.globalAlpha = alpha;
+    ctx.drawImage(image, -width / 2, -height / 2, width, height);
+    ctx.restore();
+}
+
+function getCalebEyePoints(boss = calebBoss) {
+    if (!boss?.caleb) return [];
+    const size = boss.caleb.size;
+    return [
+        { x:boss.caleb.x - size * .166, y:boss.caleb.y - size * .139 },
+        { x:boss.caleb.x + size * .166, y:boss.caleb.y - size * .139 }
+    ];
+}
+
+function beginCalebBossIntro() {
+    monster.name = 'CALEB';
+    monster.color = '#85001b'; monster.textColor = '#ffb4c7'; monster.r = 28; monster.drawRadius = 28;
+    calebBoss = { introTime:0, introDuration:190, arena:calebBossArena(), player:{ x:canvas.width / 2, y:canvas.height * .78 }, playerTrail:[], playerInvuln:0 };
+    state = 19;
+    clearMovementKeys();
+    setLucasOverlay(true);
+    canvas.classList.add('shake');
+    playSound('emp');
+    showStoryLine('THE GATE OPENS ONTO SOMETHING MUCH OLDER.', 3600);
+}
+
+function beginCalebBossFight() {
+    const arena = calebBoss?.arena || calebBossArena();
+    const bodySize = Math.min(258, canvas.width * .39);
+    calebBoss = {
+        mode:'caleb', stage:1, phase:'eyesOn', time:0, phaseTimer:0, arena,
+        caleb:{ x:canvas.width / 2, y:arena.top + 8, size:bodySize },
+        health:26, maxHealth:26, eyeHits:0,
+        player:{ x:canvas.width / 2, y:arena.bottom - 72 }, playerTrail:[], trailLastX:canvas.width / 2, trailLastY:arena.bottom - 72, playerHealth:8, maxPlayerHealth:8, playerInvuln:0, playerHitFlash:0,
+        switches:[
+            { x:arena.left + 62, y:arena.top + 124, active:false, life:0, flash:0 },
+            { x:arena.right - 62, y:arena.top + 124, active:false, life:0, flash:0 },
+            { x:arena.left + 70, y:arena.bottom - 62, active:false, life:0, flash:0 },
+            { x:arena.right - 70, y:arena.bottom - 62, active:false, life:0, flash:0 }
+        ],
+        orbs:[], shots:[], eyeRain:[], cores:[], schiminis:[], walls:[], holes:[], sweep:null, slam:null,
+        orbTimer:82, sweepTimer:230, slamTimer:340, spreadTimer:260, rainTimer:64, schiminiTimer:240,
+        holeTimer:300, wallTimer:360, pullTimer:420, fireballTimer:100, nestTimer:180, flash:0, messageTimer:0
+    };
+    state = 20;
+    clearMovementKeys();
+    canvas.classList.remove('shake');
+    setLucasOverlay(true);
+    playSound('alarm');
+    showStoryLine('CALEB: THE BODY ABOVE THE WORLD.', 2600);
+}
+
+function beginCalebBossDefeat() {
+    if (!calebBoss || calebBoss.mode !== 'caleb') return;
+    calebBoss.mode = 'splitCutscene';
+    calebBoss.defeatTime = 0;
+    calebBoss.splitVisible = false;
+    state = 21;
+    clearMovementKeys();
+    canvas.classList.add('shake');
+    playSound('emp');
+    showStoryLine('CALEB IS NOT ONE THING.', 2700);
+}
+
+function beginCalLebPhase() {
+    const boss = calebBoss;
+    if (!boss) return;
+    boss.mode = 'split'; boss.stage = 3; boss.time = 0; boss.healthCal = 13; boss.maxHealthCal = 13; boss.healthLeb = 13; boss.maxHealthLeb = 13;
+    boss.cal = { x:boss.arena.left + 128, y:boss.arena.top + 172, size:116, teleportTimer:220 };
+    boss.leb = { x:boss.arena.right - 128, y:boss.arena.top + 172, size:116, eatTimer:280, targetNest:null };
+    boss.switches.forEach(button => { button.active = false; button.life = 0; });
+    boss.orbs = []; boss.shots = []; boss.eyeRain = []; boss.cores = []; boss.schiminis = []; boss.walls = []; boss.holes = []; boss.sweep = null; boss.slam = null;
+    boss.nests = [
+        { x:boss.arena.left + 110, y:boss.arena.bottom - 92, sealed:false, sealLife:0 },
+        { x:canvas.width / 2, y:boss.arena.top + 235, sealed:false, sealLife:0 },
+        { x:boss.arena.right - 110, y:boss.arena.bottom - 92, sealed:false, sealLife:0 }
+    ];
+    boss.playerHealth = Math.min(boss.maxPlayerHealth, boss.playerHealth + 2);
+    boss.fireballTimer = 84; boss.spreadTimer = 128; boss.wallTimer = 270; boss.pullTimer = 390; boss.nestTimer = 170; boss.schiminiTimer = 90; boss.holeTimer = 170; boss.flash = 22;
+    state = 20;
+    canvas.classList.remove('shake');
+    showStoryLine('CALEB BREAKS INTO CAL AND LEB.', 3000);
+    playSound('emp');
+}
+
+function updateCalebBossIntro() {
+    if (!calebBoss) return;
+    calebBoss.introTime++;
+    if (calebBoss.introTime >= calebBoss.introDuration) beginCalebBossFight();
+}
+
+function updateCalebBossDefeat() {
+    if (!calebBoss) return;
+    calebBoss.defeatTime++;
+    if (calebBoss.defeatTime === 24 || calebBoss.defeatTime === 96) playSound('tick');
+    if (calebBoss.defeatTime === 86) { calebBoss.splitVisible = true; playSound('alarm'); }
+    if (calebBoss.defeatTime >= 172) beginCalLebPhase();
+}
+
+function damageCalebBossPlayer(amount, reason = 'HIT', instant = false) {
+    const boss = calebBoss;
+    if (!boss || state !== 20) return true;
+    if (!instant && boss.playerInvuln > 0) return false;
+    if (instant) boss.playerHealth = 0;
+    else { boss.playerHealth = Math.max(0, boss.playerHealth - amount); boss.playerInvuln = 55; }
+    boss.playerHitFlash = 15;
+    playSound('fail');
+    if (boss.playerHealth <= 0) {
+        calebBoss = null;
+        setLucasOverlay(false);
+        endGame(false, monster);
+        return true;
+    }
+    if (reason) showMsg(`<span style="color:#ffb6b6">${reason}</span><br>${boss.playerHealth}/${boss.maxPlayerHealth} HEALTH`, 700);
+    return false;
+}
+
+function damageCalebBoss(amount, target = 'CALEB') {
+    const boss = calebBoss;
+    if (!boss) return;
+    if (target === 'CAL') boss.healthCal = Math.max(0, boss.healthCal - amount);
+    else if (target === 'LEB') boss.healthLeb = Math.max(0, boss.healthLeb - amount);
+    else boss.health = Math.max(0, boss.health - amount);
+    boss.flash = 10;
+    playSound('success');
+    if (target === 'CALEB' && boss.health <= 0) { beginCalebBossDefeat(); return; }
+    if (target === 'CAL' && boss.healthCal <= 0) { boss.cal = null; showStoryLine('CAL COLLAPSES INTO THE FLOOR.', 1600); }
+    if (target === 'LEB' && boss.healthLeb <= 0) { boss.leb = null; showStoryLine('LEB’S NESTS GO SILENT.', 1600); }
+    if (boss.mode === 'split' && boss.healthCal <= 0 && boss.healthLeb <= 0) {
+        calebBoss = null; setLucasOverlay(false); endGame(true, monster);
+    }
+}
+
+function calebBossPlayerMove() {
+    const boss = calebBoss;
+    if (!boss || !boss.player) return;
+    const bounds = boss.arena;
+    if (boss.playerInvuln > 0) boss.playerInvuln--;
+    if (boss.playerHitFlash > 0) boss.playerHitFlash--;
+    if (boss.flash > 0) boss.flash--;
+    const moveX = (keys.d ? 1 : 0) - (keys.a ? 1 : 0), moveY = (keys.s ? 1 : 0) - (keys.w ? 1 : 0);
+    let dx = moveX, dy = moveY;
+    if (dx && dy) { dx *= .707; dy *= .707; }
+    let speed = 4.2;
+    if (boss.pullTimerActive > 0 && boss.cal) {
+        boss.pullTimerActive--;
+        const pullAngle = Math.atan2(boss.cal.y - boss.player.y, boss.cal.x - boss.player.x);
+        dx += Math.cos(pullAngle) * .72; dy += Math.sin(pullAngle) * .72;
+    }
+    const nextX = Math.max(bounds.left + 18, Math.min(bounds.right - 18, boss.player.x + dx * speed));
+    const nextY = Math.max(bounds.top + 18, Math.min(bounds.bottom - 18, boss.player.y + dy * speed));
+    boss.player.x = nextX; boss.player.y = nextY;
+    if (Math.hypot(boss.player.x - boss.trailLastX, boss.player.y - boss.trailLastY) > .25) {
+        boss.playerTrail.push({ x:boss.player.x, y:boss.player.y });
+        if (boss.playerTrail.length > 24) boss.playerTrail.shift();
+        boss.trailLastX = boss.player.x; boss.trailLastY = boss.player.y;
+    }
+    for (const wall of boss.walls) {
+        if (boss.player.x > wall.x - 18 && boss.player.x < wall.x + wall.w + 18 && boss.player.y > wall.y - 18 && boss.player.y < wall.y + wall.h + 18) {
+            const distances = [
+                { side:'left', value:Math.abs(boss.player.x - (wall.x - 18)) }, { side:'right', value:Math.abs(boss.player.x - (wall.x + wall.w + 18)) },
+                { side:'top', value:Math.abs(boss.player.y - (wall.y - 18)) }, { side:'bottom', value:Math.abs(boss.player.y - (wall.y + wall.h + 18)) }
+            ].sort((a,b) => a.value - b.value);
+            if (distances[0].side === 'left') boss.player.x = wall.x - 18;
+            else if (distances[0].side === 'right') boss.player.x = wall.x + wall.w + 18;
+            else if (distances[0].side === 'top') boss.player.y = wall.y - 18;
+            else boss.player.y = wall.y + wall.h + 18;
+        }
+    }
+    for (const hole of boss.holes) {
+        if (hole.warning <= 0 && boss.player.x > hole.x && boss.player.x < hole.x + hole.w && boss.player.y > hole.y && boss.player.y < hole.y + hole.h) {
+            damageCalebBossPlayer(0, 'THE FLOOR GIVES WAY', true); return;
+        }
+    }
+}
+
+function activateCalebBossSwitch(button) {
+    if (!button || button.active || button.cooldown > 0) return false;
+    button.active = true; button.life = 330; button.flash = 18;
+    playSound('tick');
+    showMsg('<span style="color:#9fffd0">RESONANCE SWITCH ARMED</span><br>BAIT THE ATTACK THROUGH IT', 900);
+    return true;
+}
+
+function clickCalebBoss(clientX, clientY) {
+    const boss = calebBoss;
+    if (!boss || state !== 20) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = (clientX - rect.left) * canvas.width / rect.width, y = (clientY - rect.top) * canvas.height / rect.height;
+    const px = boss.player.x, py = boss.player.y;
+    const near = (object, radius = 50) => object && Math.hypot(px - object.x, py - object.y) < radius && Math.hypot(x - object.x, y - object.y) < radius * 1.25;
+    const button = boss.switches.find(entry => near(entry, 54));
+    if (button && activateCalebBossSwitch(button)) return;
+    if (boss.mode === 'caleb' && boss.phase === 'eyesOff') {
+        const core = boss.cores.find(entry => !entry.sealed && near(entry, 42));
+        if (core) { core.sealed = true; core.sealTimer = 55; playSound('unlock'); showMsg('<span style="color:#d8b4ff">EYE CORE SEALED</span>', 700); return; }
+    }
+    if (boss.mode === 'split' && boss.leb) {
+        const nest = boss.nests.find(entry => !entry.sealed && near(entry, 48));
+        if (nest) { nest.sealed = true; nest.sealLife = 360; playSound('unlock'); showMsg('<span style="color:#d8b4ff">NEST SEALED</span><br>LEB MUST NOT EAT IT', 900); }
+    }
+}
+
+function interactCalebBossAtPlayer() {
+    if (calebBoss?.player) clickCalebBoss(calebBoss.player.x, calebBoss.player.y);
+}
+
+function spawnCalebOrb(boss) {
+    const eyes = getCalebEyePoints(boss);
+    const eye = eyes[Math.floor(Math.random() * eyes.length)];
+    const angle = Math.atan2(boss.player.y - eye.y, boss.player.x - eye.x);
+    boss.orbs.push({ x:eye.x, y:eye.y, vx:Math.cos(angle) * 4.15, vy:Math.sin(angle) * 4.15, r:14, life:230, blast:0, reflected:false });
+}
+
+function updateCalebOrbs(boss) {
+    const eyes = getCalebEyePoints(boss);
+    for (let index = boss.orbs.length - 1; index >= 0; index--) {
+        const orb = boss.orbs[index];
+        if (orb.blast > 0) {
+            orb.blast--;
+            if (orb.blast === 0) {
+                if (Math.hypot(boss.player.x - orb.x, boss.player.y - orb.y) < 66) damageCalebBossPlayer(1, 'DARK ORB IMPACT');
+                boss.orbs.splice(index, 1);
+            }
+            continue;
+        }
+        if (!orb.reflected) {
+            orb.x += orb.vx; orb.y += orb.vy; orb.life--;
+            const switchHit = boss.switches.find(button => button.active && Math.hypot(orb.x - button.x, orb.y - button.y) < 22);
+            if (switchHit) {
+                switchHit.active = false; switchHit.cooldown = 70; orb.reflected = true;
+                const angle = Math.atan2(boss.caleb.y - orb.y, boss.caleb.x - orb.x);
+                orb.vx = Math.cos(angle) * 6.2; orb.vy = Math.sin(angle) * 6.2; orb.life = 180;
+                playSound('unlock'); showMsg('<span style="color:#e6c5ff">ORB REFLECTED</span>', 600);
+            } else if (Math.hypot(orb.x - boss.player.x, orb.y - boss.player.y) < orb.r + player.r + 3) orb.blast = 28;
+            if (orb.life <= 0) orb.blast = 28;
+        } else {
+            orb.x += orb.vx; orb.y += orb.vy; orb.life--;
+            if (Math.hypot(orb.x - boss.caleb.x, orb.y - boss.caleb.y) < boss.caleb.size * .28) {
+                boss.orbs.splice(index, 1); boss.eyeHits++; damageCalebBoss(1.75);
+                if (boss.eyeHits >= 4 && boss.phase === 'eyesOn') {
+                    boss.phase = 'eyesOff'; boss.phaseTimer = 1800; boss.eyeHits = 0; boss.cores = []; boss.rainTimer = 38; boss.schiminiTimer = 150;
+                    showStoryLine('CALEB’S EYES GO WHITE.', 1800); playSound('emp');
+                }
+            } else if (orb.life <= 0) boss.orbs.splice(index, 1);
+        }
+    }
+}
+
+function spawnCalebSpread(boss) {
+    const side = Math.random() < .5 ? -1 : 1;
+    const origin = { x:boss.caleb.x + side * boss.caleb.size * .66, y:boss.caleb.y + 52 };
+    const angle = Math.atan2(boss.player.y - origin.y, boss.player.x - origin.x);
+    for (let index = -2; index <= 2; index++) {
+        const spread = angle + index * .15;
+        boss.shots.push({ x:origin.x, y:origin.y, vx:Math.cos(spread) * 5.4, vy:Math.sin(spread) * 5.4, life:150, r:8, type:'caleb' });
+    }
+}
+
+function spawnCalebEyeRain(boss) {
+    boss.eyeRain.push({ x:boss.arena.left + 24 + Math.random() * (boss.arena.right - boss.arena.left - 48), y:boss.arena.top - 32, vy:3.1 + Math.random() * 1.1, r:15, life:260 });
+}
+
+function spawnCalebSchimini(boss, fromX = null, fromY = null) {
+    boss.schiminis.push({ x:fromX ?? (boss.arena.left + 30 + Math.random() * (boss.arena.right - boss.arena.left - 60)), y:fromY ?? (boss.arena.top + 90 + Math.random() * (boss.arena.bottom - boss.arena.top - 120)), speed:1.55 + Math.random() * .55, life:480 });
+}
+
+function updateCalebProjectiles(boss) {
+    for (let index = boss.shots.length - 1; index >= 0; index--) {
+        const shot = boss.shots[index]; shot.x += shot.vx; shot.y += shot.vy; shot.life--;
+        if (Math.hypot(shot.x - boss.player.x, shot.y - boss.player.y) < shot.r + player.r) { damageCalebBossPlayer(1, 'PROJECTILE HIT'); boss.shots.splice(index, 1); continue; }
+        if (shot.life <= 0 || shot.x < boss.arena.left - 20 || shot.x > boss.arena.right + 20 || shot.y < boss.arena.top - 20 || shot.y > boss.arena.bottom + 20) boss.shots.splice(index, 1);
+    }
+    for (let index = boss.eyeRain.length - 1; index >= 0; index--) {
+        const eye = boss.eyeRain[index]; eye.y += eye.vy; eye.life--;
+        if (Math.hypot(eye.x - boss.player.x, eye.y - boss.player.y) < eye.r + player.r) { damageCalebBossPlayer(1, 'FALLING EYE'); boss.eyeRain.splice(index, 1); continue; }
+        if (eye.y > boss.arena.bottom - 24 || eye.life <= 0) {
+            if (Math.random() < .27 && boss.cores.length < 2) boss.cores.push({ x:eye.x, y:boss.arena.bottom - 30, sealed:false, sealTimer:0, life:480 });
+            boss.eyeRain.splice(index, 1);
+        }
+    }
+    for (let index = boss.schiminis.length - 1; index >= 0; index--) {
+        const enemy = boss.schiminis[index];
+        const angle = Math.atan2(boss.player.y - enemy.y, boss.player.x - enemy.x);
+        enemy.x += Math.cos(angle) * enemy.speed; enemy.y += Math.sin(angle) * enemy.speed; enemy.life--;
+        if (Math.hypot(enemy.x - boss.player.x, enemy.y - boss.player.y) < player.r + 13) { damageCalebBossPlayer(1, 'SCHIMINI HIT'); boss.schiminis.splice(index, 1); continue; }
+        if (enemy.life <= 0) boss.schiminis.splice(index, 1);
+    }
+}
+
+function updateCalebBossAttacks(boss) {
+    boss.switches.forEach(button => { if (button.life > 0) button.life--; if (button.life <= 0) button.active = false; if (button.cooldown > 0) button.cooldown--; if (button.flash > 0) button.flash--; });
+    if (boss.sweep) { boss.sweep.life--; if (boss.sweep.life === 20) { const unsafe = boss.sweep.side === 'left' ? boss.player.x < canvas.width / 2 : boss.player.x > canvas.width / 2; if (unsafe) damageCalebBossPlayer(1, 'HAND SWEEP'); } if (boss.sweep.life <= 0) boss.sweep = null; }
+    if (boss.slam) { boss.slam.life--; if (boss.slam.life === 1) { if (Math.hypot(boss.player.x - boss.slam.x, boss.player.y - boss.slam.y) < boss.slam.radius) damageCalebBossPlayer(1, 'GROUND SLAM'); if (boss.stage >= 2) boss.holes.push({ x:boss.slam.x - 42, y:boss.slam.y - 32, w:84, h:64, warning:0, life:330 }); } if (boss.slam.life <= 0) boss.slam = null; }
+    boss.holes.forEach(hole => { hole.warning--; hole.life--; }); boss.holes = boss.holes.filter(hole => hole.life > 0);
+    boss.walls.forEach(wall => wall.life--); boss.walls = boss.walls.filter(wall => wall.life > 0);
+    boss.spreadTimer--; boss.sweepTimer--; boss.slamTimer--;
+    if (boss.spreadTimer <= 0) { spawnCalebSpread(boss); boss.spreadTimer = boss.stage >= 2 ? 205 : 285; }
+    if (!boss.sweep && boss.sweepTimer <= 0) { boss.sweep = { side:Math.random() < .5 ? 'left' : 'right', life:72 }; boss.sweepTimer = boss.stage >= 2 ? 330 : 460; playSound('alarm'); }
+    if (!boss.slam && boss.slamTimer <= 0) { boss.slam = { x:boss.player.x, y:boss.player.y, radius:112, life:58 }; boss.slamTimer = boss.stage >= 2 ? 350 : 520; playSound('alarm'); }
+    if (boss.stage >= 2) {
+        boss.holeTimer--; boss.wallTimer--;
+        if (boss.holeTimer <= 0 && boss.holes.length < 3) { boss.holes.push({ x:boss.arena.left + 45 + Math.random() * (boss.arena.right - boss.arena.left - 135), y:boss.arena.top + 130 + Math.random() * (boss.arena.bottom - boss.arena.top - 190), w:68, h:54, warning:65, life:300 }); boss.holeTimer = 260; }
+        if (boss.wallTimer <= 0) { boss.walls.push({ x:boss.arena.left + 100 + Math.random() * (boss.arena.right - boss.arena.left - 230), y:boss.arena.top + 125 + Math.random() * (boss.arena.bottom - boss.arena.top - 230), w:Math.random() < .5 ? 18 : 116, h:Math.random() < .5 ? 116 : 18, life:230 }); boss.wallTimer = 320; }
+    }
+}
+
+function updateCalebBossPhase(boss) {
+    if (boss.phase === 'eyesOn') {
+        boss.orbTimer--; if (boss.orbTimer <= 0) { spawnCalebOrb(boss); boss.orbTimer = boss.stage >= 2 ? 88 : 118; }
+    } else {
+        boss.phaseTimer--; boss.rainTimer--; boss.schiminiTimer--;
+        if (boss.rainTimer <= 0) { spawnCalebEyeRain(boss); boss.rainTimer = boss.stage >= 2 ? 58 : 78; }
+        if (boss.schiminiTimer <= 0 && boss.schiminis.length < (boss.stage >= 2 ? 6 : 4)) { spawnCalebSchimini(boss); boss.schiminiTimer = boss.stage >= 2 ? 170 : 235; }
+        for (let index = boss.cores.length - 1; index >= 0; index--) {
+            const core = boss.cores[index]; core.life--;
+            if (core.sealed) { core.sealTimer--; if (core.sealTimer <= 0) { damageCalebBoss(2.2); boss.cores.splice(index, 1); } }
+            else if (core.life <= 0) boss.cores.splice(index, 1);
+        }
+        if (boss.phaseTimer <= 0) {
+            boss.phase = 'eyesOn'; boss.eyeHits = 0; boss.orbTimer = 70; boss.stage = Math.max(boss.stage, boss.health <= boss.maxHealth * .58 ? 2 : 1);
+            showStoryLine(boss.stage >= 2 ? 'THE ARENA STARTS TO FALL AWAY.' : 'CALEB’S EYES REFORM.', 1700); playSound('unlock');
+        }
+    }
+}
+
+function updateCalebBossMain() {
+    const boss = calebBoss;
+    if (!boss) return;
+    boss.time++;
+    calebBossPlayerMove();
+    if (state !== 20) return;
+    if (boss.mode === 'caleb') {
+        updateCalebBossPhase(boss); updateCalebBossAttacks(boss); updateCalebOrbs(boss); updateCalebProjectiles(boss);
+        if (boss.stage === 1 && boss.health <= boss.maxHealth * .56) boss.stage = 2;
+    } else if (boss.mode === 'split') updateCalLebMain(boss);
+}
+
+function spawnCalFireball(boss, spiral = false) {
+    if (!boss.cal) return;
+    const angle = Math.atan2(boss.player.y - boss.cal.y, boss.player.x - boss.cal.x);
+    const count = spiral ? 9 : 1;
+    for (let index = 0; index < count; index++) {
+        const spread = spiral ? index * Math.PI * 2 / count + boss.time * .035 : angle;
+        const speed = spiral ? 3.4 : 4.8;
+        boss.orbs.push({ x:boss.cal.x, y:boss.cal.y, vx:Math.cos(spread) * speed, vy:Math.sin(spread) * speed, r:10, life:180, blast:0, reflected:false, type:'cal' });
+    }
+}
+
+function spawnLebSpread(boss) {
+    if (!boss.leb) return;
+    const angle = Math.atan2(boss.player.y - boss.leb.y, boss.player.x - boss.leb.x);
+    for (let index = -2; index <= 2; index++) { const spread = angle + index * .16; boss.shots.push({ x:boss.leb.x, y:boss.leb.y, vx:Math.cos(spread) * 4.6, vy:Math.sin(spread) * 4.6, life:170, r:8, type:'leb' }); }
+}
+
+function updateCalLebMain(boss) {
+    boss.switches.forEach(button => { if (button.life > 0) button.life--; if (button.life <= 0) button.active = false; if (button.cooldown > 0) button.cooldown--; if (button.flash > 0) button.flash--; });
+    boss.fireballTimer--; boss.spreadTimer--; boss.wallTimer--; boss.pullTimer--; boss.nestTimer--; boss.schiminiTimer--; boss.holeTimer--;
+    if (boss.fireballTimer <= 0) { spawnCalFireball(boss, boss.time % 3 === 0); boss.fireballTimer = 105; }
+    if (boss.spreadTimer <= 0) { spawnLebSpread(boss); boss.spreadTimer = 175; }
+    if (boss.wallTimer <= 0 && boss.cal) { boss.walls.push({ x:boss.arena.left + 95 + Math.random() * (boss.arena.right - boss.arena.left - 220), y:boss.arena.top + 125 + Math.random() * (boss.arena.bottom - boss.arena.top - 210), w:Math.random() < .5 ? 20 : 112, h:Math.random() < .5 ? 112 : 20, life:240 }); boss.wallTimer = 300; }
+    if (boss.pullTimer <= 0 && boss.cal) { boss.pullTimerActive = 82; boss.pullTimer = 410; playSound('alarm'); }
+    if (boss.schiminiTimer <= 0 && boss.leb) { spawnCalebSchimini(boss, boss.leb.x, boss.leb.y); boss.schiminiTimer = 145; }
+    if (boss.nestTimer <= 0 && boss.leb) {
+        const nest = boss.nests.find(entry => Math.hypot(entry.x - boss.leb.x, entry.y - boss.leb.y) < 230);
+        if (nest) boss.leb.targetNest = nest;
+        boss.nestTimer = 260;
+    }
+    if (boss.cal) {
+        boss.cal.teleportTimer--;
+        if (boss.cal.teleportTimer <= 0) { boss.cal.x = boss.arena.left + 90 + Math.random() * (boss.arena.right - boss.arena.left - 180); boss.cal.y = boss.arena.top + 120 + Math.random() * (boss.arena.bottom - boss.arena.top - 190); boss.cal.teleportTimer = 230; boss.flash = 16; playSound('tick'); }
+    }
+    if (boss.leb && boss.leb.targetNest) {
+        const nest = boss.leb.targetNest, angle = Math.atan2(nest.y - boss.leb.y, nest.x - boss.leb.x);
+        boss.leb.x += Math.cos(angle) * 1.8; boss.leb.y += Math.sin(angle) * 1.8;
+        if (Math.hypot(nest.x - boss.leb.x, nest.y - boss.leb.y) < 24) {
+            if (nest.sealed) damageCalebBoss(2.4, 'LEB'); else boss.healthLeb = Math.min(boss.maxHealthLeb, boss.healthLeb + 1.5);
+            boss.nests = boss.nests.filter(entry => entry !== nest); boss.leb.targetNest = null; boss.flash = 14;
+        }
+    } else if (boss.leb) {
+        const angle = Math.atan2(boss.leb.y - boss.player.y, boss.leb.x - boss.player.x);
+        boss.leb.x = Math.max(boss.arena.left + 58, Math.min(boss.arena.right - 58, boss.leb.x + Math.cos(angle) * 1.05));
+        boss.leb.y = Math.max(boss.arena.top + 100, Math.min(boss.arena.bottom - 54, boss.leb.y + Math.sin(angle) * 1.05));
+    }
+    if (boss.nests.length < 3 && boss.time % 300 === 0) boss.nests.push({ x:boss.arena.left + 90 + Math.random() * (boss.arena.right - boss.arena.left - 180), y:boss.arena.top + 150 + Math.random() * (boss.arena.bottom - boss.arena.top - 220), sealed:false, sealLife:0 });
+    boss.nests.forEach(nest => { if (nest.sealLife > 0) { nest.sealLife--; if (nest.sealLife <= 0) nest.sealed = false; } });
+    for (let index = boss.orbs.length - 1; index >= 0; index--) {
+        const orb = boss.orbs[index]; orb.x += orb.vx; orb.y += orb.vy; orb.life--;
+        const button = boss.switches.find(entry => entry.active && Math.hypot(orb.x - entry.x, orb.y - entry.y) < 22);
+        if (!orb.reflected && button) { button.active = false; button.cooldown = 70; orb.reflected = true; const angle = boss.cal ? Math.atan2(boss.cal.y - orb.y, boss.cal.x - orb.x) : 0; orb.vx = Math.cos(angle) * 6.2; orb.vy = Math.sin(angle) * 6.2; orb.life = 160; playSound('unlock'); }
+        else if (!orb.reflected && Math.hypot(orb.x - boss.player.x, orb.y - boss.player.y) < orb.r + player.r) { damageCalebBossPlayer(1, 'FIREBALL HIT'); boss.orbs.splice(index, 1); continue; }
+        else if (orb.reflected && boss.cal && Math.hypot(orb.x - boss.cal.x, orb.y - boss.cal.y) < 58) { boss.orbs.splice(index, 1); damageCalebBoss(2.2, 'CAL'); continue; }
+        if (orb.life <= 0 || orb.x < boss.arena.left - 30 || orb.x > boss.arena.right + 30 || orb.y < boss.arena.top - 30 || orb.y > boss.arena.bottom + 30) boss.orbs.splice(index, 1);
+    }
+    updateCalebProjectiles(boss);
+    boss.walls.forEach(wall => wall.life--); boss.walls = boss.walls.filter(wall => wall.life > 0);
+    boss.holes.forEach(hole => hole.life--); boss.holes = boss.holes.filter(hole => hole.life > 0);
+    if (boss.holeTimer <= 0 && boss.holes.length < 2) { boss.holes.push({ x:boss.arena.left + 70 + Math.random() * (boss.arena.right - boss.arena.left - 190), y:boss.arena.top + 140 + Math.random() * (boss.arena.bottom - boss.arena.top - 200), w:74, h:58, warning:55, life:280 }); boss.holeTimer = 300; }
+}
+function drawBossBar(x, y, width, height, value, max, color, label) {
+    ctx.fillStyle = 'rgba(0,0,0,.72)'; ctx.fillRect(x, y, width, height);
+    ctx.fillStyle = color; ctx.fillRect(x + 2, y + 2, Math.max(0, (width - 4) * Math.max(0, value / max)), height - 4);
+    ctx.strokeStyle = 'rgba(255,255,255,.72)'; ctx.lineWidth = 1; ctx.strokeRect(x, y, width, height);
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 11px Arial'; ctx.textAlign = 'center'; ctx.fillText(`${label} · ${Math.ceil(Math.max(0, value))}/${max}`, x + width / 2, y - 5);
+}
+
+function drawCalebBossPlayer(boss) {
+    const x = boss.player.x, y = boss.player.y;
+    if (cosmetics.trail !== 'none' && boss.playerTrail?.length > 1) {
+        const trailColor = cosmetics.trail === 'spark' ? 'rgba(255,238,86,.82)' : cosmetics.trail === 'ember' ? 'rgba(255,70,24,.78)' : cosmetics.trail === 'static' ? 'rgba(185,245,255,.65)' : cosmetics.trail === 'circle' ? 'rgba(255,255,255,.78)' : 'rgba(180,210,255,.42)';
+        ctx.save(); ctx.globalAlpha = .7; ctx.strokeStyle = trailColor; ctx.lineWidth = cosmetics.trail === 'ghost' ? 10 : cosmetics.trail === 'ember' ? 4 : 6; ctx.lineCap = cosmetics.trail === 'static' ? 'butt' : 'round';
+        if (cosmetics.trail === 'static') ctx.setLineDash([8, 7]); ctx.beginPath(); boss.playerTrail.forEach((point, index) => index ? ctx.lineTo(point.x, point.y) : ctx.moveTo(point.x, point.y)); ctx.stroke(); ctx.setLineDash([]); ctx.restore();
+    }
+    ctx.fillStyle = 'rgba(0,0,0,.42)'; ctx.beginPath(); ctx.ellipse(x + 3, y + 16, 16, 7, 0, 0, Math.PI * 2); ctx.fill();
+    const skin = skinImages[cosmetics.skin];
+    if (cosmetics.skin !== 'default' && skin?.complete && skin.naturalWidth) {
+        const size = player.r * 3.35; ctx.globalAlpha = boss.playerInvuln > 0 && boss.playerInvuln % 6 < 3 ? .35 : 1; ctx.drawImage(skin, x - size / 2, y - size / 2, size, size); ctx.globalAlpha = 1;
+    } else {
+        ctx.fillStyle = boss.playerInvuln > 0 ? '#fff0a0' : (playerColors[cosmetics.color] || '#76d9ff'); ctx.beginPath(); ctx.arc(x, y, player.r + 2, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#102332'; ctx.beginPath(); ctx.arc(x - 4, y - 2, 2, 0, Math.PI * 2); ctx.arc(x + 4, y - 2, 2, 0, Math.PI * 2); ctx.fill();
+    }
+    const mask = maskImages[cosmetics.mask], hat = hatImages[cosmetics.hat];
+    if (cosmetics.mask !== 'none' && mask?.complete && mask.naturalWidth) ctx.drawImage(mask, x - player.r * 2, y - player.r * 2.15, player.r * 4, player.r * 4);
+    if (cosmetics.hat !== 'none' && hat?.complete && hat.naturalWidth) ctx.drawImage(hat, x - player.r * 2, y - player.r * 2.15, player.r * 4, player.r * 4);
+}
+
+function drawCalebBossIntro() {
+    const scene = calebBoss; if (!scene) return;
+    const t = scene.introTime, progress = Math.min(1, t / scene.introDuration), cx = canvas.width / 2;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const gradient = ctx.createRadialGradient(cx, canvas.height * .55, 10, cx, canvas.height * .55, Math.max(canvas.width, canvas.height) * .75);
+    gradient.addColorStop(0, 'rgba(109,0,30,.45)'); gradient.addColorStop(.56, '#0d0209'); gradient.addColorStop(1, '#020103');
+    ctx.fillStyle = gradient; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#ffcad6'; ctx.font = 'bold 23px Arial'; ctx.textAlign = 'center'; ctx.fillText('THE OTHER SIDE OF THE GATE', cx, 54);
+    ctx.fillStyle = '#b98595'; ctx.font = '14px Arial'; ctx.fillText('THE FRAGMENTS WERE NEVER A KEY', cx, 80);
+    const gateY = canvas.height * .42;
+    ctx.fillStyle = 'rgba(0,0,0,.94)'; ctx.beginPath(); ctx.ellipse(cx, gateY, 84 + Math.sin(t * .08) * 5, 142 + Math.sin(t * .08) * 7, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#c36688'; ctx.lineWidth = 4; ctx.beginPath(); ctx.ellipse(cx, gateY, 90, 148, 0, 0, Math.PI * 2); ctx.stroke();
+    scene.player.x = cx; scene.player.y = canvas.height * .79 - Math.min(1, Math.max(0, (t - 8) / 86)) * (canvas.height * .37);
+    drawCalebBossPlayer(scene);
+    const size = Math.min(310, canvas.width * .5), y = gateY - 24 - progress * 32;
+    calebBossImage(bossImages.caleb, cx, y, size, size, Math.sin(t * .025) * .015, Math.min(1, Math.max(0, (progress - .34) * 2.3)));
+    if (progress > .35) { ctx.strokeStyle = `rgba(255,30,75,${(progress - .35) * 1.35})`; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(cx - size * .18, y - size * .14); ctx.lineTo(cx + size * .18, y - size * .14); ctx.stroke(); }
+    if (t > 125) { ctx.fillStyle = `rgba(255,255,255,${Math.min(.75, (t - 125) / 80)})`; ctx.fillRect(0, 0, canvas.width, canvas.height); }
+}
+
+function drawCalebBossDefeat() {
+    const boss = calebBoss; if (!boss) return;
+    const t = boss.defeatTime, cx = canvas.width / 2, cy = boss.caleb.y, size = boss.caleb.size;
+    ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.fillStyle = '#070106'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    const shake = Math.sin(t * 1.7) * Math.min(9, t / 10); ctx.save(); ctx.translate(shake, Math.cos(t * 1.31) * Math.min(7, t / 12));
+    const separation = Math.max(0, (t - 84) * 1.8);
+    if (!boss.splitVisible) calebBossImage(bossImages.caleb, cx, cy + 45, size, size);
+    else { calebBossImage(bossImages.cal, cx - separation, cy + 50, 118, 258, -.06); calebBossImage(bossImages.leb, cx + separation, cy + 50, 118, 258, .06); }
+    ctx.strokeStyle = '#fff1f5'; ctx.shadowColor = '#ff315b'; ctx.shadowBlur = 18; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(cx, cy - size * .42); ctx.lineTo(cx + Math.sin(t * .3) * 8, cy + size * .42); ctx.stroke(); ctx.restore();
+    ctx.fillStyle = '#ffd6df'; ctx.font = 'bold 23px Arial'; ctx.textAlign = 'center'; ctx.fillText(boss.splitVisible ? 'TWO HALVES REMAIN' : 'CALEB IS SPLITTING', cx, 52);
+    if (t > 115) { ctx.fillStyle = `rgba(255,255,255,${Math.min(.9, (t - 115) / 50)})`; ctx.fillRect(0, 0, canvas.width, canvas.height); }
+}
+
+function drawCalebBossEncounter() {
+    const boss = calebBoss; if (!boss) return;
+    const arena = boss.arena, width = canvas.width, height = canvas.height;
+    ctx.clearRect(0, 0, width, height);
+    const background = ctx.createRadialGradient(width * .5, height * .48, 20, width * .5, height * .48, Math.max(width, height) * .76);
+    background.addColorStop(0, boss.mode === 'split' ? '#321424' : '#27101b'); background.addColorStop(.62, '#0b050b'); background.addColorStop(1, '#020103');
+    ctx.fillStyle = background; ctx.fillRect(0, 0, width, height);
+    ctx.fillStyle = boss.mode === 'split' ? 'rgba(53,19,30,.94)' : 'rgba(24,10,20,.94)'; ctx.fillRect(arena.left, arena.top, arena.right - arena.left, arena.bottom - arena.top);
+    ctx.save(); ctx.beginPath(); ctx.rect(arena.left, arena.top, arena.right - arena.left, arena.bottom - arena.top); ctx.clip();
+    ctx.strokeStyle = 'rgba(255,116,143,.11)'; ctx.lineWidth = 1;
+    for (let x = arena.left; x < arena.right; x += 42) { ctx.beginPath(); ctx.moveTo(x, arena.top); ctx.lineTo(x, arena.bottom); ctx.stroke(); }
+    for (let y = arena.top; y < arena.bottom; y += 42) { ctx.beginPath(); ctx.moveTo(arena.left, y); ctx.lineTo(arena.right, y); ctx.stroke(); }
+    ctx.restore(); ctx.strokeStyle = '#a43351'; ctx.lineWidth = 4; ctx.strokeRect(arena.left, arena.top, arena.right - arena.left, arena.bottom - arena.top);
+    for (const hole of boss.holes || []) { ctx.fillStyle = hole.warning > 0 ? `rgba(255,190,70,${.15 + Math.sin(boss.time * .25) * .06})` : '#010103'; ctx.fillRect(hole.x, hole.y, hole.w, hole.h); ctx.strokeStyle = hole.warning > 0 ? '#ffd45c' : '#8c243b'; ctx.lineWidth = 3; if (hole.warning > 0) ctx.setLineDash([8, 6]); ctx.strokeRect(hole.x, hole.y, hole.w, hole.h); ctx.setLineDash([]); }
+    for (const wall of boss.walls || []) { ctx.fillStyle = 'rgba(111,18,38,.92)'; ctx.fillRect(wall.x, wall.y, wall.w, wall.h); ctx.strokeStyle = '#e65c75'; ctx.lineWidth = 2; ctx.strokeRect(wall.x, wall.y, wall.w, wall.h); }
+    if (boss.sweep) { const left = boss.sweep.side === 'left'; ctx.fillStyle = `rgba(255,40,74,${boss.sweep.life < 24 ? .55 : .24})`; ctx.fillRect(left ? arena.left : width / 2, arena.top, (arena.right - arena.left) / 2, arena.bottom - arena.top); const handX = left ? arena.left + 46 + (72 - boss.sweep.life) * 2 : arena.right - 46 - (72 - boss.sweep.life) * 2; calebBossImage(left ? bossImages.leftHand : bossImages.rightHand, handX, height * .52, 142, 142, left ? -.24 : .24); }
+    if (boss.slam) { ctx.strokeStyle = `rgba(255,210,110,${Math.min(.92, boss.slam.life / 35)})`; ctx.lineWidth = 5; ctx.setLineDash([10, 7]); ctx.beginPath(); ctx.arc(boss.slam.x, boss.slam.y, boss.slam.radius * (1 + (58 - boss.slam.life) * .012), 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); calebBossImage(bossImages.leftHand, boss.slam.x, boss.slam.y - 76, 125, 125, .1); }
+    for (const button of boss.switches || []) { ctx.fillStyle = button.active ? '#91ffd0' : '#5a2034'; ctx.shadowColor = button.active ? '#89ffd0' : '#e36b86'; ctx.shadowBlur = button.active ? 18 : 4; ctx.fillRect(button.x - 14, button.y - 14, 28, 28); ctx.shadowBlur = 0; ctx.strokeStyle = button.active ? '#eafff6' : '#e97891'; ctx.lineWidth = 2; ctx.strokeRect(button.x - 14, button.y - 14, 28, 28); ctx.fillStyle = '#240914'; ctx.fillRect(button.x - 5, button.y - 5, 10, 10); if (Math.hypot(boss.player.x - button.x, boss.player.y - button.y) < 60 && !button.active) { ctx.fillStyle = '#fff1f4'; ctx.font = 'bold 10px Arial'; ctx.textAlign = 'center'; ctx.fillText('[TAP / E] ARM SWITCH', button.x, button.y - 22); } }
+    for (const core of boss.cores || []) { ctx.fillStyle = core.sealed ? '#caa4ff' : '#f5f1ff'; ctx.shadowColor = '#d0a0ff'; ctx.shadowBlur = 14; ctx.beginPath(); ctx.arc(core.x, core.y, 13 + Math.sin(boss.time * .12) * 2, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0; ctx.fillStyle = '#28132f'; ctx.beginPath(); ctx.arc(core.x, core.y, 5, 0, Math.PI * 2); ctx.fill(); if (Math.hypot(boss.player.x - core.x, boss.player.y - core.y) < 48 && !core.sealed) { ctx.fillStyle = '#fff'; ctx.font = 'bold 10px Arial'; ctx.textAlign = 'center'; ctx.fillText('[TAP / E] SEAL CORE', core.x, core.y - 22); } }
+    for (const nest of boss.nests || []) { ctx.fillStyle = nest.sealed ? '#d79cff' : '#6d1d3e'; ctx.shadowColor = nest.sealed ? '#ddaaff' : '#d4476c'; ctx.shadowBlur = 12; ctx.beginPath(); ctx.arc(nest.x, nest.y, 21 + Math.sin(boss.time * .08 + nest.x) * 3, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0; ctx.strokeStyle = '#ff9cb4'; ctx.lineWidth = 2; ctx.stroke(); if (Math.hypot(boss.player.x - nest.x, boss.player.y - nest.y) < 54 && !nest.sealed) { ctx.fillStyle = '#fff'; ctx.font = 'bold 10px Arial'; ctx.textAlign = 'center'; ctx.fillText('[TAP / E] SEAL NEST', nest.x, nest.y - 29); } }
+    for (const orb of boss.orbs || []) { ctx.fillStyle = orb.reflected ? '#c69bff' : '#09020c'; ctx.shadowColor = orb.reflected ? '#ead5ff' : '#b63767'; ctx.shadowBlur = 15; ctx.beginPath(); ctx.arc(orb.x, orb.y, orb.r + (orb.blast ? (28 - orb.blast) * .8 : 0), 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0; if (orb.blast) { ctx.strokeStyle = '#ff95a9'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(orb.x, orb.y, 24 + (28 - orb.blast), 0, Math.PI * 2); ctx.stroke(); } }
+    for (const shot of boss.shots || []) { ctx.fillStyle = shot.type === 'leb' ? '#ff8b9c' : '#ffa94f'; ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = 10; ctx.beginPath(); ctx.arc(shot.x, shot.y, shot.r, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0; }
+    for (const eye of boss.eyeRain || []) { ctx.fillStyle = '#f5efff'; ctx.strokeStyle = '#9d4d83'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(eye.x, eye.y, eye.r, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); ctx.fillStyle = '#210916'; ctx.beginPath(); ctx.arc(eye.x, eye.y, 5, 0, Math.PI * 2); ctx.fill(); }
+    for (const enemy of boss.schiminis || []) { ctx.fillStyle = '#71213e'; ctx.beginPath(); ctx.arc(enemy.x, enemy.y, 13, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(enemy.x - 4, enemy.y - 2, 2, 0, Math.PI * 2); ctx.arc(enemy.x + 4, enemy.y - 2, 2, 0, Math.PI * 2); ctx.fill(); }
+    if (boss.mode === 'caleb') { const eyes = getCalebEyePoints(boss), body = boss.caleb; calebBossImage(bossImages.caleb, body.x, body.y, body.size, body.size, Math.sin(boss.time * .03) * .012, boss.flash > 0 ? .62 : 1); calebBossImage(bossImages.leftHand, body.x - body.size * .69, body.y + 46, 145, 145, boss.slam ? -.16 : .05); calebBossImage(bossImages.rightHand, body.x + body.size * .69, body.y + 46, 145, 145, boss.slam ? .16 : -.05); if (boss.phase === 'eyesOn') eyes.forEach(eye => { ctx.fillStyle = 'rgba(7,0,9,.96)'; ctx.shadowColor = '#ff436e'; ctx.shadowBlur = 18; ctx.beginPath(); ctx.arc(eye.x, eye.y, body.size * .092, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0; ctx.strokeStyle = '#ff99aa'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(eye.x, eye.y, body.size * .115, 0, Math.PI * 2); ctx.stroke(); }); else eyes.forEach(eye => { ctx.strokeStyle = '#fff7fb'; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(eye.x, eye.y, body.size * .09, 0, Math.PI * 2); ctx.stroke(); }); }
+    else if (boss.mode === 'split') { if (boss.cal) calebBossImage(bossImages.cal, boss.cal.x, boss.cal.y, boss.cal.size, boss.cal.size * 2.18, Math.sin(boss.time * .06) * .03); if (boss.leb) calebBossImage(bossImages.leb, boss.leb.x, boss.leb.y, boss.leb.size, boss.leb.size * 2.18, -Math.sin(boss.time * .055) * .03); }
+    drawCalebBossPlayer(boss);
+    ctx.fillStyle = '#ffe1e8'; ctx.font = 'bold 20px Arial'; ctx.textAlign = 'center'; ctx.fillText(boss.mode === 'split' ? 'THE BROKEN BODY' : 'CALEB', width / 2, 32);
+    if (boss.mode === 'split') { drawBossBar(28, 48, Math.min(260, width * .32), 15, boss.healthCal, boss.maxHealthCal, '#cf4d73', 'CAL'); drawBossBar(width - 28 - Math.min(260, width * .32), 48, Math.min(260, width * .32), 15, boss.healthLeb, boss.maxHealthLeb, '#9c64cf', 'LEB'); }
+    else { drawBossBar(width * .2, 48, width * .6, 17, boss.health, boss.maxHealth, '#bd3157', boss.stage >= 2 ? 'CALEB · COLLAPSING ARENA' : boss.phase === 'eyesOff' ? 'CALEB · EYES DISABLED' : 'CALEB'); }
+    drawBossBar(width * .25, height - 30, width * .5, 12, boss.playerHealth, boss.maxPlayerHealth, '#64d6ff', 'PLAYER HEALTH');
+    ctx.fillStyle = '#eacbd4'; ctx.font = '12px Arial'; ctx.textAlign = 'center'; ctx.fillText(boss.mode === 'split' ? 'ARM SWITCHES TO REFLECT CAL’S FIRE · SEAL LEB’S NESTS BEFORE HE EATS THEM' : boss.phase === 'eyesOff' ? 'RARE EYE CORES CAN BE SEALED · SURVIVE UNTIL CALEB’S EYES RETURN' : 'ARM A SWITCH, THEN BAIT CALEB’S DARK ORB THROUGH IT', width / 2, height - 48);
+    if (boss.playerHitFlash > 0) { ctx.fillStyle = `rgba(255,255,255,${boss.playerHitFlash / 30})`; ctx.fillRect(0, 0, width, height); }
+}
+
 function failGeneratorTask(label) {
     if (generatorFailureTarget !== currentGen) { generatorFailureTarget = currentGen; generatorFailureStreak = 0; }
     generatorFailureStreak++;
@@ -2531,6 +3042,16 @@ window.addEventListener('keydown', (e) => {
         if (k in keys) { keys[k] = true; e.preventDefault(); }
         return;
     }
+    if (state === 20) {
+        if (k === 'arrowleft') k = 'a';
+        if (k === 'arrowright') k = 'd';
+        if (k === 'arrowup') k = 'w';
+        if (k === 'arrowdown') k = 's';
+        if (k === 'e' || k === ' ') { e.preventDefault(); interactCalebBossAtPlayer(); return; }
+        if (k in keys) { keys[k] = true; e.preventDefault(); }
+        return;
+    }
+    if (state === 19 || state === 21) return;
     if (state === 14) {
         if (k === 'escape') { e.preventDefault(); exitSubwayControlPuzzle(); }
         return;
@@ -2800,7 +3321,7 @@ window.addEventListener('keydown', (e) => {
 });
 window.addEventListener('keyup', (e) => {
     let k = e.key.toLowerCase();
-    if (state === 11 || state === 18) {
+    if (state === 11 || state === 18 || state === 20) {
         if (k === 'arrowleft') k = 'a';
         if (k === 'arrowright') k = 'd';
         if (k === 'arrowup') k = 'w';
@@ -2816,6 +3337,7 @@ window.addEventListener('keyup', (e) => {
 function handleCanvasPress(clientX, clientY) {
     const rect=canvas.getBoundingClientRect(), x=(clientX-rect.left)*canvas.width/rect.width, y=(clientY-rect.top)*canvas.height/rect.height;
     if (state === 16) { updateLucasFragmentPointer(clientX, clientY, true); return; }
+    if (state === 20) { clickCalebBoss(clientX, clientY); return; }
     if (state === 14) {
         if (x < 132 && y > canvas.height - 92) { exitSubwayControlPuzzle(); return; }
         clickSubwayControlSwitch(x, y); return;
@@ -5043,7 +5565,7 @@ function startGame(diffLevel) {
     boilerShutdown = false; boilerReadyShown = false; heatZones = []; heatEventCooldown = 360;
     rhysSealCollected = false; rhysTrapArmed = false; goopZones = []; goopShots = []; rhysSpitCooldown = 180; rhysDashTimer = 0; rhysChargeWindup = 0; rhysDashCooldown = 360; rhysEventCooldown = 900; rhysSweepTimer = 0; rhysSweepRadius = 0; rhysPressureZones = [];
     forestBeaconBattery = null; forestWatchtower = null; forestBeaconActive = false; forestFogTimer = 0; forestFogCooldown = currentMapId === 'forest' ? 720 : 0; forestGuideTimer = 0; forestGuideCooldown = currentMapId === 'forest' ? 1200 : 0; forestGuideMode = 'cabins'; noahCharge = null; noahLightningCooldown = 360; noahLightningZones = []; noahLightningPending = []; noahLightningWarning = 0; noahLightningFlashes = 0; noahShockTimer = 0; noahAppearanceWindow = 0;
-    amineFocus = false; amineVisibleTimer = 0; amineFlashCooldown = 90; amineTeleportCooldown = 240; amineTurret = null; amineBullets = []; amineBurnTimer = 0; amineRoad = null; nizarClones = []; nizarCloneCooldown = 2400; nizarCrush = null; nizarCrushCooldown = 900; subwayControlPuzzle = null; subwayFareCutscene = null; subwayGoldPressure = null; subwayTornTicket = null; subwayGoldSphere = null; subwayBronzeEligible = true; lucasState = 'searching'; lucasObjectiveStage = 'fragment1'; lucasAbilityCooldown = 300; lucasPoolCooldown = 0; lucasTeleportFlash = null; lucasCharge = null; lucasPull = null; lucasCarryFragment = null; lucasFragmentPuzzle = null; lucasEndingAnimation = null; lucasRouteLocks = []; lucasHazards = []; lucasGateEndTimer = 0; lucasShadowEvent = null; lucasShadowEventCooldown = 900 + Math.floor(Math.random() * 1201); lucasShadowEventTriggered = false; luckyBlocks = [];
+    amineFocus = false; amineVisibleTimer = 0; amineFlashCooldown = 90; amineTeleportCooldown = 240; amineTurret = null; amineBullets = []; amineBurnTimer = 0; amineRoad = null; nizarClones = []; nizarCloneCooldown = 2400; nizarCrush = null; nizarCrushCooldown = 900; subwayControlPuzzle = null; subwayFareCutscene = null; subwayGoldPressure = null; subwayTornTicket = null; subwayGoldSphere = null; subwayBronzeEligible = true; lucasState = 'searching'; lucasObjectiveStage = 'fragment1'; lucasAbilityCooldown = 300; lucasPoolCooldown = 0; lucasTeleportFlash = null; lucasCharge = null; lucasPull = null; lucasCarryFragment = null; lucasFragmentPuzzle = null; lucasEndingAnimation = null; lucasRouteLocks = []; lucasHazards = []; lucasGateEndTimer = 0; lucasShadowEvent = null; lucasShadowEventCooldown = 900 + Math.floor(Math.random() * 1201); lucasShadowEventTriggered = false; calebBoss = null; luckyBlocks = [];
     hotelLockdownTimer = 0; hotelEventCooldown = currentMapId === 'hotel' ? 480 : 0; hotelLockdownActive = false; hotelBlockedDoor = null;
     bassamState = 'roaming'; bassamRevealPending = false; bassamTrapTaskId = null; bassamFakeTask = null; bassamFakeLine = ''; bassamAmbushActive = false; bassamRelentlessChase = false; bassamLostTimer = 0; bassamAmbushCooldown = 900; bassamDecoys = []; bassamDecoyCooldown = 600 + Math.floor(Math.random() * 601); hotelTaskGame = null; bassamStaffDepartment = ['FRONT DESK','MAINTENANCE','HOUSEKEEPING','KITCHEN'][Math.floor(Math.random() * 4)]; closeHotelDialogue();
     document.getElementById('hotelTaskHUD').style.display = currentMapId === 'hotel' ? 'block' : 'none';
@@ -5418,8 +5940,8 @@ function endGame(isWin, sourceMonster = monster) {
         }
         saveData();
         playSound('success');
-        const progressLabel = currentMapId === 'subway' ? `${activeGens}/${totalGens} signal panels` : currentMapId === 'lucas' ? `${lucasFragments.filter(fragment => fragment.collected).length}/${lucasFragments.length || 3} Caleb fragments` : `${activeGens}/${totalGens} generators`;
-        const victoryText = currentMapId === 'lucas' ? 'THE SHADOW DRAGGED LUCAS INTO THE GATE.' : `You caught ${sourceMonster.name}.`;
+        const progressLabel = currentMapId === 'subway' ? `${activeGens}/${totalGens} signal panels` : currentMapId === 'lucas' && sourceMonster.name === 'CALEB' ? 'CALEB, CAL, AND LEB DEFEATED' : currentMapId === 'lucas' ? `${lucasFragments.filter(fragment => fragment.collected).length}/${lucasFragments.length || 3} Caleb fragments` : `${activeGens}/${totalGens} generators`;
+        const victoryText = currentMapId === 'lucas' && sourceMonster.name === 'CALEB' ? 'THE BROKEN BODY HAS BEEN DEFEATED.' : currentMapId === 'lucas' ? 'THE SHADOW DRAGGED LUCAS INTO THE GATE.' : `You caught ${sourceMonster.name}.`;
         document.getElementById('endDesc').innerHTML = `${victoryText}<br>${(elapsed / 1000).toFixed(1)}s · ${progressLabel} · ${runItemsUsed} items used<br>+${earned} Tokens${gameMode === 'endless' ? ` · x${endlessMultiplier.toFixed(2)} Endless` : ''}`;
     } else {
         stats.losses++; stats.timesCaught++;
@@ -6119,6 +6641,9 @@ function update() {
     if (state === 16) { updateLucasFragmentPuzzle(); return; }
     if (state === 17) { updateLucasEndingAnimation(); return; }
     if (state === 18) { updateLucasShadowDimension(); return; }
+    if (state === 19) { updateCalebBossIntro(); return; }
+    if (state === 20) { updateCalebBossMain(); return; }
+    if (state === 21) { updateCalebBossDefeat(); return; }
     if (state === 14) { updateSubwayControlPuzzle(); return; }
     if (state === 15) { updateSubwayFareCutscene(); return; }
     if (![1,3,5,6,7,9,10,11,13].includes(state)) return;
@@ -6585,6 +7110,9 @@ function draw() {
     if (state === 16 && lucasFragmentPuzzle) { drawLucasFragmentPuzzle(); return; }
     if (state === 17 && lucasEndingAnimation) { drawLucasEndingAnimation(); return; }
     if (state === 18 && lucasShadowEvent) { drawLucasShadowDimension(); return; }
+    if (state === 19 && calebBoss) { drawCalebBossIntro(); return; }
+    if (state === 20 && calebBoss) { drawCalebBossEncounter(); return; }
+    if (state === 21 && calebBoss) { drawCalebBossDefeat(); return; }
     if (state === 14 && subwayControlPuzzle) { drawSubwayControlPuzzle(); return; }
     if (state === 15 && subwayFareCutscene) { drawSubwayFareCutscene(); return; }
     if (state === 0 || state === 4) {
@@ -7483,8 +8011,10 @@ function updateMobileSkillCheckButton() {
         const joystickElement = document.getElementById('joystick');
         const canvasPuzzle = state === 9 || state === 10 || state === 11 || state === 14 || state === 16 || state === 17;
         const shadowDimension = state === 18;
-        if (touchActions) touchActions.style.visibility = canvasPuzzle || shadowDimension ? 'hidden' : 'visible';
-        if (joystickElement) joystickElement.style.visibility = canvasPuzzle ? 'hidden' : 'visible';
+        const bossFight = state === 20;
+        const bossScene = state === 19 || state === 21;
+        if (touchActions) touchActions.style.visibility = canvasPuzzle || shadowDimension || bossFight || bossScene ? 'hidden' : 'visible';
+        if (joystickElement) joystickElement.style.visibility = canvasPuzzle || bossScene ? 'hidden' : 'visible';
         updateMobileSkillCheckButton();
     }
     setInterval(updatePuzzlePad, 100);
