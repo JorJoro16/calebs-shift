@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.18.6
+- Tuned the Cal/Leb artwork footprint down again so the tall supplied sprites read closer to player scale in the arena.
+- Bumped the offline cache to `calebs-shift-v87`.
+
+## 2.18.5
+- Reworked the Cal/Leb phase: both halves are now player-scale, actively roam the arena, and no longer leave Leb parked in a corner.
+- Slowed Cal’s fireball cadence, made spiral fireballs occasional, reduced split-phase health, and eased several hazard timers.
+- Bumped the offline cache to `calebs-shift-v86`.
+
 ## 2.18.4
 - Added rare touch-collectible hearts to the Caleb and Cal/Leb boss phases. Each heart restores 1 player health and remains available when the player is already at full health.
 - Bumped the offline cache to `calebs-shift-v85`.

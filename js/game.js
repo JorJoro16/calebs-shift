@@ -132,7 +132,7 @@ function playNizarCrashSound() {
 }
 
 // Versioned local progress with a backup copy and import/export support.
-const GAME_VERSION = '2.18.4';
+const GAME_VERSION = '2.18.6';
 const SAVE_SCHEMA_VERSION = 10;
 const COSMETIC_REWARD_VERSION = 2;
 const SAVE_KEY = 'br_save_v2';
@@ -2522,9 +2522,9 @@ function beginCalebBossDefeat() {
 function beginCalLebPhase() {
     const boss = calebBoss;
     if (!boss) return;
-    boss.mode = 'split'; boss.stage = 3; boss.time = 0; boss.healthCal = 13; boss.maxHealthCal = 13; boss.healthLeb = 13; boss.maxHealthLeb = 13;
-    boss.cal = { x:boss.arena.left + 128, y:boss.arena.top + 172, size:116, teleportTimer:220 };
-    boss.leb = { x:boss.arena.right - 128, y:boss.arena.top + 172, size:116, eatTimer:280, targetNest:null };
+    boss.mode = 'split'; boss.stage = 3; boss.time = 0; boss.healthCal = 11; boss.maxHealthCal = 11; boss.healthLeb = 11; boss.maxHealthLeb = 11;
+    boss.cal = { x:boss.arena.left + 128, y:boss.arena.top + 172, size:36, teleportTimer:320, moveTimer:0, targetX:null, targetY:null, fireballCount:0 };
+    boss.leb = { x:boss.arena.right - 128, y:boss.arena.top + 172, size:36, eatTimer:280, targetNest:null, moveTimer:0, targetX:null, targetY:null };
     boss.switches.forEach(button => { button.active = false; button.life = 0; });
     boss.orbs = []; boss.shots = []; boss.eyeRain = []; boss.cores = []; boss.schiminis = []; boss.walls = []; boss.holes = []; boss.sweep = null; boss.slam = null;
     boss.nests = [
@@ -2533,7 +2533,7 @@ function beginCalLebPhase() {
         { x:boss.arena.right - 110, y:boss.arena.bottom - 92, sealed:false, sealLife:0 }
     ];
     boss.playerHealth = Math.min(boss.maxPlayerHealth, boss.playerHealth + 2);
-    boss.fireballTimer = 84; boss.spreadTimer = 128; boss.wallTimer = 270; boss.pullTimer = 390; boss.nestTimer = 170; boss.schiminiTimer = 90; boss.holeTimer = 170; boss.flash = 22;
+    boss.fireballTimer = 140; boss.spreadTimer = 165; boss.wallTimer = 320; boss.pullTimer = 480; boss.nestTimer = 170; boss.schiminiTimer = 120; boss.holeTimer = 220; boss.flash = 22;
     state = 20;
     canvas.classList.remove('shake');
     showStoryLine('CALEB BREAKS INTO CAL AND LEB.', 3000);
@@ -2872,14 +2872,43 @@ function spawnLebSpread(boss) {
     for (let index = -2; index <= 2; index++) { const spread = angle + index * .16; boss.shots.push({ x:boss.leb.x, y:boss.leb.y, vx:Math.cos(spread) * 4.6, vy:Math.sin(spread) * 4.6, life:170, r:8, type:'leb' }); }
 }
 
+function chooseCalLebTarget(boss, entity, flee = false) {
+    const arena = boss.arena;
+    const minX = arena.left + 76, maxX = arena.right - 76, minY = arena.top + 130, maxY = arena.bottom - 76;
+    let x = minX + Math.random() * (maxX - minX);
+    let y = minY + Math.random() * (maxY - minY);
+    if (flee) {
+        const awayAngle = Math.atan2(entity.y - boss.player.y, entity.x - boss.player.x) + (Math.random() - .5) * .8;
+        const distance = 190 + Math.random() * 180;
+        const fleeX = boss.player.x + Math.cos(awayAngle) * distance;
+        const fleeY = boss.player.y + Math.sin(awayAngle) * distance;
+        // Blend fleeing with a room-wide destination so Leb keeps circulating
+        // instead of being pinned against the nearest corner.
+        x = fleeX * .62 + x * .38;
+        y = fleeY * .62 + y * .38;
+        x = Math.max(minX, Math.min(maxX, x));
+        y = Math.max(minY, Math.min(maxY, y));
+    }
+    entity.targetX = x; entity.targetY = y; entity.moveTimer = 90 + Math.floor(Math.random() * 75);
+}
+
+function moveCalLebTowardTarget(boss, entity, speed) {
+    if (!entity || entity.targetX == null || entity.targetY == null) return;
+    const dx = entity.targetX - entity.x, dy = entity.targetY - entity.y;
+    const distance = Math.hypot(dx, dy);
+    if (distance < 10) { entity.moveTimer = 0; return; }
+    const step = Math.min(speed, distance);
+    entity.x += dx / distance * step; entity.y += dy / distance * step;
+}
+
 function updateCalLebMain(boss) {
     boss.switches.forEach(button => { if (button.life > 0) button.life--; if (button.life <= 0) button.active = false; if (button.cooldown > 0) button.cooldown--; if (button.flash > 0) button.flash--; });
     boss.fireballTimer--; boss.spreadTimer--; boss.wallTimer--; boss.pullTimer--; boss.nestTimer--; boss.schiminiTimer--; boss.holeTimer--;
-    if (boss.fireballTimer <= 0) { spawnCalFireball(boss, boss.time % 3 === 0); boss.fireballTimer = 105; }
-    if (boss.spreadTimer <= 0) { spawnLebSpread(boss); boss.spreadTimer = 175; }
-    if (boss.wallTimer <= 0 && boss.cal) { boss.walls.push({ x:boss.arena.left + 95 + Math.random() * (boss.arena.right - boss.arena.left - 220), y:boss.arena.top + 125 + Math.random() * (boss.arena.bottom - boss.arena.top - 210), w:Math.random() < .5 ? 20 : 112, h:Math.random() < .5 ? 112 : 20, life:240 }); boss.wallTimer = 300; }
-    if (boss.pullTimer <= 0 && boss.cal) { boss.pullTimerActive = 82; boss.pullTimer = 410; playSound('alarm'); }
-    if (boss.schiminiTimer <= 0 && boss.leb) { spawnCalebSchimini(boss, boss.leb.x, boss.leb.y); boss.schiminiTimer = 145; }
+    if (boss.fireballTimer <= 0 && boss.cal) { boss.cal.fireballCount = (boss.cal.fireballCount || 0) + 1; spawnCalFireball(boss, boss.cal.fireballCount % 4 === 0); boss.fireballTimer = 210; }
+    if (boss.spreadTimer <= 0) { spawnLebSpread(boss); boss.spreadTimer = 205; }
+    if (boss.wallTimer <= 0 && boss.cal) { boss.walls.push({ x:boss.arena.left + 95 + Math.random() * (boss.arena.right - boss.arena.left - 220), y:boss.arena.top + 125 + Math.random() * (boss.arena.bottom - boss.arena.top - 210), w:Math.random() < .5 ? 20 : 112, h:Math.random() < .5 ? 112 : 20, life:220 }); boss.wallTimer = 370; }
+    if (boss.pullTimer <= 0 && boss.cal) { boss.pullTimerActive = 62; boss.pullTimer = 510; playSound('alarm'); }
+    if (boss.schiminiTimer <= 0 && boss.leb) { spawnCalebSchimini(boss, boss.leb.x, boss.leb.y); boss.schiminiTimer = 190; }
     if (boss.nestTimer <= 0 && boss.leb) {
         const nest = boss.nests.find(entry => Math.hypot(entry.x - boss.leb.x, entry.y - boss.leb.y) < 230);
         if (nest) boss.leb.targetNest = nest;
@@ -2887,7 +2916,10 @@ function updateCalLebMain(boss) {
     }
     if (boss.cal) {
         boss.cal.teleportTimer--;
-        if (boss.cal.teleportTimer <= 0) { boss.cal.x = boss.arena.left + 90 + Math.random() * (boss.arena.right - boss.arena.left - 180); boss.cal.y = boss.arena.top + 120 + Math.random() * (boss.arena.bottom - boss.arena.top - 190); boss.cal.teleportTimer = 230; boss.flash = 16; playSound('tick'); }
+        boss.cal.moveTimer--;
+        if (boss.cal.moveTimer <= 0 || Math.hypot(boss.cal.x - boss.cal.targetX, boss.cal.y - boss.cal.targetY) < 12) chooseCalLebTarget(boss, boss.cal);
+        moveCalLebTowardTarget(boss, boss.cal, 2.15);
+        if (boss.cal.teleportTimer <= 0) { boss.cal.x = boss.arena.left + 90 + Math.random() * (boss.arena.right - boss.arena.left - 180); boss.cal.y = boss.arena.top + 120 + Math.random() * (boss.arena.bottom - boss.arena.top - 190); boss.cal.teleportTimer = 320; boss.cal.targetX = null; boss.cal.targetY = null; boss.flash = 16; playSound('tick'); }
     }
     if (boss.leb && boss.leb.targetNest) {
         const nest = boss.leb.targetNest, angle = Math.atan2(nest.y - boss.leb.y, nest.x - boss.leb.x);
@@ -2897,9 +2929,9 @@ function updateCalLebMain(boss) {
             boss.nests = boss.nests.filter(entry => entry !== nest); boss.leb.targetNest = null; boss.flash = 14;
         }
     } else if (boss.leb) {
-        const angle = Math.atan2(boss.leb.y - boss.player.y, boss.leb.x - boss.player.x);
-        boss.leb.x = Math.max(boss.arena.left + 58, Math.min(boss.arena.right - 58, boss.leb.x + Math.cos(angle) * 1.05));
-        boss.leb.y = Math.max(boss.arena.top + 100, Math.min(boss.arena.bottom - 54, boss.leb.y + Math.sin(angle) * 1.05));
+        boss.leb.moveTimer--;
+        if (boss.leb.moveTimer <= 0 || Math.hypot(boss.leb.x - boss.leb.targetX, boss.leb.y - boss.leb.targetY) < 12) chooseCalLebTarget(boss, boss.leb, true);
+        moveCalLebTowardTarget(boss, boss.leb, 2.35);
     }
     if (boss.nests.length < 3 && boss.time % 300 === 0) boss.nests.push({ x:boss.arena.left + 90 + Math.random() * (boss.arena.right - boss.arena.left - 180), y:boss.arena.top + 150 + Math.random() * (boss.arena.bottom - boss.arena.top - 220), sealed:false, sealLife:0 });
     boss.nests.forEach(nest => { if (nest.sealLife > 0) { nest.sealLife--; if (nest.sealLife <= 0) nest.sealed = false; } });
@@ -2914,7 +2946,7 @@ function updateCalLebMain(boss) {
     updateCalebProjectiles(boss);
     boss.walls.forEach(wall => wall.life--); boss.walls = boss.walls.filter(wall => wall.life > 0);
     boss.holes.forEach(hole => hole.life--); boss.holes = boss.holes.filter(hole => hole.life > 0);
-    if (boss.holeTimer <= 0 && boss.holes.length < 2) { boss.holes.push({ x:boss.arena.left + 70 + Math.random() * (boss.arena.right - boss.arena.left - 190), y:boss.arena.top + 140 + Math.random() * (boss.arena.bottom - boss.arena.top - 200), w:74, h:58, warning:55, life:280 }); boss.holeTimer = 300; }
+    if (boss.holeTimer <= 0 && boss.holes.length < 2) { boss.holes.push({ x:boss.arena.left + 70 + Math.random() * (boss.arena.right - boss.arena.left - 190), y:boss.arena.top + 140 + Math.random() * (boss.arena.bottom - boss.arena.top - 200), w:74, h:58, warning:55, life:250 }); boss.holeTimer = 350; }
 }
 function drawBossBar(x, y, width, height, value, max, color, label) {
     ctx.fillStyle = 'rgba(0,0,0,.72)'; ctx.fillRect(x, y, width, height);
@@ -2970,7 +3002,7 @@ function drawCalebBossDefeat() {
     const shake = Math.sin(t * 1.7) * Math.min(9, t / 10); ctx.save(); ctx.translate(shake, Math.cos(t * 1.31) * Math.min(7, t / 12));
     const separation = Math.max(0, (t - 84) * 1.8);
     if (!boss.splitVisible) calebBossImage(bossImages.caleb, cx, cy + 45, size, size);
-    else { calebBossImage(bossImages.cal, cx - separation, cy + 50, 118, 258, -.06); calebBossImage(bossImages.leb, cx + separation, cy + 50, 118, 258, .06); }
+    else { calebBossImage(bossImages.cal, cx - separation, cy + 50, 58, 126, -.06); calebBossImage(bossImages.leb, cx + separation, cy + 50, 58, 126, .06); }
     ctx.strokeStyle = '#fff1f5'; ctx.shadowColor = '#ff315b'; ctx.shadowBlur = 18; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(cx, cy - size * .42); ctx.lineTo(cx + Math.sin(t * .3) * 8, cy + size * .42); ctx.stroke(); ctx.restore();
     ctx.fillStyle = '#ffd6df'; ctx.font = 'bold 23px Arial'; ctx.textAlign = 'center'; ctx.fillText(boss.splitVisible ? 'TWO HALVES REMAIN' : 'CALEB IS SPLITTING', cx, 52);
     if (t > 115) { ctx.fillStyle = `rgba(255,255,255,${Math.min(.9, (t - 115) / 50)})`; ctx.fillRect(0, 0, canvas.width, canvas.height); }
