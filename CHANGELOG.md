@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.18.9
+- Polished Caleb’s split cutscene with a staged crack buildup, branching energy seam, separation easing, afterimages, particles, and a controlled flash before Cal and Leb take over.
+- Added the supplied `Big_C` track as the looping Caleb boss theme; it continues through the split phase and respects the music/SFX volume settings.
+- Hardened the Lucas shadow dimension against stale or malformed event state, bounded its burst effects, restored the return position safely, and cleared held movement keys when desktop focus changes.
+- Added boss-state recovery guards so malformed transitions or both defeated split halves cannot leave the boss encounter frozen.
+- Bumped the offline cache to `calebs-shift-v90`.
+
 ## 2.18.8
 - Reworked Caleb’s sweep and hand-slam animations with wind-up phases, directional motion effects, pulsing danger markers, impact bursts, and a brief screen shake on slam impact.
 - Bumped the offline cache to `calebs-shift-v89`.

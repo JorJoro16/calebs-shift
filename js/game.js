@@ -131,8 +131,42 @@ function playNizarCrashSound() {
     } catch (_) {}
 }
 
+// The boss theme is a real media element so it can loop cleanly without
+// creating a new audio node every time the fight changes phase.
+const calebBossMusic = new Audio('assets/big-c.mp3');
+calebBossMusic.preload = 'auto';
+calebBossMusic.loop = true;
+calebBossMusic.volume = .34;
+
+function syncCalebBossMusicVolume() {
+    const master = Math.max(0, Math.min(1, Number(setVolM) / 100));
+    const sfx = Math.max(0, Math.min(1, Number(setVolS) / 100));
+    calebBossMusic.volume = master * sfx * .38;
+}
+
+function startCalebBossMusic(restart = false) {
+    if (!calebBossMusic) return;
+    syncCalebBossMusicVolume();
+    calebBossMusic.loop = true;
+    if (restart) {
+        try { calebBossMusic.currentTime = 0; } catch (_) {}
+    }
+    const playback = calebBossMusic.play();
+    if (playback?.catch) playback.catch(() => {});
+}
+
+function stopCalebBossMusic() {
+    if (!calebBossMusic) return;
+    calebBossMusic.pause();
+    try { calebBossMusic.currentTime = 0; } catch (_) {}
+}
+
+calebBossMusic.addEventListener('ended', () => {
+    if (calebBoss && (state === 19 || state === 20 || state === 21)) startCalebBossMusic();
+});
+
 // Versioned local progress with a backup copy and import/export support.
-const GAME_VERSION = '2.18.8';
+const GAME_VERSION = '2.18.9';
 const SAVE_SCHEMA_VERSION = 10;
 const COSMETIC_REWARD_VERSION = 2;
 const SAVE_KEY = 'br_save_v2';
@@ -586,6 +620,7 @@ function applySettings() {
     document.getElementById('btnOptimization').style.color = setOptimization ? '#0f0' : '#fff';
     document.getElementById('volMaster').value = setVolM;
     document.getElementById('volSFX').value = setVolS;
+    syncCalebBossMusicVolume();
 }
 
 function toggleSetting(type) {
@@ -2037,9 +2072,10 @@ function chooseLucasDimensionPool(event, minimumDistance = 145, excludedIndex = 
 
 function finishLucasShadowEvent() {
     const event = lucasShadowEvent;
-    if (!event) return;
-    player.x = event.returnX;
-    player.y = event.returnY;
+    const returnX = Number.isFinite(event?.returnX) ? event.returnX : player.x;
+    const returnY = Number.isFinite(event?.returnY) ? event.returnY : player.y;
+    player.x = returnX;
+    player.y = returnY;
     player.stunTimer = 0;
     lucasShadowEvent = null;
     state = 1;
@@ -2052,7 +2088,21 @@ function finishLucasShadowEvent() {
 
 function updateLucasShadowDimension() {
     const event = lucasShadowEvent;
-    if (!event) { state = 1; setLucasOverlay(false); return; }
+    // A tab switch, a failed frame, or a stale save must never leave the game
+    // trapped in state 18. Recover to the exact pre-event position instead.
+    const validBounds = event?.bounds && ['left', 'right', 'top', 'bottom'].every(key => Number.isFinite(event.bounds[key]));
+    const validPlayer = event?.player && Number.isFinite(event.player.x) && Number.isFinite(event.player.y);
+    const validPools = Array.isArray(event?.pools) && event.pools.length > 0 && event.pools.every(pool => pool && Number.isFinite(pool.x) && Number.isFinite(pool.y) && Number.isFinite(pool.radius));
+    if (!event || !validBounds || !validPlayer || !validPools) { finishLucasShadowEvent(); return; }
+    event.bursts = Array.isArray(event.bursts) ? event.bursts : [];
+    event.trail = Array.isArray(event.trail) ? event.trail : [];
+    event.bursts = event.bursts.filter(burst => burst && ['x', 'y', 'vx', 'vy', 'life', 'radius'].every(key => Number.isFinite(burst[key]))).slice(-64);
+    event.trail = event.trail.filter(point => point && Number.isFinite(point.x) && Number.isFinite(point.y)).slice(-24);
+    if (event.lucas && !['x', 'y', 'vx', 'vy', 'life'].every(key => Number.isFinite(event.lucas[key]))) event.lucas = null;
+    if (event.returnPool && !['x', 'y', 'radius'].every(key => Number.isFinite(event.returnPool[key]))) event.returnPool = null;
+    if (!Number.isFinite(event.time)) event.time = 0;
+    if (!Number.isFinite(event.duration) || event.duration < 60) event.duration = 1800;
+    if (!Number.isFinite(event.burstTimer)) event.burstTimer = 45;
     ambienceClock++;
     const bounds = event.bounds;
     if (event.flash > 0) event.flash--;
@@ -2087,6 +2137,9 @@ function updateLucasShadowDimension() {
                 const speed = 3.25 + Math.random() * 1.35;
                 event.bursts.push({ x:pool.x, y:pool.y, vx:Math.cos(angle) * speed, vy:Math.sin(angle) * speed, life:135, radius:8 + Math.random() * 3 });
             }
+            // Keep a damaged or very slow desktop from accumulating effects
+            // indefinitely if several fixed updates are processed together.
+            if (event.bursts.length > 64) event.bursts.splice(0, event.bursts.length - 64);
             event.burstTimer = 38 + Math.floor(Math.random() * 55);
         }
         for (const burst of event.bursts) {
@@ -2145,14 +2198,16 @@ function updateLucasShadowDimension() {
             playSound('unlock');
             showMsg('<span style="color:#d9b4ff">A FLICKERING SHADOW POOL HAS OPENED</span><br>FIND IT TO RETURN', 2600);
         }
-    } else if (event.returnPool && Math.hypot(event.player.x - event.returnPool.x, event.player.y - event.returnPool.y) < event.returnPool.radius + player.r + 6) {
+    } else if (!event.returnPool) {
+        event.returnPool = chooseLucasDimensionPool(event, 160);
+    } else if (Math.hypot(event.player.x - event.returnPool.x, event.player.y - event.returnPool.y) < event.returnPool.radius + player.r + 6) {
         finishLucasShadowEvent();
     }
 }
 
 function drawLucasShadowDimension() {
     const event = lucasShadowEvent;
-    if (!event) return;
+    if (!event?.bounds || !event.player || !Array.isArray(event.pools) || !event.pools.length) return;
     const bounds = event.bounds;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     const background = ctx.createRadialGradient(canvas.width * .5, canvas.height * .46, 10, canvas.width * .5, canvas.height * .46, Math.max(canvas.width, canvas.height) * .76);
@@ -2495,6 +2550,9 @@ function beginCalebBossIntro() {
     clearMovementKeys();
     setLucasOverlay(true);
     canvas.classList.add('shake');
+    // Start as soon as the boss transition begins. This gives browsers one
+    // more user-activation opportunity before the intro timer elapses.
+    startCalebBossMusic(true);
     playSound('emp');
     showStoryLine('THE GATE OPENS ONTO SOMETHING MUCH OLDER.', 3600);
 }
@@ -2522,6 +2580,7 @@ function beginCalebBossFight() {
     clearMovementKeys();
     canvas.classList.remove('shake');
     setLucasOverlay(true);
+    startCalebBossMusic();
     playSound('alarm');
     showStoryLine('CALEB: THE BODY ABOVE THE WORLD.', 2600);
 }
@@ -2584,6 +2643,7 @@ function damageCalebBossPlayer(amount, reason = 'HIT', instant = false) {
     spawnCalebBossBurst(boss, boss.player.x, boss.player.y, '#ff8299', 10);
     playSound('fail');
     if (boss.playerHealth <= 0) {
+        stopCalebBossMusic();
         calebBoss = null;
         setLucasOverlay(false);
         endGame(false, monster);
@@ -2607,6 +2667,7 @@ function damageCalebBoss(amount, target = 'CALEB') {
     if (target === 'CAL' && boss.healthCal <= 0) { boss.cal = null; boss.orbs = []; showStoryLine('CAL COLLAPSES INTO THE FLOOR.', 1600); }
     if (target === 'LEB' && boss.healthLeb <= 0) { boss.leb = null; boss.shots = []; boss.schiminis = []; showStoryLine('LEB’S NESTS GO SILENT.', 1600); }
     if (boss.mode === 'split' && boss.healthCal <= 0 && boss.healthLeb <= 0) {
+        stopCalebBossMusic();
         calebBoss = null; setLucasOverlay(false); endGame(true, monster);
     }
 }
@@ -2960,6 +3021,20 @@ function updateCalebBossPhase(boss) {
 function updateCalebBossMain() {
     const boss = calebBoss;
     if (!boss) return;
+    if (!boss.arena || !boss.player || !Number.isFinite(boss.player.x) || !Number.isFinite(boss.player.y)) {
+        stopCalebBossMusic();
+        calebBoss = null;
+        setLucasOverlay(false);
+        endGame(false, monster);
+        return;
+    }
+    if (boss.mode === 'split' && !boss.cal && !boss.leb) {
+        stopCalebBossMusic();
+        calebBoss = null;
+        setLucasOverlay(false);
+        endGame(true, monster);
+        return;
+    }
     boss.time++;
     calebBossPlayerMove();
     if (state !== 20) return;
@@ -3117,16 +3192,104 @@ function drawCalebBossIntro() {
 }
 
 function drawCalebBossDefeat() {
-    const boss = calebBoss; if (!boss) return;
-    const t = boss.defeatTime, cx = canvas.width / 2, cy = boss.caleb.y, size = boss.caleb.size;
-    ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.fillStyle = '#070106'; ctx.fillRect(0, 0, canvas.width, canvas.height);
-    const shake = Math.sin(t * 1.7) * Math.min(9, t / 10); ctx.save(); ctx.translate(shake, Math.cos(t * 1.31) * Math.min(7, t / 12));
-    const separation = Math.max(0, (t - 84) * 1.8);
-    if (!boss.splitVisible) calebBossImage(bossImages.caleb, cx, cy + 45, size, size);
-    else { calebBossImage(bossImages.cal, cx - separation, cy + 50, 58, 126, -.06); calebBossImage(bossImages.leb, cx + separation, cy + 50, 58, 126, .06); }
-    ctx.strokeStyle = '#fff1f5'; ctx.shadowColor = '#ff315b'; ctx.shadowBlur = 18; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(cx, cy - size * .42); ctx.lineTo(cx + Math.sin(t * .3) * 8, cy + size * .42); ctx.stroke(); ctx.restore();
-    ctx.fillStyle = '#ffd6df'; ctx.font = 'bold 23px Arial'; ctx.textAlign = 'center'; ctx.fillText(boss.splitVisible ? 'TWO HALVES REMAIN' : 'CALEB IS SPLITTING', cx, 52);
-    if (t > 115) { ctx.fillStyle = `rgba(255,255,255,${Math.min(.9, (t - 115) / 50)})`; ctx.fillRect(0, 0, canvas.width, canvas.height); }
+    const boss = calebBoss;
+    if (!boss?.caleb) return;
+    const t = Number.isFinite(boss.defeatTime) ? boss.defeatTime : 0;
+    const width = canvas.width, height = canvas.height, cx = width / 2;
+    const bodyY = boss.caleb.y + 45, size = Math.max(80, boss.caleb.size || 220);
+    const reveal = Math.max(0, Math.min(1, (t - 82) / 72));
+    const splitEase = 1 - Math.pow(1 - reveal, 3);
+    const crackProgress = Math.max(0, Math.min(1, (t - 20) / 72));
+    const shakeEnvelope = t < 116 ? Math.min(1, t / 30) : Math.max(0, 1 - (t - 116) / 56);
+    const shakeX = Math.sin(t * 1.83) * (2.5 + shakeEnvelope * 7.5) * shakeEnvelope;
+    const shakeY = Math.cos(t * 1.37) * (1.5 + shakeEnvelope * 6) * shakeEnvelope;
+
+    ctx.clearRect(0, 0, width, height);
+    const background = ctx.createRadialGradient(cx, height * .48, 8, cx, height * .48, Math.max(width, height) * .82);
+    background.addColorStop(0, `rgba(115,8,42,${.24 + crackProgress * .18})`);
+    background.addColorStop(.48, '#13050e');
+    background.addColorStop(1, '#020103');
+    ctx.fillStyle = background; ctx.fillRect(0, 0, width, height);
+
+    ctx.save();
+    ctx.translate(shakeX, shakeY);
+    ctx.globalCompositeOperation = 'lighter';
+    const pulse = 1 + Math.sin(t * .17) * .08;
+    const aura = ctx.createRadialGradient(cx, bodyY, 8, cx, bodyY, size * (.7 + crackProgress * .55));
+    aura.addColorStop(0, `rgba(255,37,84,${.2 + crackProgress * .2})`);
+    aura.addColorStop(.42, `rgba(205,21,75,${.08 + crackProgress * .1})`);
+    aura.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = aura; ctx.beginPath(); ctx.arc(cx, bodyY, size * (.78 + crackProgress * .45), 0, Math.PI * 2); ctx.fill();
+
+    for (let ring = 0; ring < 4; ring++) {
+        const ringProgress = Math.max(0, Math.min(1, (t - ring * 13) / 118));
+        const radius = size * (.23 + ringProgress * (.72 + ring * .08));
+        ctx.globalAlpha = (1 - ringProgress) * (.16 + crackProgress * .14);
+        ctx.strokeStyle = ring % 2 ? '#ff7895' : '#ffd5df'; ctx.lineWidth = ring % 2 ? 2 : 1.5;
+        ctx.beginPath(); ctx.arc(cx, bodyY, radius * pulse, 0, Math.PI * 2); ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+
+    if (!boss.splitVisible && t < 86) {
+        const bodyPulse = 1 + Math.sin(t * .22) * .025 + crackProgress * .035;
+        calebBossImage(bossImages.caleb, cx, bodyY, size * bodyPulse, size * bodyPulse, Math.sin(t * .08) * .012);
+    } else {
+        const maxGap = Math.min(190, width * .3);
+        const gap = splitEase * maxGap;
+        const pieceWidth = Math.min(70, width * .16);
+        const pieceHeight = pieceWidth * 2.18;
+        const pieceBob = Math.sin(t * .14) * (1 - reveal) * 5;
+        const pieceAngle = .035 + splitEase * .1;
+        // Ghosts make the halves feel like they are being torn out of one body
+        // instead of simply swapping sprites on a single frame.
+        for (let ghost = 3; ghost >= 1; ghost--) {
+            const ghostGap = gap + ghost * 13;
+            const ghostAlpha = (1 - ghost / 4) * (.08 + reveal * .08);
+            calebBossImage(bossImages.cal, cx - ghostGap, bodyY + 8, pieceWidth, pieceHeight, -pieceAngle, ghostAlpha);
+            calebBossImage(bossImages.leb, cx + ghostGap, bodyY + 8, pieceWidth, pieceHeight, pieceAngle, ghostAlpha);
+        }
+        calebBossImage(bossImages.cal, cx - gap, bodyY - pieceBob, pieceWidth, pieceHeight, -pieceAngle);
+        calebBossImage(bossImages.leb, cx + gap, bodyY + pieceBob, pieceWidth, pieceHeight, pieceAngle);
+    }
+
+    // The crack is drawn over the body and continues as a bright seam between
+    // the halves so the transition reads even when an image is still loading.
+    const crackWobble = Math.sin(t * .31) * (2 + crackProgress * 5);
+    ctx.globalAlpha = .28 + crackProgress * .72;
+    ctx.shadowColor = '#ff315b'; ctx.shadowBlur = 22;
+    ctx.strokeStyle = '#ff6c8c'; ctx.lineWidth = 10;
+    ctx.beginPath(); ctx.moveTo(cx, bodyY - size * .43); ctx.lineTo(cx + crackWobble, bodyY - size * .2); ctx.lineTo(cx - crackWobble * .65, bodyY + size * .02); ctx.lineTo(cx + crackWobble * .9, bodyY + size * .24); ctx.lineTo(cx, bodyY + size * .43); ctx.stroke();
+    ctx.shadowBlur = 8; ctx.strokeStyle = '#fff7fa'; ctx.lineWidth = 3.2;
+    ctx.beginPath(); ctx.moveTo(cx, bodyY - size * .43); ctx.lineTo(cx + crackWobble, bodyY - size * .2); ctx.lineTo(cx - crackWobble * .65, bodyY + size * .02); ctx.lineTo(cx + crackWobble * .9, bodyY + size * .24); ctx.lineTo(cx, bodyY + size * .43); ctx.stroke();
+    const branches = [
+        [bodyY - size * .2, -1, -.24], [bodyY + size * .02, 1, -.28],
+        [bodyY + size * .24, -1, -.2], [bodyY - size * .02, 1, .23]
+    ];
+    ctx.lineWidth = 2;
+    for (const [y, direction, length] of branches) {
+        ctx.beginPath(); ctx.moveTo(cx + crackWobble * .3, y); ctx.lineTo(cx + direction * size * Math.abs(length), y - size * .1); ctx.stroke();
+    }
+
+    for (let particle = 0; particle < 22; particle++) {
+        const seed = particle * 2.399 + .4;
+        const distance = size * (.24 + ((t * 2.6 + particle * 31) % 180) / 180 * .68) * crackProgress;
+        const angle = seed + t * (.012 + (particle % 3) * .004);
+        const px = cx + Math.cos(angle) * distance, py = bodyY + Math.sin(angle) * distance;
+        const particleSize = 1.5 + (particle % 3);
+        ctx.globalAlpha = Math.max(0, .85 - distance / (size * 1.2)); ctx.fillStyle = particle % 2 ? '#ff9eb2' : '#fff4f7';
+        ctx.beginPath(); ctx.arc(px, py, particleSize, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.globalAlpha = 1; ctx.restore();
+
+    ctx.fillStyle = '#ffd6df'; ctx.font = 'bold 23px Arial'; ctx.textAlign = 'center';
+    ctx.fillText(t >= 86 ? 'CALEB BREAKS IN TWO' : 'CALEB IS SPLITTING', cx, 52);
+    ctx.fillStyle = '#bf8798'; ctx.font = '13px Arial';
+    ctx.fillText(t >= 86 ? 'THE BODY DOES NOT DIE — IT DIVIDES' : 'THE CRACK IS GETTING WIDER', cx, height - 32);
+
+    if (t > 116) {
+        const flash = Math.max(0, Math.min(.92, (t - 116) / 10)) * Math.max(0, Math.min(1, 1 - (t - 130) / 42));
+        if (flash > 0) { ctx.fillStyle = `rgba(255,255,255,${flash})`; ctx.fillRect(0, 0, width, height); }
+    }
 }
 
 function drawCalebBossEncounter() {
@@ -5832,6 +5995,7 @@ function createExtraMonster(name, diffData, index) {
 
 function startGame(diffLevel, startAtBoss = false) {
     initAudio();
+    stopCalebBossMusic();
     currentDiff = diffLevel;
     runStartedAt = performance.now(); runItemsUsed = 0;
     stats.games++;
@@ -6180,6 +6344,7 @@ function unlockCosmetic(id) {
 }
 
 function endGame(isWin, sourceMonster = monster) {
+    if (calebBoss || state === 19 || state === 20 || state === 21) stopCalebBossMusic();
     if (state === 4 || (gameMode === 'endless' && state === 0)) return;
     if (isWin && !crimsonObjectiveComplete()) {
         showMsg('RESTORE ALL GENERATORS, RECOVER THE SEAL, AND ARM THE TRAP', 1400);
@@ -8353,11 +8518,20 @@ document.addEventListener('click', event => {
 });
 
 // Mobile browsers require audio to be created or resumed from a user gesture.
-window.addEventListener('pointerdown', () => initAudio(), { passive: true });
-window.addEventListener('touchstart', () => initAudio(), { passive: true });
-window.addEventListener('touchend', () => initAudio(), { passive: true });
+// The same retry also handles desktop browsers that reject a delayed boss
+// soundtrack after the Lucas-to-Caleb transition.
+function resumeBossAudioFromGesture() {
+    initAudio();
+    if (calebBoss && (state === 19 || state === 20 || state === 21) && calebBossMusic.paused) startCalebBossMusic();
+}
+window.addEventListener('pointerdown', resumeBossAudioFromGesture, { passive: true });
+window.addEventListener('touchstart', resumeBossAudioFromGesture, { passive: true });
+window.addEventListener('touchend', resumeBossAudioFromGesture, { passive: true });
+window.addEventListener('blur', clearMovementKeys);
 document.addEventListener('visibilitychange', () => {
     if (!document.hidden && audioCtx?.state === 'suspended') audioCtx.resume();
+    if (!document.hidden && calebBoss && (state === 19 || state === 20 || state === 21) && calebBossMusic.paused) startCalebBossMusic();
+    if (document.hidden) clearMovementKeys();
 });
 
 if ('serviceWorker' in navigator) {
