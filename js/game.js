@@ -281,7 +281,7 @@ calebBossMusic.addEventListener('ended', () => {
 });
 
 // Versioned local progress with a backup copy and import/export support.
-const GAME_VERSION = '2.18.11';
+const GAME_VERSION = '2.18.12';
 const SAVE_SCHEMA_VERSION = 10;
 const COSMETIC_REWARD_VERSION = 2;
 const SAVE_KEY = 'br_save_v2';
@@ -2324,6 +2324,11 @@ function drawLucasShadowDimension() {
     const event = lucasShadowEvent;
     if (!event?.bounds || !event.player || !Array.isArray(event.pools) || !event.pools.length) return;
     const bounds = event.bounds;
+    // Reset image/filter state before this self-contained screen so a previous
+    // effect cannot hide the procedural player, Lucas, or the HUD on another browser.
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.filter = 'none';
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     const background = ctx.createRadialGradient(canvas.width * .5, canvas.height * .46, 10, canvas.width * .5, canvas.height * .46, Math.max(canvas.width, canvas.height) * .76);
     background.addColorStop(0, '#21113a'); background.addColorStop(.6, '#090611'); background.addColorStop(1, '#020205');
@@ -2373,7 +2378,7 @@ function drawLucasShadowDimension() {
     }
     ctx.fillStyle = 'rgba(0,0,0,.5)'; ctx.beginPath(); ctx.ellipse(playerX + 4, playerY + 17, 16, 7, 0, 0, Math.PI * 2); ctx.fill();
     const equippedSkin = skinImages[cosmetics.skin];
-    if (cosmetics.skin !== 'default' && equippedSkin?.complete) {
+    if (cosmetics.skin !== 'default' && equippedSkin?.complete && equippedSkin.naturalWidth) {
         const skinSize = player.r * 3.35;
         ctx.globalAlpha = player.stunTimer > 0 ? .72 : 1;
         ctx.drawImage(equippedSkin, playerX - skinSize / 2, playerY - skinSize / 2, skinSize, skinSize);
@@ -2383,9 +2388,9 @@ function drawLucasShadowDimension() {
         ctx.fillStyle = '#102332'; ctx.beginPath(); ctx.arc(playerX - 4, playerY - 2, 2, 0, Math.PI * 2); ctx.arc(playerX + 4, playerY - 2, 2, 0, Math.PI * 2); ctx.fill();
     }
     const equippedMask = maskImages[cosmetics.mask];
-    if (cosmetics.mask !== 'none' && equippedMask?.complete) ctx.drawImage(equippedMask, playerX - player.r * 2, playerY - player.r * 2.15, player.r * 4, player.r * 4);
+    if (cosmetics.mask !== 'none' && equippedMask?.complete && equippedMask.naturalWidth) ctx.drawImage(equippedMask, playerX - player.r * 2, playerY - player.r * 2.15, player.r * 4, player.r * 4);
     const equippedHat = hatImages[cosmetics.hat];
-    if (cosmetics.hat !== 'none' && equippedHat?.complete) ctx.drawImage(equippedHat, playerX - player.r * 2, playerY - player.r * 2.15, player.r * 4, player.r * 4);
+    if (cosmetics.hat !== 'none' && equippedHat?.complete && equippedHat.naturalWidth) ctx.drawImage(equippedHat, playerX - player.r * 2, playerY - player.r * 2.15, player.r * 4, player.r * 4);
     if (player.stunTimer > 0) { ctx.strokeStyle = '#fff0a0'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(playerX, playerY, 23 + Math.sin(ambienceClock * .3) * 3, 0, Math.PI * 2); ctx.stroke(); }
 
     ctx.textAlign = 'center'; ctx.fillStyle = '#ead5ff'; ctx.font = 'bold 22px Arial'; ctx.fillText('THE SHADOW DIMENSION', canvas.width / 2, 39);
@@ -8466,7 +8471,7 @@ function draw() {
         ctx.fillStyle = 'rgba(0,0,0,0.35)';
         ctx.beginPath(); ctx.ellipse(player.x, player.y + player.r * 0.7, player.r * 0.9, player.r * 0.35, 0, 0, Math.PI * 2); ctx.fill();
         const equippedSkin = skinImages[cosmetics.skin];
-        if (cosmetics.skin !== 'default' && equippedSkin?.complete) {
+        if (cosmetics.skin !== 'default' && equippedSkin?.complete && equippedSkin.naturalWidth) {
             const skinSize = player.r * 3.35;
             ctx.globalAlpha = player.stunTimer > 0 ? .72 : 1;
             ctx.drawImage(equippedSkin, player.x - skinSize / 2, player.y - skinSize / 2, skinSize, skinSize);
@@ -8477,9 +8482,9 @@ function draw() {
             if (cosmetics.color === 'sepia' && player.boostTimer <= 0 && player.stunTimer <= 0) { ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(player.x-player.r*.3, player.y-2, 2, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(player.x+player.r*.3, player.y-2, 2, 0, Math.PI*2); ctx.fill(); }
         }
         const equippedMask = maskImages[cosmetics.mask];
-        if (cosmetics.mask !== 'none' && equippedMask?.complete) { ctx.drawImage(equippedMask, player.x - player.r * 2, player.y - player.r * 2.15, player.r * 4, player.r * 4); }
+        if (cosmetics.mask !== 'none' && equippedMask?.complete && equippedMask.naturalWidth) { ctx.drawImage(equippedMask, player.x - player.r * 2, player.y - player.r * 2.15, player.r * 4, player.r * 4); }
         const equippedHat = hatImages[cosmetics.hat];
-        if (cosmetics.hat !== 'none' && equippedHat?.complete) { ctx.drawImage(equippedHat, player.x - player.r * 2, player.y - player.r * 2.15, player.r * 4, player.r * 4); }
+        if (cosmetics.hat !== 'none' && equippedHat?.complete && equippedHat.naturalWidth) { ctx.drawImage(equippedHat, player.x - player.r * 2, player.y - player.r * 2.15, player.r * 4, player.r * 4); }
     }
     ctx.restore();
 

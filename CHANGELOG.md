@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.18.12
+- Fixed a cross-browser rendering failure in the Lucas shadow dimension when an equipped cosmetic image is cached incompletely or fails to load; broken images now fall back to the procedural player, and the normal player renderer uses the same guard.
+- Reset canvas blend/filter state before drawing the shadow dimension so the player, Lucas, and HUD remain visible across browser implementations.
+- Bumped the offline cache to `calebs-shift-v93`.
+
 ## 2.18.11
 - Added a dedicated Caleb victory cutscene: Cal and Leb destabilize, resist with fading barriers and Schimini sparks, are seized by a shadow hand through the opened gate, and are pulled beyond the arena before the win screen appears.
 - Added a protected cutscene state so the final boss transition cannot skip, accept movement input, or freeze between the last hit and the results screen.
