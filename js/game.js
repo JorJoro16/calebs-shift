@@ -124,7 +124,7 @@ function playNizarCrashSound() {
 }
 
 // Versioned local progress with a backup copy and import/export support.
-const GAME_VERSION = '2.16.1';
+const GAME_VERSION = '2.17.0';
 const SAVE_SCHEMA_VERSION = 10;
 const COSMETIC_REWARD_VERSION = 2;
 const SAVE_KEY = 'br_save_v2';
@@ -1690,7 +1690,7 @@ let forestCabins = [], forestBreakers = [], forestTrees = [], forestBeaconBatter
 let amineHoles = [], amineFireZones = [], amineExitGate = null, amineFocus = false, amineVisibleTimer = 0, amineFlashCooldown = 0, amineTeleportCooldown = 0, amineTurret = null, amineBullets = [], amineBurnTimer = 0, amineRoad = null;
 let subwayPanels = [], subwayTrains = [], subwayTrackRows = [], subwayTrackSegments = [], subwayTrap = null, subwayControl = null, subwayRouteReady = false, subwayTrapArmed = false, subwayTrainWarning = 0, subwayTrainTriggered = false, subwayDecor = [], subwaySigns = [], subwayCommitTimer = 0, subwayCommitTarget = null, subwayRouteMinX = 0, subwayRouteMaxX = 0, subwayTrainPaths = [], subwayControlPuzzle = null;
 let subwayTornTicket = null, subwayGoldSphere = null, subwayBronzeEligible = true, subwayFareCutscene = null, subwayGoldPressure = null;
-let lucasFragments = [], lucasLevers = [], lucasAltar = null, lucasGate = null, lucasShadow = null, lucasArrows = [], lucasShadowPools = [], lucasRouteLocks = [], lucasLockSpots = [], lucasHazards = [], lucasMonsterStart = null, lucasState = 'searching', lucasObjectiveStage = 'fragment1', lucasAbilityCooldown = 0, lucasPoolCooldown = 0, lucasTeleportFlash = null, lucasCharge = null, lucasPull = null, lucasCarryFragment = null, lucasFragmentPuzzle = null, lucasEndingAnimation = null, lucasGateEndTimer = 0;
+let lucasFragments = [], lucasLevers = [], lucasAltar = null, lucasGate = null, lucasShadow = null, lucasArrows = [], lucasShadowPools = [], lucasRouteLocks = [], lucasLockSpots = [], lucasHazards = [], lucasMonsterStart = null, lucasState = 'searching', lucasObjectiveStage = 'fragment1', lucasAbilityCooldown = 0, lucasPoolCooldown = 0, lucasTeleportFlash = null, lucasCharge = null, lucasPull = null, lucasCarryFragment = null, lucasFragmentPuzzle = null, lucasEndingAnimation = null, lucasGateEndTimer = 0, lucasShadowEvent = null, lucasShadowEventCooldown = 0, lucasShadowEventTriggered = false;
 let routeBoard = null;
 const nizarCrashAudio = new Audio('assets/WallCrashSoundEffect.mp3');
 nizarCrashAudio.preload = 'auto';
@@ -1955,6 +1955,224 @@ function setLucasOverlay(visible) {
     document.getElementById('hotelTaskHUD').style.display = 'none';
     document.getElementById('mapButton').style.display = visible ? 'none' : '';
     document.getElementById('amineRoadControls').style.display = 'none';
+}
+
+function beginLucasShadowEvent() {
+    if (currentMapId !== 'lucas' || state !== 1 || lucasShadowEvent || lucasShadowEventTriggered || lucasObjectiveStage === 'gate') return;
+    const width = canvas.width, height = canvas.height;
+    const bounds = {
+        left: Math.min(84, width * .14),
+        right: Math.max(width - 84, width * .86),
+        top: Math.min(108, height * .18),
+        bottom: Math.max(height - 82, height * .82)
+    };
+    lucasShadowEventTriggered = true;
+    lucasShadowEvent = {
+        phase: 'survive',
+        time: 0,
+        duration: 1800,
+        bounds,
+        returnX: player.x,
+        returnY: player.y,
+        player: { x: width * .5, y: bounds.bottom - 54 },
+        pools: [
+            { x: bounds.left + 24, y: bounds.top + 30, radius: 31 },
+            { x: width * .5, y: bounds.top + 22, radius: 31 },
+            { x: bounds.right - 24, y: bounds.top + 30, radius: 31 },
+            { x: bounds.left + 20, y: (bounds.top + bounds.bottom) * .53, radius: 31 },
+            { x: bounds.right - 20, y: (bounds.top + bounds.bottom) * .53, radius: 31 },
+            { x: width * .5, y: bounds.bottom - 22, radius: 31 }
+        ],
+        bursts: [],
+        burstTimer: 28,
+        lucas: null,
+        lucasTimer: 105,
+        returnPool: null,
+        flash: 32,
+        hitFlash: 0,
+        hitNotice: 0
+    };
+    player.stunTimer = 0;
+    clearMovementKeys();
+    state = 18;
+    setLucasOverlay(true);
+    playSound('emp');
+    showMsg('<span style="color:#d9b4ff">THE SHADOW FOLDS AROUND YOU</span><br>SURVIVE THE OTHER SIDE', 2400);
+}
+
+function chooseLucasDimensionPool(event, minimumDistance = 145, excludedIndex = -1) {
+    const available = event.pools.filter((pool, index) => index !== excludedIndex
+        && Math.hypot(event.player.x - pool.x, event.player.y - pool.y) >= minimumDistance);
+    return available[Math.floor(Math.random() * Math.max(1, available.length))] || event.pools.find((pool, index) => index !== excludedIndex) || event.pools[0];
+}
+
+function finishLucasShadowEvent() {
+    const event = lucasShadowEvent;
+    if (!event) return;
+    player.x = event.returnX;
+    player.y = event.returnY;
+    player.stunTimer = 0;
+    lucasShadowEvent = null;
+    state = 1;
+    clearMovementKeys();
+    setLucasOverlay(false);
+    updateHUD();
+    playSound('unlock');
+    showMsg('<span style="color:#d9b4ff">THE SHADOW DIMENSION RELEASES YOU</span>', 1400);
+}
+
+function updateLucasShadowDimension() {
+    const event = lucasShadowEvent;
+    if (!event) { state = 1; setLucasOverlay(false); return; }
+    ambienceClock++;
+    const bounds = event.bounds;
+    if (event.flash > 0) event.flash--;
+    if (event.hitFlash > 0) event.hitFlash--;
+    if (event.hitNotice > 0) event.hitNotice--;
+    if (player.stunTimer > 0) player.stunTimer--;
+
+    if (event.phase === 'survive') {
+        event.time++;
+        if (player.stunTimer <= 0) {
+            const moveX = (keys.d ? 1 : 0) - (keys.a ? 1 : 0);
+            const moveY = (keys.s ? 1 : 0) - (keys.w ? 1 : 0);
+            let dx = moveX, dy = moveY;
+            if (dx && dy) { dx *= .707; dy *= .707; }
+            event.player.x = Math.max(bounds.left + 18, Math.min(bounds.right - 18, event.player.x + dx * 4.35));
+            event.player.y = Math.max(bounds.top + 18, Math.min(bounds.bottom - 18, event.player.y + dy * 4.35));
+        }
+
+        event.burstTimer--;
+        if (event.burstTimer <= 0) {
+            const pool = event.pools[Math.floor(Math.random() * event.pools.length)];
+            const burstCount = Math.random() < .24 ? 2 : 1;
+            for (let index = 0; index < burstCount; index++) {
+                const angle = Math.random() * Math.PI * 2;
+                const speed = 3.25 + Math.random() * 1.35;
+                event.bursts.push({ x:pool.x, y:pool.y, vx:Math.cos(angle) * speed, vy:Math.sin(angle) * speed, life:135, radius:8 + Math.random() * 3 });
+            }
+            event.burstTimer = 38 + Math.floor(Math.random() * 55);
+        }
+        for (const burst of event.bursts) {
+            burst.x += burst.vx; burst.y += burst.vy; burst.life--;
+            if (burst.x < bounds.left - 22 || burst.x > bounds.right + 22 || burst.y < bounds.top - 22 || burst.y > bounds.bottom + 22) burst.life = 0;
+            if (player.stunTimer <= 0 && Math.hypot(event.player.x - burst.x, event.player.y - burst.y) < player.r + burst.radius) {
+                player.stunTimer = 68;
+                event.hitFlash = 13;
+                event.hitNotice = 70;
+                burst.life = 0;
+                playSound('fail');
+            }
+        }
+        event.bursts = event.bursts.filter(burst => burst.life > 0);
+
+        event.lucasTimer--;
+        if (!event.lucas && event.lucasTimer <= 0) {
+            const pool = chooseLucasDimensionPool(event, 175);
+            const poolIndex = event.pools.indexOf(pool);
+            const angle = Math.atan2(event.player.y - pool.y, event.player.x - pool.x);
+            event.lucas = { x:pool.x, y:pool.y, phase:'charge', life:54, poolIndex, targetPool:null, vx:Math.cos(angle) * 7.1, vy:Math.sin(angle) * 7.1 };
+            playSound('alarm');
+        }
+        if (event.lucas) {
+            const lucas = event.lucas;
+            if (lucas.phase === 'charge') {
+                lucas.x += lucas.vx; lucas.y += lucas.vy; lucas.life--;
+                if (player.stunTimer <= 0 && Math.hypot(event.player.x - lucas.x, event.player.y - lucas.y) < player.r + 22) {
+                    player.stunTimer = 92;
+                    event.hitFlash = 16;
+                    lucas.phase = 'retreat';
+                    lucas.life = 34;
+                    lucas.targetPool = chooseLucasDimensionPool(event, 160, lucas.poolIndex);
+                    playSound('fail');
+                } else if (lucas.life <= 0) {
+                    lucas.phase = 'retreat';
+                    lucas.life = 34;
+                    lucas.targetPool = chooseLucasDimensionPool(event, 160, lucas.poolIndex);
+                }
+            } else {
+                const target = lucas.targetPool || chooseLucasDimensionPool(event, 150, lucas.poolIndex);
+                const angle = Math.atan2(target.y - lucas.y, target.x - lucas.x);
+                lucas.x += Math.cos(angle) * 6.2; lucas.y += Math.sin(angle) * 6.2; lucas.life--;
+                if (lucas.life <= 0 || Math.hypot(target.x - lucas.x, target.y - lucas.y) < 18) {
+                    event.lucas = null;
+                    event.lucasTimer = 120 + Math.floor(Math.random() * 130);
+                }
+            }
+        }
+
+        if (event.time >= event.duration) {
+            event.phase = 'returning';
+            event.returnPool = chooseLucasDimensionPool(event, 160);
+            event.bursts = [];
+            event.lucas = null;
+            playSound('unlock');
+            showMsg('<span style="color:#d9b4ff">A FLICKERING SHADOW POOL HAS OPENED</span><br>FIND IT TO RETURN', 2600);
+        }
+    } else if (event.returnPool && Math.hypot(event.player.x - event.returnPool.x, event.player.y - event.returnPool.y) < event.returnPool.radius + player.r + 6) {
+        finishLucasShadowEvent();
+    }
+}
+
+function drawLucasShadowDimension() {
+    const event = lucasShadowEvent;
+    if (!event) return;
+    const bounds = event.bounds;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const background = ctx.createRadialGradient(canvas.width * .5, canvas.height * .46, 10, canvas.width * .5, canvas.height * .46, Math.max(canvas.width, canvas.height) * .76);
+    background.addColorStop(0, '#21113a'); background.addColorStop(.6, '#090611'); background.addColorStop(1, '#020205');
+    ctx.fillStyle = background; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = 'rgba(13,7,25,.94)'; ctx.fillRect(bounds.left, bounds.top, bounds.right - bounds.left, bounds.bottom - bounds.top);
+    ctx.save();
+    ctx.beginPath(); ctx.rect(bounds.left, bounds.top, bounds.right - bounds.left, bounds.bottom - bounds.top); ctx.clip();
+    ctx.strokeStyle = 'rgba(176,119,231,.12)'; ctx.lineWidth = 1;
+    for (let x = bounds.left; x <= bounds.right; x += 38) { ctx.beginPath(); ctx.moveTo(x, bounds.top); ctx.lineTo(x, bounds.bottom); ctx.stroke(); }
+    for (let y = bounds.top; y <= bounds.bottom; y += 38) { ctx.beginPath(); ctx.moveTo(bounds.left, y); ctx.lineTo(bounds.right, y); ctx.stroke(); }
+    ctx.restore();
+    ctx.strokeStyle = '#9c64c7'; ctx.lineWidth = 4; ctx.strokeRect(bounds.left, bounds.top, bounds.right - bounds.left, bounds.bottom - bounds.top);
+
+    const drawPool = (pool, exit = false) => {
+        const pulse = 1 + Math.sin(ambienceClock * .11 + pool.x) * .1;
+        ctx.save(); ctx.translate(pool.x, pool.y);
+        ctx.fillStyle = exit ? 'rgba(219,170,255,.24)' : 'rgba(7,2,17,.9)';
+        ctx.shadowColor = exit ? '#e3b7ff' : '#8e49bc'; ctx.shadowBlur = exit ? 24 : 13;
+        ctx.beginPath(); ctx.ellipse(0, 0, pool.radius * pulse, pool.radius * .58 * pulse, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = exit ? '#f0ccff' : 'rgba(181,111,238,.78)'; ctx.lineWidth = exit ? 4 : 2; ctx.stroke();
+        ctx.strokeStyle = exit ? 'rgba(255,240,255,.9)' : 'rgba(205,157,255,.42)'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(0, 0, pool.radius * (.43 + Math.sin(ambienceClock * .14) * .06), 0, Math.PI * 2); ctx.stroke();
+        ctx.restore();
+    };
+    event.pools.forEach(pool => drawPool(pool));
+    if (event.returnPool) drawPool(event.returnPool, true);
+
+    for (const burst of event.bursts) {
+        ctx.save(); ctx.translate(burst.x, burst.y); ctx.rotate(Math.atan2(burst.vy, burst.vx));
+        ctx.fillStyle = '#b873e7'; ctx.shadowColor = '#d9a7ff'; ctx.shadowBlur = 15;
+        ctx.beginPath(); ctx.moveTo(13, 0); ctx.lineTo(-7, -7); ctx.lineTo(-3, 0); ctx.lineTo(-7, 7); ctx.closePath(); ctx.fill(); ctx.restore();
+    }
+    if (event.lucas) {
+        const lucas = event.lucas;
+        ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.beginPath(); ctx.ellipse(lucas.x + 5, lucas.y + 22, 25, 9, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#21152e'; ctx.strokeStyle = '#d3a0ff'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(lucas.x, lucas.y, 22, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(lucas.x - 7, lucas.y - 3, 3, 0, Math.PI * 2); ctx.arc(lucas.x + 7, lucas.y - 3, 3, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#e1c3ff'; ctx.font = 'bold 11px Arial'; ctx.textAlign = 'center'; ctx.fillText('LUCAS', lucas.x, lucas.y - 32);
+    }
+    const playerX = event.player.x, playerY = event.player.y;
+    ctx.fillStyle = 'rgba(0,0,0,.5)'; ctx.beginPath(); ctx.ellipse(playerX + 4, playerY + 17, 16, 7, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = player.stunTimer > 0 ? '#fff0a0' : '#76d9ff'; ctx.beginPath(); ctx.arc(playerX, playerY, player.r + 2, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#102332'; ctx.beginPath(); ctx.arc(playerX - 4, playerY - 2, 2, 0, Math.PI * 2); ctx.arc(playerX + 4, playerY - 2, 2, 0, Math.PI * 2); ctx.fill();
+    if (player.stunTimer > 0) { ctx.strokeStyle = '#fff0a0'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(playerX, playerY, 23 + Math.sin(ambienceClock * .3) * 3, 0, Math.PI * 2); ctx.stroke(); }
+
+    ctx.textAlign = 'center'; ctx.fillStyle = '#ead5ff'; ctx.font = 'bold 22px Arial'; ctx.fillText('THE SHADOW DIMENSION', canvas.width / 2, 39);
+    if (event.phase === 'survive') {
+        ctx.fillStyle = '#c9b2dc'; ctx.font = '14px Arial'; ctx.fillText(`SURVIVE · ${Math.ceil((event.duration - event.time) / 60)}s`, canvas.width / 2, 64);
+        ctx.fillStyle = 'rgba(225,195,255,.7)'; ctx.font = '12px Arial'; ctx.fillText('SHADOW BURSTS STUN · LUCAS WILL CHARGE FROM THE POOLS', canvas.width / 2, canvas.height - 34);
+    } else {
+        ctx.fillStyle = '#f0ccff'; ctx.font = 'bold 15px Arial'; ctx.fillText('ENTER THE FLICKERING POOL TO RETURN', canvas.width / 2, 64);
+        if (event.returnPool) { ctx.fillStyle = '#e7c5ff'; ctx.font = 'bold 11px Arial'; ctx.fillText('RETURN', event.returnPool.x, event.returnPool.y - 43); }
+    }
+    if (event.hitNotice > 0) { ctx.fillStyle = '#ffe0a8'; ctx.font = 'bold 14px Arial'; ctx.fillText('STUNNED', canvas.width / 2, bounds.bottom + 34); }
+    if (event.flash > 0) { ctx.fillStyle = `rgba(255,245,255,${Math.min(.72, event.flash / 32)})`; ctx.fillRect(0, 0, canvas.width, canvas.height); }
 }
 
 function beginLucasFragmentPuzzle(fragment) {
@@ -2276,6 +2494,14 @@ window.addEventListener('keydown', (e) => {
         if (k in keys) { keys[k] = true; e.preventDefault(); }
         return;
     }
+    if (state === 18) {
+        if (k === 'arrowleft') k = 'a';
+        if (k === 'arrowright') k = 'd';
+        if (k === 'arrowup') k = 'w';
+        if (k === 'arrowdown') k = 's';
+        if (k in keys) { keys[k] = true; e.preventDefault(); }
+        return;
+    }
     if (state === 14) {
         if (k === 'escape') { e.preventDefault(); exitSubwayControlPuzzle(); }
         return;
@@ -2545,7 +2771,7 @@ window.addEventListener('keydown', (e) => {
 });
 window.addEventListener('keyup', (e) => {
     let k = e.key.toLowerCase();
-    if (state === 11) {
+    if (state === 11 || state === 18) {
         if (k === 'arrowleft') k = 'a';
         if (k === 'arrowright') k = 'd';
         if (k === 'arrowup') k = 'w';
@@ -4788,7 +5014,7 @@ function startGame(diffLevel) {
     boilerShutdown = false; boilerReadyShown = false; heatZones = []; heatEventCooldown = 360;
     rhysSealCollected = false; rhysTrapArmed = false; goopZones = []; goopShots = []; rhysSpitCooldown = 180; rhysDashTimer = 0; rhysChargeWindup = 0; rhysDashCooldown = 360; rhysEventCooldown = 900; rhysSweepTimer = 0; rhysSweepRadius = 0; rhysPressureZones = [];
     forestBeaconBattery = null; forestWatchtower = null; forestBeaconActive = false; forestFogTimer = 0; forestFogCooldown = currentMapId === 'forest' ? 720 : 0; forestGuideTimer = 0; forestGuideCooldown = currentMapId === 'forest' ? 1200 : 0; forestGuideMode = 'cabins'; noahCharge = null; noahLightningCooldown = 360; noahLightningZones = []; noahLightningPending = []; noahLightningWarning = 0; noahLightningFlashes = 0; noahShockTimer = 0; noahAppearanceWindow = 0;
-    amineFocus = false; amineVisibleTimer = 0; amineFlashCooldown = 90; amineTeleportCooldown = 240; amineTurret = null; amineBullets = []; amineBurnTimer = 0; amineRoad = null; nizarClones = []; nizarCloneCooldown = 2400; nizarCrush = null; nizarCrushCooldown = 900; subwayControlPuzzle = null; subwayFareCutscene = null; subwayGoldPressure = null; subwayTornTicket = null; subwayGoldSphere = null; subwayBronzeEligible = true; lucasState = 'searching'; lucasObjectiveStage = 'fragment1'; lucasAbilityCooldown = 300; lucasPoolCooldown = 0; lucasTeleportFlash = null; lucasCharge = null; lucasPull = null; lucasCarryFragment = null; lucasFragmentPuzzle = null; lucasEndingAnimation = null; lucasRouteLocks = []; lucasHazards = []; lucasGateEndTimer = 0; luckyBlocks = [];
+    amineFocus = false; amineVisibleTimer = 0; amineFlashCooldown = 90; amineTeleportCooldown = 240; amineTurret = null; amineBullets = []; amineBurnTimer = 0; amineRoad = null; nizarClones = []; nizarCloneCooldown = 2400; nizarCrush = null; nizarCrushCooldown = 900; subwayControlPuzzle = null; subwayFareCutscene = null; subwayGoldPressure = null; subwayTornTicket = null; subwayGoldSphere = null; subwayBronzeEligible = true; lucasState = 'searching'; lucasObjectiveStage = 'fragment1'; lucasAbilityCooldown = 300; lucasPoolCooldown = 0; lucasTeleportFlash = null; lucasCharge = null; lucasPull = null; lucasCarryFragment = null; lucasFragmentPuzzle = null; lucasEndingAnimation = null; lucasRouteLocks = []; lucasHazards = []; lucasGateEndTimer = 0; lucasShadowEvent = null; lucasShadowEventCooldown = 900 + Math.floor(Math.random() * 1201); lucasShadowEventTriggered = false; luckyBlocks = [];
     hotelLockdownTimer = 0; hotelEventCooldown = currentMapId === 'hotel' ? 480 : 0; hotelLockdownActive = false; hotelBlockedDoor = null;
     bassamState = 'roaming'; bassamRevealPending = false; bassamTrapTaskId = null; bassamFakeTask = null; bassamFakeLine = ''; bassamAmbushActive = false; bassamRelentlessChase = false; bassamLostTimer = 0; bassamAmbushCooldown = 900; bassamDecoys = []; bassamDecoyCooldown = 600 + Math.floor(Math.random() * 601); hotelTaskGame = null; bassamStaffDepartment = ['FRONT DESK','MAINTENANCE','HOUSEKEEPING','KITCHEN'][Math.floor(Math.random() * 4)]; closeHotelDialogue();
     document.getElementById('hotelTaskHUD').style.display = currentMapId === 'hotel' ? 'block' : 'none';
@@ -5863,12 +6089,18 @@ function update() {
     if (mobileMenuPaused || hotelDialogueOpen) return;
     if (state === 16) { updateLucasFragmentPuzzle(); return; }
     if (state === 17) { updateLucasEndingAnimation(); return; }
+    if (state === 18) { updateLucasShadowDimension(); return; }
     if (state === 14) { updateSubwayControlPuzzle(); return; }
     if (state === 15) { updateSubwayFareCutscene(); return; }
     if (![1,3,5,6,7,9,10,11,13].includes(state)) return;
 
     if (flashAlpha > 0) flashAlpha -= 0.02;
     ambienceClock++;
+    if (currentMapId === 'lucas' && state === 1 && lucasShadowEventCooldown > 0) lucasShadowEventCooldown--;
+    if (currentMapId === 'lucas' && state === 1 && !lucasShadowEventTriggered && lucasShadowEventCooldown <= 0 && lucasObjectiveStage !== 'gate') {
+        beginLucasShadowEvent();
+        return;
+    }
     if (noahAppearanceWindow > 0) noahAppearanceWindow--;
     if (scramblerTimer > 0) scramblerTimer--;
     if (flareTimer > 0) flareTimer--;
@@ -6323,6 +6555,7 @@ function draw() {
     if (state === 11 && amineRoad) { drawAmineRoadChase(); return; }
     if (state === 16 && lucasFragmentPuzzle) { drawLucasFragmentPuzzle(); return; }
     if (state === 17 && lucasEndingAnimation) { drawLucasEndingAnimation(); return; }
+    if (state === 18 && lucasShadowEvent) { drawLucasShadowDimension(); return; }
     if (state === 14 && subwayControlPuzzle) { drawSubwayControlPuzzle(); return; }
     if (state === 15 && subwayFareCutscene) { drawSubwayFareCutscene(); return; }
     if (state === 0 || state === 4) {
@@ -7219,7 +7452,7 @@ function updateMobileSkillCheckButton() {
         if (puzzlePad) puzzlePad.style.display = (state === 2 || state === 6) ? 'grid' : 'none';
         const touchActions = document.querySelector('.touch-actions');
         const joystickElement = document.getElementById('joystick');
-        const canvasPuzzle = state === 9 || state === 10 || state === 11 || state === 14 || state === 16 || state === 17;
+        const canvasPuzzle = state === 9 || state === 10 || state === 11 || state === 14 || state === 16 || state === 17 || state === 18;
         if (touchActions) touchActions.style.visibility = canvasPuzzle ? 'hidden' : 'visible';
         if (joystickElement) joystickElement.style.visibility = canvasPuzzle ? 'hidden' : 'visible';
         updateMobileSkillCheckButton();
