@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.18.11
+- Added a dedicated Caleb victory cutscene: Cal and Leb destabilize, resist with fading barriers and Schimini sparks, are seized by a shadow hand through the opened gate, and are pulled beyond the arena before the win screen appears.
+- Added a protected cutscene state so the final boss transition cannot skip, accept movement input, or freeze between the last hit and the results screen.
+- Bumped the offline cache to `calebs-shift-v92`.
+
 ## 2.18.10
 - Added Noah’s shared invisible-state lullaby and priority chase music, with independent Noah scream playback for each reveal/charge.
 - Added Rhys chase music that fades in while any Rhys can see the player and fades out when the chase is lost, plus independent charge screams.
