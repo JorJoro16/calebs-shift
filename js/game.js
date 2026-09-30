@@ -124,7 +124,7 @@ function playNizarCrashSound() {
 }
 
 // Versioned local progress with a backup copy and import/export support.
-const GAME_VERSION = '2.17.0';
+const GAME_VERSION = '2.17.1';
 const SAVE_SCHEMA_VERSION = 10;
 const COSMETIC_REWARD_VERSION = 2;
 const SAVE_KEY = 'br_save_v2';
@@ -1975,6 +1975,9 @@ function beginLucasShadowEvent() {
         returnX: player.x,
         returnY: player.y,
         player: { x: width * .5, y: bounds.bottom - 54 },
+        trail: [],
+        trailLastX: width * .5,
+        trailLastY: bounds.bottom - 54,
         pools: [
             { x: bounds.left + 24, y: bounds.top + 30, radius: 31 },
             { x: width * .5, y: bounds.top + 22, radius: 31 },
@@ -2031,16 +2034,23 @@ function updateLucasShadowDimension() {
     if (event.hitNotice > 0) event.hitNotice--;
     if (player.stunTimer > 0) player.stunTimer--;
 
+    if (player.stunTimer <= 0) {
+        const moveX = (keys.d ? 1 : 0) - (keys.a ? 1 : 0);
+        const moveY = (keys.s ? 1 : 0) - (keys.w ? 1 : 0);
+        let dx = moveX, dy = moveY;
+        if (dx && dy) { dx *= .707; dy *= .707; }
+        event.player.x = Math.max(bounds.left + 18, Math.min(bounds.right - 18, event.player.x + dx * 4.35));
+        event.player.y = Math.max(bounds.top + 18, Math.min(bounds.bottom - 18, event.player.y + dy * 4.35));
+    }
+    if (Math.hypot(event.player.x - event.trailLastX, event.player.y - event.trailLastY) > .25) {
+        event.trail.push({ x:event.player.x, y:event.player.y });
+        if (event.trail.length > 24) event.trail.shift();
+        event.trailLastX = event.player.x;
+        event.trailLastY = event.player.y;
+    }
+
     if (event.phase === 'survive') {
         event.time++;
-        if (player.stunTimer <= 0) {
-            const moveX = (keys.d ? 1 : 0) - (keys.a ? 1 : 0);
-            const moveY = (keys.s ? 1 : 0) - (keys.w ? 1 : 0);
-            let dx = moveX, dy = moveY;
-            if (dx && dy) { dx *= .707; dy *= .707; }
-            event.player.x = Math.max(bounds.left + 18, Math.min(bounds.right - 18, event.player.x + dx * 4.35));
-            event.player.y = Math.max(bounds.top + 18, Math.min(bounds.bottom - 18, event.player.y + dy * 4.35));
-        }
 
         event.burstTimer--;
         if (event.burstTimer <= 0) {
@@ -2078,13 +2088,13 @@ function updateLucasShadowDimension() {
             const lucas = event.lucas;
             if (lucas.phase === 'charge') {
                 lucas.x += lucas.vx; lucas.y += lucas.vy; lucas.life--;
-                if (player.stunTimer <= 0 && Math.hypot(event.player.x - lucas.x, event.player.y - lucas.y) < player.r + 22) {
-                    player.stunTimer = 92;
+                if (Math.hypot(event.player.x - lucas.x, event.player.y - lucas.y) < player.r + 22) {
                     event.hitFlash = 16;
-                    lucas.phase = 'retreat';
-                    lucas.life = 34;
-                    lucas.targetPool = chooseLucasDimensionPool(event, 160, lucas.poolIndex);
                     playSound('fail');
+                    lucasShadowEvent = null;
+                    setLucasOverlay(false);
+                    endGame(false, monster);
+                    return;
                 } else if (lucas.life <= 0) {
                     lucas.phase = 'retreat';
                     lucas.life = 34;
@@ -2158,9 +2168,28 @@ function drawLucasShadowDimension() {
         ctx.fillStyle = '#e1c3ff'; ctx.font = 'bold 11px Arial'; ctx.textAlign = 'center'; ctx.fillText('LUCAS', lucas.x, lucas.y - 32);
     }
     const playerX = event.player.x, playerY = event.player.y;
+    if (cosmetics.trail !== 'none' && event.trail.length > 1) {
+        const trailColor = cosmetics.trail === 'spark' ? 'rgba(255,238,86,.82)' : cosmetics.trail === 'ember' ? 'rgba(255,70,24,.78)' : cosmetics.trail === 'static' ? 'rgba(185,245,255,.65)' : cosmetics.trail === 'circle' ? 'rgba(255,255,255,.78)' : 'rgba(180,210,255,.42)';
+        ctx.save(); ctx.globalAlpha = .72; ctx.strokeStyle = trailColor; ctx.lineWidth = cosmetics.trail === 'ghost' ? 10 : cosmetics.trail === 'ember' ? 4 : 6; ctx.lineCap = cosmetics.trail === 'static' ? 'butt' : 'round';
+        if (cosmetics.trail === 'static') ctx.setLineDash([8, 7]);
+        ctx.beginPath(); event.trail.forEach((point, index) => index ? ctx.lineTo(point.x, point.y) : ctx.moveTo(point.x, point.y)); ctx.stroke(); ctx.setLineDash([]);
+        ctx.restore();
+    }
     ctx.fillStyle = 'rgba(0,0,0,.5)'; ctx.beginPath(); ctx.ellipse(playerX + 4, playerY + 17, 16, 7, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = player.stunTimer > 0 ? '#fff0a0' : '#76d9ff'; ctx.beginPath(); ctx.arc(playerX, playerY, player.r + 2, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#102332'; ctx.beginPath(); ctx.arc(playerX - 4, playerY - 2, 2, 0, Math.PI * 2); ctx.arc(playerX + 4, playerY - 2, 2, 0, Math.PI * 2); ctx.fill();
+    const equippedSkin = skinImages[cosmetics.skin];
+    if (cosmetics.skin !== 'default' && equippedSkin?.complete) {
+        const skinSize = player.r * 3.35;
+        ctx.globalAlpha = player.stunTimer > 0 ? .72 : 1;
+        ctx.drawImage(equippedSkin, playerX - skinSize / 2, playerY - skinSize / 2, skinSize, skinSize);
+        ctx.globalAlpha = 1;
+    } else {
+        ctx.fillStyle = player.stunTimer > 0 ? '#fff0a0' : (playerColors[cosmetics.color] || '#76d9ff'); ctx.beginPath(); ctx.arc(playerX, playerY, player.r + 2, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#102332'; ctx.beginPath(); ctx.arc(playerX - 4, playerY - 2, 2, 0, Math.PI * 2); ctx.arc(playerX + 4, playerY - 2, 2, 0, Math.PI * 2); ctx.fill();
+    }
+    const equippedMask = maskImages[cosmetics.mask];
+    if (cosmetics.mask !== 'none' && equippedMask?.complete) ctx.drawImage(equippedMask, playerX - player.r * 2, playerY - player.r * 2.15, player.r * 4, player.r * 4);
+    const equippedHat = hatImages[cosmetics.hat];
+    if (cosmetics.hat !== 'none' && equippedHat?.complete) ctx.drawImage(equippedHat, playerX - player.r * 2, playerY - player.r * 2.15, player.r * 4, player.r * 4);
     if (player.stunTimer > 0) { ctx.strokeStyle = '#fff0a0'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(playerX, playerY, 23 + Math.sin(ambienceClock * .3) * 3, 0, Math.PI * 2); ctx.stroke(); }
 
     ctx.textAlign = 'center'; ctx.fillStyle = '#ead5ff'; ctx.font = 'bold 22px Arial'; ctx.fillText('THE SHADOW DIMENSION', canvas.width / 2, 39);
@@ -7452,8 +7481,9 @@ function updateMobileSkillCheckButton() {
         if (puzzlePad) puzzlePad.style.display = (state === 2 || state === 6) ? 'grid' : 'none';
         const touchActions = document.querySelector('.touch-actions');
         const joystickElement = document.getElementById('joystick');
-        const canvasPuzzle = state === 9 || state === 10 || state === 11 || state === 14 || state === 16 || state === 17 || state === 18;
-        if (touchActions) touchActions.style.visibility = canvasPuzzle ? 'hidden' : 'visible';
+        const canvasPuzzle = state === 9 || state === 10 || state === 11 || state === 14 || state === 16 || state === 17;
+        const shadowDimension = state === 18;
+        if (touchActions) touchActions.style.visibility = canvasPuzzle || shadowDimension ? 'hidden' : 'visible';
         if (joystickElement) joystickElement.style.visibility = canvasPuzzle ? 'hidden' : 'visible';
         updateMobileSkillCheckButton();
     }
