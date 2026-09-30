@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.18.7
+- Added animated arena atmosphere, drifting background motes, phase-colored pulses, hit bursts, teleport effects, and Cal/Leb movement trails.
+- Reduced Leb’s spread volley to three projectiles on a longer cooldown and made hearts slightly more available.
+- Fixed the split-phase freeze when Cal or Leb dies, including Leb dying while eating a sealed nest.
+- Bumped the offline cache to `calebs-shift-v88`.
+
 ## 2.18.6
 - Tuned the Cal/Leb artwork footprint down again so the tall supplied sprites read closer to player scale in the arena.
 - Bumped the offline cache to `calebs-shift-v87`.

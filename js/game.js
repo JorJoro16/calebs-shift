@@ -132,7 +132,7 @@ function playNizarCrashSound() {
 }
 
 // Versioned local progress with a backup copy and import/export support.
-const GAME_VERSION = '2.18.6';
+const GAME_VERSION = '2.18.7';
 const SAVE_SCHEMA_VERSION = 10;
 const COSMETIC_REWARD_VERSION = 2;
 const SAVE_KEY = 'br_save_v2';
@@ -2497,7 +2497,8 @@ function beginCalebBossFight() {
         ],
         orbs:[], shots:[], eyeRain:[], cores:[], schiminis:[], walls:[], holes:[], hearts:[], sweep:null, slam:null,
         orbTimer:82, sweepTimer:230, slamTimer:340, spreadTimer:260, rainTimer:64, schiminiTimer:240,
-        holeTimer:300, wallTimer:360, heartTimer:520, pullTimer:420, fireballTimer:100, nestTimer:180, flash:0, messageTimer:0
+        holeTimer:300, wallTimer:360, heartTimer:500, pullTimer:420, fireballTimer:100, nestTimer:180, flash:0, messageTimer:0,
+        fxParticles:[], hitBursts:[], backgroundPulse:0
     };
     state = 20;
     clearMovementKeys();
@@ -2524,7 +2525,8 @@ function beginCalLebPhase() {
     if (!boss) return;
     boss.mode = 'split'; boss.stage = 3; boss.time = 0; boss.healthCal = 11; boss.maxHealthCal = 11; boss.healthLeb = 11; boss.maxHealthLeb = 11;
     boss.cal = { x:boss.arena.left + 128, y:boss.arena.top + 172, size:36, teleportTimer:320, moveTimer:0, targetX:null, targetY:null, fireballCount:0 };
-    boss.leb = { x:boss.arena.right - 128, y:boss.arena.top + 172, size:36, eatTimer:280, targetNest:null, moveTimer:0, targetX:null, targetY:null };
+    boss.leb = { x:boss.arena.right - 128, y:boss.arena.top + 172, size:36, eatTimer:280, targetNest:null, moveTimer:0, targetX:null, targetY:null, trail:[] };
+    boss.cal.trail = [];
     boss.switches.forEach(button => { button.active = false; button.life = 0; });
     boss.orbs = []; boss.shots = []; boss.eyeRain = []; boss.cores = []; boss.schiminis = []; boss.walls = []; boss.holes = []; boss.sweep = null; boss.slam = null;
     boss.nests = [
@@ -2533,7 +2535,7 @@ function beginCalLebPhase() {
         { x:boss.arena.right - 110, y:boss.arena.bottom - 92, sealed:false, sealLife:0 }
     ];
     boss.playerHealth = Math.min(boss.maxPlayerHealth, boss.playerHealth + 2);
-    boss.fireballTimer = 140; boss.spreadTimer = 165; boss.wallTimer = 320; boss.pullTimer = 480; boss.nestTimer = 170; boss.schiminiTimer = 120; boss.holeTimer = 220; boss.flash = 22;
+    boss.fireballTimer = 140; boss.spreadTimer = 220; boss.wallTimer = 320; boss.pullTimer = 480; boss.nestTimer = 170; boss.schiminiTimer = 120; boss.holeTimer = 220; boss.heartTimer = 500; boss.fxParticles = []; boss.hitBursts = []; boss.backgroundPulse = 1; boss.flash = 22;
     state = 20;
     canvas.classList.remove('shake');
     showStoryLine('CALEB BREAKS INTO CAL AND LEB.', 3000);
@@ -2561,6 +2563,7 @@ function damageCalebBossPlayer(amount, reason = 'HIT', instant = false) {
     if (instant) boss.playerHealth = 0;
     else { boss.playerHealth = Math.max(0, boss.playerHealth - amount); boss.playerInvuln = 55; }
     boss.playerHitFlash = 15;
+    spawnCalebBossBurst(boss, boss.player.x, boss.player.y, '#ff8299', 10);
     playSound('fail');
     if (boss.playerHealth <= 0) {
         calebBoss = null;
@@ -2579,13 +2582,105 @@ function damageCalebBoss(amount, target = 'CALEB') {
     else if (target === 'LEB') boss.healthLeb = Math.max(0, boss.healthLeb - amount);
     else boss.health = Math.max(0, boss.health - amount);
     boss.flash = 10;
+    const hitTarget = target === 'CAL' ? boss.cal : target === 'LEB' ? boss.leb : boss.caleb;
+    if (hitTarget) spawnCalebBossBurst(boss, hitTarget.x, hitTarget.y, target === 'LEB' ? '#c993ff' : '#ff6d89', 16);
     playSound('success');
     if (target === 'CALEB' && boss.health <= 0) { beginCalebBossDefeat(); return; }
-    if (target === 'CAL' && boss.healthCal <= 0) { boss.cal = null; showStoryLine('CAL COLLAPSES INTO THE FLOOR.', 1600); }
-    if (target === 'LEB' && boss.healthLeb <= 0) { boss.leb = null; showStoryLine('LEB’S NESTS GO SILENT.', 1600); }
+    if (target === 'CAL' && boss.healthCal <= 0) { boss.cal = null; boss.orbs = []; showStoryLine('CAL COLLAPSES INTO THE FLOOR.', 1600); }
+    if (target === 'LEB' && boss.healthLeb <= 0) { boss.leb = null; boss.shots = []; boss.schiminis = []; showStoryLine('LEB’S NESTS GO SILENT.', 1600); }
     if (boss.mode === 'split' && boss.healthCal <= 0 && boss.healthLeb <= 0) {
         calebBoss = null; setLucasOverlay(false); endGame(true, monster);
     }
+}
+
+function spawnCalebBossBurst(boss, x, y, color, count = 12) {
+    if (!boss) return;
+    boss.fxParticles = boss.fxParticles || [];
+    boss.hitBursts = boss.hitBursts || [];
+    for (let index = 0; index < count; index++) {
+        const angle = Math.random() * Math.PI * 2, speed = 1.2 + Math.random() * 4.2;
+        boss.fxParticles.push({ x, y, vx:Math.cos(angle) * speed, vy:Math.sin(angle) * speed, size:2 + Math.random() * 3, life:22 + Math.floor(Math.random() * 20), color });
+    }
+    boss.hitBursts.push({ x, y, radius:10, life:24, maxLife:24, color });
+    boss.backgroundPulse = Math.min(1, (boss.backgroundPulse || 0) + .65);
+}
+
+function updateCalebBossFx(boss) {
+    boss.fxParticles = boss.fxParticles || [];
+    boss.hitBursts = boss.hitBursts || [];
+    for (const particle of boss.fxParticles) {
+        particle.x += particle.vx; particle.y += particle.vy; particle.vx *= .965; particle.vy = particle.vy * .965 + .035; particle.life--;
+    }
+    boss.fxParticles = boss.fxParticles.filter(particle => particle.life > 0);
+    for (const burst of boss.hitBursts) { burst.life--; burst.radius += 3.4; }
+    boss.hitBursts = boss.hitBursts.filter(burst => burst.life > 0);
+    boss.backgroundPulse = Math.max(0, (boss.backgroundPulse || 0) - .035);
+}
+
+function updateCalLebTrail(entity) {
+    if (!entity) return;
+    entity.trail = entity.trail || [];
+    const last = entity.trail.at(-1);
+    if (!last || Math.hypot(entity.x - last.x, entity.y - last.y) > 4) {
+        entity.trail.push({ x:entity.x, y:entity.y });
+        if (entity.trail.length > 10) entity.trail.shift();
+    }
+}
+
+function drawCalebBossBackdrop(boss, arena, width, height) {
+    const split = boss.mode === 'split';
+    const pulse = .5 + .5 * Math.sin(boss.time * (split ? .045 : .065));
+    ctx.save(); ctx.beginPath(); ctx.rect(arena.left, arena.top, arena.right - arena.left, arena.bottom - arena.top); ctx.clip();
+    const glowX = split ? width / 2 : boss.caleb?.x || width / 2;
+    const glowY = split ? arena.top + (arena.bottom - arena.top) * .45 : arena.top + 86;
+    const glow = ctx.createRadialGradient(glowX, glowY, 20, glowX, glowY, Math.max(width, height) * .62);
+    glow.addColorStop(0, split ? `rgba(124,58,177,${.18 + pulse * .12})` : `rgba(153,12,52,${.2 + pulse * .14})`);
+    glow.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = glow; ctx.fillRect(arena.left, arena.top, arena.right - arena.left, arena.bottom - arena.top);
+    for (let index = 0; index < 8; index++) {
+        const radius = 54 + index * 42 + Math.sin(boss.time * .025 + index) * 5;
+        ctx.strokeStyle = split ? `rgba(194,126,255,${.035 + pulse * .018})` : `rgba(255,75,114,${.035 + pulse * .022})`;
+        ctx.lineWidth = index % 3 === 0 ? 2 : 1; ctx.beginPath(); ctx.arc(glowX, glowY, radius, 0, Math.PI * 2); ctx.stroke();
+    }
+    for (let index = 0; index < 18; index++) {
+        const spanX = arena.right - arena.left - 20, spanY = arena.bottom - arena.top - 20;
+        const x = arena.left + 10 + ((index * 83 + boss.time * (0.18 + (index % 4) * .07)) % spanX);
+        const y = arena.top + 10 + ((index * 47 + boss.time * (0.11 + (index % 3) * .05)) % spanY);
+        ctx.fillStyle = split ? 'rgba(220,185,255,.18)' : 'rgba(255,136,163,.16)'; ctx.beginPath(); ctx.arc(x, y, 1 + (index % 3), 0, Math.PI * 2); ctx.fill();
+    }
+    if (split) {
+        ctx.strokeStyle = `rgba(238,181,255,${.16 + pulse * .1})`; ctx.lineWidth = 2; ctx.setLineDash([15, 20]);
+        ctx.beginPath(); ctx.moveTo(width / 2, arena.top); ctx.lineTo(width / 2 + Math.sin(boss.time * .035) * 18, arena.bottom); ctx.stroke(); ctx.setLineDash([]);
+    } else {
+        ctx.strokeStyle = `rgba(255,68,101,${.07 + pulse * .05})`; ctx.lineWidth = 2;
+        for (let index = 0; index < 8; index++) { const angle = index * Math.PI / 4 + boss.time * .003; ctx.beginPath(); ctx.moveTo(glowX, glowY); ctx.lineTo(glowX + Math.cos(angle) * width, glowY + Math.sin(angle) * height); ctx.stroke(); }
+    }
+    ctx.restore();
+    const vignette = ctx.createRadialGradient(width / 2, height / 2, Math.min(width, height) * .22, width / 2, height / 2, Math.max(width, height) * .75);
+    vignette.addColorStop(0, 'rgba(0,0,0,0)'); vignette.addColorStop(1, 'rgba(0,0,0,.42)'); ctx.fillStyle = vignette; ctx.fillRect(0, 0, width, height);
+}
+
+function drawCalebBossFx(boss) {
+    for (const particle of boss.fxParticles || []) {
+        ctx.save(); ctx.globalAlpha = Math.min(1, particle.life / 18); ctx.fillStyle = particle.color; ctx.shadowColor = particle.color; ctx.shadowBlur = 10;
+        ctx.beginPath(); ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+    }
+    for (const burst of boss.hitBursts || []) {
+        ctx.save(); ctx.globalAlpha = Math.min(.9, burst.life / burst.maxLife); ctx.strokeStyle = burst.color; ctx.shadowColor = burst.color; ctx.shadowBlur = 14; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.arc(burst.x, burst.y, burst.radius, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+    }
+}
+
+function drawCalLebHalf(boss, entity, image, color) {
+    if (!entity) return;
+    for (let index = 0; index < (entity.trail || []).length; index++) {
+        const point = entity.trail[index];
+        ctx.save(); ctx.globalAlpha = (index + 1) / entity.trail.length * .18; ctx.fillStyle = color; ctx.shadowColor = color; ctx.shadowBlur = 10;
+        ctx.beginPath(); ctx.arc(point.x, point.y, 7 + index * .6, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+    }
+    ctx.save(); ctx.fillStyle = 'rgba(0,0,0,.5)'; ctx.beginPath(); ctx.ellipse(entity.x + 3, entity.y + 43, 18, 7, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.shadowColor = color; ctx.shadowBlur = 18 + Math.sin(boss.time * .08) * 5; ctx.globalAlpha = .95;
+    calebBossImage(image, entity.x, entity.y, entity.size, entity.size * 2.18, entity === boss.cal ? Math.sin(boss.time * .07) * .055 : -Math.sin(boss.time * .065) * .055); ctx.restore();
+    if (entity === boss.leb && entity.targetNest) { ctx.save(); ctx.globalAlpha = .35; ctx.strokeStyle = '#d9b0ff'; ctx.setLineDash([5, 8]); ctx.beginPath(); ctx.moveTo(entity.x, entity.y); ctx.lineTo(entity.targetNest.x, entity.targetNest.y); ctx.stroke(); ctx.setLineDash([]); ctx.restore(); }
 }
 
 function spawnCalebHeart(boss) {
@@ -2613,10 +2708,10 @@ function updateCalebBossHearts(boss) {
     if (boss.heartTimer > 0) boss.heartTimer--;
     if (boss.heartTimer <= 0) {
         if (boss.hearts.length < 2) {
-            const spawnChance = boss.playerHealth <= boss.maxPlayerHealth - 2 ? .78 : .48;
+            const spawnChance = boss.playerHealth <= boss.maxPlayerHealth - 2 ? .82 : .52;
             if (Math.random() < spawnChance) spawnCalebHeart(boss);
         }
-        boss.heartTimer = 520 + Math.floor(Math.random() * 421);
+        boss.heartTimer = 500 + Math.floor(Math.random() * 381);
     }
     for (let index = boss.hearts.length - 1; index >= 0; index--) {
         const heart = boss.hearts[index];
@@ -2852,6 +2947,8 @@ function updateCalebBossMain() {
         updateCalebBossPhase(boss); updateCalebBossAttacks(boss); updateCalebOrbs(boss); updateCalebProjectiles(boss);
         if (boss.stage === 1 && boss.health <= boss.maxHealth * .56) boss.stage = 2;
     } else if (boss.mode === 'split') updateCalLebMain(boss);
+    if (!calebBoss || state !== 20) return;
+    updateCalebBossFx(boss);
     updateCalebBossHearts(boss);
 }
 
@@ -2869,7 +2966,7 @@ function spawnCalFireball(boss, spiral = false) {
 function spawnLebSpread(boss) {
     if (!boss.leb) return;
     const angle = Math.atan2(boss.player.y - boss.leb.y, boss.player.x - boss.leb.x);
-    for (let index = -2; index <= 2; index++) { const spread = angle + index * .16; boss.shots.push({ x:boss.leb.x, y:boss.leb.y, vx:Math.cos(spread) * 4.6, vy:Math.sin(spread) * 4.6, life:170, r:8, type:'leb' }); }
+    for (let index = -1; index <= 1; index++) { const spread = angle + index * .18; boss.shots.push({ x:boss.leb.x, y:boss.leb.y, vx:Math.cos(spread) * 4.2, vy:Math.sin(spread) * 4.2, life:170, r:8, type:'leb' }); }
 }
 
 function chooseCalLebTarget(boss, entity, flee = false) {
@@ -2905,7 +3002,7 @@ function updateCalLebMain(boss) {
     boss.switches.forEach(button => { if (button.life > 0) button.life--; if (button.life <= 0) button.active = false; if (button.cooldown > 0) button.cooldown--; if (button.flash > 0) button.flash--; });
     boss.fireballTimer--; boss.spreadTimer--; boss.wallTimer--; boss.pullTimer--; boss.nestTimer--; boss.schiminiTimer--; boss.holeTimer--;
     if (boss.fireballTimer <= 0 && boss.cal) { boss.cal.fireballCount = (boss.cal.fireballCount || 0) + 1; spawnCalFireball(boss, boss.cal.fireballCount % 4 === 0); boss.fireballTimer = 210; }
-    if (boss.spreadTimer <= 0) { spawnLebSpread(boss); boss.spreadTimer = 205; }
+    if (boss.spreadTimer <= 0) { spawnLebSpread(boss); boss.spreadTimer = 300; }
     if (boss.wallTimer <= 0 && boss.cal) { boss.walls.push({ x:boss.arena.left + 95 + Math.random() * (boss.arena.right - boss.arena.left - 220), y:boss.arena.top + 125 + Math.random() * (boss.arena.bottom - boss.arena.top - 210), w:Math.random() < .5 ? 20 : 112, h:Math.random() < .5 ? 112 : 20, life:220 }); boss.wallTimer = 370; }
     if (boss.pullTimer <= 0 && boss.cal) { boss.pullTimerActive = 62; boss.pullTimer = 510; playSound('alarm'); }
     if (boss.schiminiTimer <= 0 && boss.leb) { spawnCalebSchimini(boss, boss.leb.x, boss.leb.y); boss.schiminiTimer = 190; }
@@ -2919,19 +3016,23 @@ function updateCalLebMain(boss) {
         boss.cal.moveTimer--;
         if (boss.cal.moveTimer <= 0 || Math.hypot(boss.cal.x - boss.cal.targetX, boss.cal.y - boss.cal.targetY) < 12) chooseCalLebTarget(boss, boss.cal);
         moveCalLebTowardTarget(boss, boss.cal, 2.15);
-        if (boss.cal.teleportTimer <= 0) { boss.cal.x = boss.arena.left + 90 + Math.random() * (boss.arena.right - boss.arena.left - 180); boss.cal.y = boss.arena.top + 120 + Math.random() * (boss.arena.bottom - boss.arena.top - 190); boss.cal.teleportTimer = 320; boss.cal.targetX = null; boss.cal.targetY = null; boss.flash = 16; playSound('tick'); }
+        updateCalLebTrail(boss.cal);
+        if (boss.cal.teleportTimer <= 0) { spawnCalebBossBurst(boss, boss.cal.x, boss.cal.y, '#ff637f', 8); boss.cal.x = boss.arena.left + 90 + Math.random() * (boss.arena.right - boss.arena.left - 180); boss.cal.y = boss.arena.top + 120 + Math.random() * (boss.arena.bottom - boss.arena.top - 190); boss.cal.teleportTimer = 320; boss.cal.targetX = null; boss.cal.targetY = null; boss.flash = 16; spawnCalebBossBurst(boss, boss.cal.x, boss.cal.y, '#ff637f', 8); playSound('tick'); }
     }
     if (boss.leb && boss.leb.targetNest) {
         const nest = boss.leb.targetNest, angle = Math.atan2(nest.y - boss.leb.y, nest.x - boss.leb.x);
         boss.leb.x += Math.cos(angle) * 1.8; boss.leb.y += Math.sin(angle) * 1.8;
+        updateCalLebTrail(boss.leb);
         if (Math.hypot(nest.x - boss.leb.x, nest.y - boss.leb.y) < 24) {
-            if (nest.sealed) damageCalebBoss(2.4, 'LEB'); else boss.healthLeb = Math.min(boss.maxHealthLeb, boss.healthLeb + 1.5);
-            boss.nests = boss.nests.filter(entry => entry !== nest); boss.leb.targetNest = null; boss.flash = 14;
+            if (nest.sealed) damageCalebBoss(2.4, 'LEB'); else if (boss.leb) { boss.healthLeb = Math.min(boss.maxHealthLeb, boss.healthLeb + 1.5); spawnCalebBossBurst(boss, boss.leb.x, boss.leb.y, '#c39bff', 10); }
+            boss.nests = boss.nests.filter(entry => entry !== nest); if (boss.leb) boss.leb.targetNest = null; boss.flash = 14;
+            if (!calebBoss || state !== 20) return;
         }
     } else if (boss.leb) {
         boss.leb.moveTimer--;
         if (boss.leb.moveTimer <= 0 || Math.hypot(boss.leb.x - boss.leb.targetX, boss.leb.y - boss.leb.targetY) < 12) chooseCalLebTarget(boss, boss.leb, true);
         moveCalLebTowardTarget(boss, boss.leb, 2.35);
+        updateCalLebTrail(boss.leb);
     }
     if (boss.nests.length < 3 && boss.time % 300 === 0) boss.nests.push({ x:boss.arena.left + 90 + Math.random() * (boss.arena.right - boss.arena.left - 180), y:boss.arena.top + 150 + Math.random() * (boss.arena.bottom - boss.arena.top - 220), sealed:false, sealLife:0 });
     boss.nests.forEach(nest => { if (nest.sealLife > 0) { nest.sealLife--; if (nest.sealLife <= 0) nest.sealed = false; } });
@@ -3016,6 +3117,7 @@ function drawCalebBossEncounter() {
     background.addColorStop(0, boss.mode === 'split' ? '#321424' : '#27101b'); background.addColorStop(.62, '#0b050b'); background.addColorStop(1, '#020103');
     ctx.fillStyle = background; ctx.fillRect(0, 0, width, height);
     ctx.fillStyle = boss.mode === 'split' ? 'rgba(53,19,30,.94)' : 'rgba(24,10,20,.94)'; ctx.fillRect(arena.left, arena.top, arena.right - arena.left, arena.bottom - arena.top);
+    drawCalebBossBackdrop(boss, arena, width, height);
     ctx.save(); ctx.beginPath(); ctx.rect(arena.left, arena.top, arena.right - arena.left, arena.bottom - arena.top); ctx.clip();
     ctx.strokeStyle = 'rgba(255,116,143,.11)'; ctx.lineWidth = 1;
     for (let x = arena.left; x < arena.right; x += 42) { ctx.beginPath(); ctx.moveTo(x, arena.top); ctx.lineTo(x, arena.bottom); ctx.stroke(); }
@@ -3058,15 +3160,20 @@ function drawCalebBossEncounter() {
     for (const shot of boss.shots || []) { ctx.fillStyle = shot.type === 'leb' ? '#ff8b9c' : '#ffa94f'; ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = 10; ctx.beginPath(); ctx.arc(shot.x, shot.y, shot.r, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0; }
     for (const eye of boss.eyeRain || []) { ctx.fillStyle = '#f5efff'; ctx.strokeStyle = '#9d4d83'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(eye.x, eye.y, eye.r, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); ctx.fillStyle = '#210916'; ctx.beginPath(); ctx.arc(eye.x, eye.y, 5, 0, Math.PI * 2); ctx.fill(); }
     for (const enemy of boss.schiminis || []) { ctx.fillStyle = '#71213e'; ctx.beginPath(); ctx.arc(enemy.x, enemy.y, 13, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(enemy.x - 4, enemy.y - 2, 2, 0, Math.PI * 2); ctx.arc(enemy.x + 4, enemy.y - 2, 2, 0, Math.PI * 2); ctx.fill(); }
+    drawCalebBossFx(boss);
     if (boss.mode === 'caleb') {
         const eyes = getCalebEyePoints(boss), body = boss.caleb, activeHand = boss.sweep?.side || boss.slam?.side;
+        const bodyPulse = 1 + Math.sin(boss.time * .08) * .035 + (boss.backgroundPulse || 0) * .08;
+        const bodyGlow = ctx.createRadialGradient(body.x, body.y, body.size * .2, body.x, body.y, body.size * .78);
+        bodyGlow.addColorStop(0, `rgba(255,52,96,${.12 + (boss.backgroundPulse || 0) * .16})`); bodyGlow.addColorStop(1, 'rgba(255,52,96,0)');
+        ctx.fillStyle = bodyGlow; ctx.beginPath(); ctx.arc(body.x, body.y, body.size * .8, 0, Math.PI * 2); ctx.fill();
         if (activeHand !== 'left') { const hand = getCalebHandPose(boss, 'left'); calebBossImage(bossImages.leftHand, hand.x, hand.y, 132, 132, hand.angle); }
         if (activeHand !== 'right') { const hand = getCalebHandPose(boss, 'right'); calebBossImage(bossImages.rightHand, hand.x, hand.y, 132, 132, hand.angle); }
-        calebBossImage(bossImages.caleb, body.x, body.y, body.size, body.size, Math.sin(boss.time * .03) * .012, boss.flash > 0 ? .62 : 1);
+        calebBossImage(bossImages.caleb, body.x, body.y, body.size * bodyPulse, body.size * bodyPulse, Math.sin(boss.time * .03) * .012, boss.flash > 0 ? .62 : 1);
         if (activeHand) { const hand = getCalebHandPose(boss, activeHand); calebBossImage(activeHand === 'left' ? bossImages.leftHand : bossImages.rightHand, hand.x, hand.y, 142, 142, hand.angle); }
         if (boss.phase === 'eyesOn') eyes.forEach(eye => { ctx.fillStyle = 'rgba(7,0,9,.96)'; ctx.shadowColor = '#ff436e'; ctx.shadowBlur = 18; ctx.beginPath(); ctx.arc(eye.x, eye.y, body.size * .092, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0; ctx.strokeStyle = '#ff99aa'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(eye.x, eye.y, body.size * .115, 0, Math.PI * 2); ctx.stroke(); }); else eyes.forEach(eye => { ctx.strokeStyle = '#fff7fb'; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(eye.x, eye.y, body.size * .09, 0, Math.PI * 2); ctx.stroke(); });
     }
-    else if (boss.mode === 'split') { if (boss.cal) calebBossImage(bossImages.cal, boss.cal.x, boss.cal.y, boss.cal.size, boss.cal.size * 2.18, Math.sin(boss.time * .06) * .03); if (boss.leb) calebBossImage(bossImages.leb, boss.leb.x, boss.leb.y, boss.leb.size, boss.leb.size * 2.18, -Math.sin(boss.time * .055) * .03); }
+    else if (boss.mode === 'split') { drawCalLebHalf(boss, boss.cal, bossImages.cal, '#ff637f'); drawCalLebHalf(boss, boss.leb, bossImages.leb, '#c39bff'); }
     drawCalebBossPlayer(boss);
     ctx.fillStyle = '#ffe1e8'; ctx.font = 'bold 20px Arial'; ctx.textAlign = 'center'; ctx.fillText(boss.mode === 'split' ? 'THE BROKEN BODY' : 'CALEB', width / 2, 32);
     if (boss.mode === 'split') { drawBossBar(28, 48, Math.min(260, width * .32), 15, boss.healthCal, boss.maxHealthCal, '#cf4d73', 'CAL'); drawBossBar(width - 28 - Math.min(260, width * .32), 48, Math.min(260, width * .32), 15, boss.healthLeb, boss.maxHealthLeb, '#9c64cf', 'LEB'); }
