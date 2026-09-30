@@ -2,6 +2,7 @@
 
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
+const PLAYER_COLORS = { blue:'#00f', crimson:'#d22', violet:'#a64dff', green:'#19c76b', amber:'#e7a21a', gold:'#e9ca35', sepia:'#800', white:'#f6f6f6' };
 const hatImages = { noahCap: new Image(), cowboyHat: new Image(), luffyHat: new Image(), krustyHat: new Image(), headlightHat: new Image() };
 const maskImages = { idiotMask: new Image(), spongeMask: new Image(), jordanMask: new Image(), smileMask: new Image(), stopSignMask: new Image() };
 const skinImages = {
@@ -281,7 +282,7 @@ calebBossMusic.addEventListener('ended', () => {
 });
 
 // Versioned local progress with a backup copy and import/export support.
-const GAME_VERSION = '2.18.13';
+const GAME_VERSION = '2.18.14';
 const SAVE_SCHEMA_VERSION = 10;
 const COSMETIC_REWARD_VERSION = 2;
 const SAVE_KEY = 'br_save_v2';
@@ -2369,7 +2370,6 @@ function drawLucasShadowDimension() {
         ctx.fillStyle = '#e1c3ff'; ctx.font = 'bold 11px Arial'; ctx.textAlign = 'center'; ctx.fillText('LUCAS', lucas.x, lucas.y - 32);
     }
     const playerX = event.player.x, playerY = event.player.y;
-    const playerColors = { blue:'#00f', crimson:'#d22', violet:'#a64dff', green:'#19c76b', amber:'#e7a21a', gold:'#e9ca35', sepia:'#800', white:'#f6f6f6' };
     if (cosmetics.trail !== 'none' && event.trail.length > 1) {
         const trailColor = cosmetics.trail === 'spark' ? 'rgba(255,238,86,.82)' : cosmetics.trail === 'ember' ? 'rgba(255,70,24,.78)' : cosmetics.trail === 'static' ? 'rgba(185,245,255,.65)' : cosmetics.trail === 'circle' ? 'rgba(255,255,255,.78)' : 'rgba(180,210,255,.42)';
         ctx.save(); ctx.globalAlpha = .72; ctx.strokeStyle = trailColor; ctx.lineWidth = cosmetics.trail === 'ghost' ? 10 : cosmetics.trail === 'ember' ? 4 : 6; ctx.lineCap = cosmetics.trail === 'static' ? 'butt' : 'round';
@@ -2385,7 +2385,7 @@ function drawLucasShadowDimension() {
         ctx.drawImage(equippedSkin, playerX - skinSize / 2, playerY - skinSize / 2, skinSize, skinSize);
         ctx.globalAlpha = 1;
     } else {
-        ctx.fillStyle = player.stunTimer > 0 ? '#fff0a0' : (playerColors[cosmetics.color] || '#76d9ff'); ctx.beginPath(); ctx.arc(playerX, playerY, player.r + 2, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = player.stunTimer > 0 ? '#fff0a0' : (PLAYER_COLORS[cosmetics.color] || '#76d9ff'); ctx.beginPath(); ctx.arc(playerX, playerY, player.r + 2, 0, Math.PI * 2); ctx.fill();
         ctx.fillStyle = '#102332'; ctx.beginPath(); ctx.arc(playerX - 4, playerY - 2, 2, 0, Math.PI * 2); ctx.arc(playerX + 4, playerY - 2, 2, 0, Math.PI * 2); ctx.fill();
     }
     const equippedMask = maskImages[cosmetics.mask];
@@ -2770,13 +2770,13 @@ function beginCalLebPhase() {
 }
 
 function updateCalebBossIntro() {
-    if (!calebBoss) return;
+    if (!calebBoss) { recoverCalebBossScene(false); return; }
     calebBoss.introTime++;
     if (calebBoss.introTime >= calebBoss.introDuration) beginCalebBossFight();
 }
 
 function updateCalebBossDefeat() {
-    if (!calebBoss) return;
+    if (!calebBoss) { recoverCalebBossScene(true); return; }
     calebBoss.defeatTime++;
     if (calebBoss.defeatTime === 24 || calebBoss.defeatTime === 96) playSound('tick');
     if (calebBoss.defeatTime === 86) { calebBoss.splitVisible = true; playSound('alarm'); }
@@ -2785,7 +2785,8 @@ function updateCalebBossDefeat() {
 
 function updateCalebBossEnding() {
     const boss = calebBoss;
-    if (!boss) { state = 1; setLucasOverlay(false); canvas.classList.remove('shake'); return; }
+    if (!boss) { recoverCalebBossScene(true); return; }
+    boss.endingParticles = Array.isArray(boss.endingParticles) ? boss.endingParticles : [];
     boss.endingTime = (boss.endingTime || 0) + 1;
     const time = boss.endingTime;
     if (time === 36) playSound('tick');
@@ -2816,6 +2817,15 @@ function updateCalebBossEnding() {
         setLucasOverlay(false);
         endGame(true, monster);
     }
+}
+
+function recoverCalebBossScene(won = false) {
+    stopCalebBossMusic();
+    canvas.classList.remove('shake');
+    calebBoss = null;
+    setLucasOverlay(false);
+    if (won) endGame(true, monster);
+    else { state = 1; updateHUD(); showMsg('THE BOSS TRANSITION COLLAPSED · THE SHIFT CONTINUES', 1800); }
 }
 
 function damageCalebBossPlayer(amount, reason = 'HIT', instant = false) {
@@ -3211,6 +3221,9 @@ function updateCalebBossPhase(boss) {
 function updateCalebBossMain() {
     const boss = calebBoss;
     if (!boss) return;
+    const collectionFields = ['switches', 'orbs', 'shots', 'eyeRain', 'cores', 'schiminis', 'walls', 'holes', 'hearts', 'nests', 'fxParticles', 'hitBursts'];
+    for (const field of collectionFields) if (!Array.isArray(boss[field])) boss[field] = [];
+    if (!Array.isArray(boss.playerTrail)) boss.playerTrail = [];
     if (!boss.arena || !boss.player || !Number.isFinite(boss.player.x) || !Number.isFinite(boss.player.y)) {
         stopCalebBossMusic();
         calebBoss = null;
@@ -3353,7 +3366,7 @@ function drawCalebBossPlayer(boss) {
     if (cosmetics.skin !== 'default' && skin?.complete && skin.naturalWidth) {
         const size = player.r * 3.35; ctx.globalAlpha = boss.playerInvuln > 0 && boss.playerInvuln % 6 < 3 ? .35 : 1; ctx.drawImage(skin, x - size / 2, y - size / 2, size, size); ctx.globalAlpha = 1;
     } else {
-        ctx.fillStyle = boss.playerInvuln > 0 ? '#fff0a0' : (playerColors[cosmetics.color] || '#76d9ff'); ctx.beginPath(); ctx.arc(x, y, player.r + 2, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = boss.playerInvuln > 0 ? '#fff0a0' : (PLAYER_COLORS[cosmetics.color] || '#76d9ff'); ctx.beginPath(); ctx.arc(x, y, player.r + 2, 0, Math.PI * 2); ctx.fill();
         ctx.fillStyle = '#102332'; ctx.beginPath(); ctx.arc(x - 4, y - 2, 2, 0, Math.PI * 2); ctx.arc(x + 4, y - 2, 2, 0, Math.PI * 2); ctx.fill();
     }
     const mask = maskImages[cosmetics.mask], hat = hatImages[cosmetics.hat];
@@ -8449,7 +8462,7 @@ function draw() {
     drawNizarAbilities();
 
     if (!player.hidden) {
-        const playerColors = { blue:'#00f', crimson:'#d22', violet:'#a64dff', green:'#19c76b', amber:'#e7a21a', gold:'#e9ca35', sepia:'#800', white:'#f6f6f6' };
+        const playerColors = PLAYER_COLORS;
         if (cosmetics.trail === 'afterimage') {
             ctx.save();
             ctx.filter = 'blur(2px)';
@@ -8629,6 +8642,48 @@ function draw() {
     if(state===10){ctx.fillStyle='rgba(0,0,0,.82)';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.fillStyle='#fff';ctx.font='bold 22px Arial';ctx.textAlign='center';ctx.fillText(`COLOR MEMORY · ROUND ${simonRound}/${simonSequence.length}`,canvas.width/2,70);const colors=['#e33','#38f','#3c5','#fd3'],symbols=['▲','●','■','★'],size=100,gap=14,left=canvas.width/2-size-gap/2,top=canvas.height/2-size-gap/2,active=simonPhase==='show'?simonSequence[Math.min(simonShowIndex,simonRound-1)]:-1;for(let i=0;i<4;i++){const x=left+(i%2)*(size+gap),y=top+Math.floor(i/2)*(size+gap),flashing=i===simonFlashChoice&&simonFlashTimer>0;ctx.fillStyle=i===active||flashing?'#fff':colors[i];ctx.fillRect(x,y,size,size);ctx.strokeStyle=flashing?'#fff':'rgba(255,255,255,.2)';ctx.lineWidth=flashing?5:1;ctx.strokeRect(x,y,size,size);ctx.fillStyle=i===active||flashing?colors[i]:'#111';ctx.font='bold 30px Arial';ctx.fillText(symbols[i],x+size/2,y+60);}ctx.fillStyle='#ddd';ctx.font='15px Arial';ctx.fillText(simonPhase==='show'?'WATCH THE PATTERN':'REPEAT THE PATTERN',canvas.width/2,top+size*2+gap+38);}
 }
 
+let frameErrorStreak = 0;
+let lastFrameErrorSignature = '';
+let lastFrameErrorAt = 0;
+
+function reportFrameError(error, phase) {
+    frameErrorStreak++;
+    const message = error?.message || String(error);
+    const signature = `${phase}: ${message}`;
+    const now = performance.now();
+    if (signature !== lastFrameErrorSignature || now - lastFrameErrorAt > 2000) {
+        console.error(`[Caleb's Shift] ${phase} frame recovered:`, error);
+        lastFrameErrorSignature = signature;
+        lastFrameErrorAt = now;
+    }
+}
+
+function advanceCalebSceneAfterFrameError() {
+    const boss = calebBoss;
+    if (!boss) return;
+    if (state === 19) boss.introTime = Math.min(Number.isFinite(boss.introDuration) ? boss.introDuration : 190, (Number.isFinite(boss.introTime) ? boss.introTime : 0) + 1);
+    else if (state === 21) boss.defeatTime = (Number.isFinite(boss.defeatTime) ? boss.defeatTime : 0) + 1;
+    else if (state === 22) boss.endingTime = Math.min(Number.isFinite(boss.endingDuration) ? boss.endingDuration : 300, (Number.isFinite(boss.endingTime) ? boss.endingTime : 0) + 1);
+    else if (state === 20) boss.time = (Number.isFinite(boss.time) ? boss.time : 0) + 1;
+}
+
+function drawFrameRecoveryScreen() {
+    try {
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.globalAlpha = 1;
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.filter = 'none';
+        ctx.fillStyle = '#07030b'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#e7c8ff'; ctx.font = 'bold 22px Arial'; ctx.textAlign = 'center';
+        ctx.fillText('THE SHIFT RECOVERS', canvas.width / 2, canvas.height / 2 - 12);
+        ctx.fillStyle = '#b99cc9'; ctx.font = '13px Arial';
+        ctx.fillText('THE SCENE WILL CONTINUE', canvas.width / 2, canvas.height / 2 + 18);
+    } catch (_) {
+        // The animation loop must still schedule its next frame even if the
+        // browser has a damaged canvas context.
+    }
+}
+
 function loop(timestamp) {
     if (setFPS) {
         if (timestamp - lastTime >= 1000) {
@@ -8643,12 +8698,25 @@ function loop(timestamp) {
     const fixedStep = 1000 / 60;
     let updatesThisFrame = 0;
     while (gameAccumulator >= fixedStep && updatesThisFrame < 6) {
-        update();
+        try {
+            update();
+        } catch (error) {
+            reportFrameError(error, 'update');
+            advanceCalebSceneAfterFrameError();
+            gameAccumulator = Math.max(0, gameAccumulator - fixedStep);
+            break;
+        }
         gameAccumulator -= fixedStep;
         updatesThisFrame++;
     }
     if (!setOptimization || timestamp - lastDrawTime >= 33) {
-        draw();
+        try {
+            draw();
+        } catch (error) {
+            reportFrameError(error, 'draw');
+            advanceCalebSceneAfterFrameError();
+            drawFrameRecoveryScreen();
+        }
         lastDrawTime = timestamp;
     }
     requestAnimationFrame(loop);

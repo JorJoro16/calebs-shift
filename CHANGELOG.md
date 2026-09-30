@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.18.14
+- Fixed the boss intro crash caused by the same out-of-scope `playerColors` reference in `drawCalebBossPlayer()`.
+- Centralized player colors so the Lucas renderer, normal renderer, boss intro, boss fight, and victory scenes use the same safe table.
+- Added boss-scene recovery guards for missing Caleb/cutscene state and malformed projectile, nest, heart, particle, and trail collections.
+- Protected the animation loop so an unexpected update or draw exception cannot permanently stop the game; boss cutscene timers advance and a recovery frame is shown instead.
+- Bumped the offline cache to `calebs-shift-v95`.
+
 ## 2.18.13
 - Fixed the actual Lucas shadow-dimension crash: its renderer now owns the player color table it uses, so `playerColors is not defined` can no longer stop the frame before the player and Lucas are drawn.
 - Added the site favicon to remove the unrelated 404 console warning.
