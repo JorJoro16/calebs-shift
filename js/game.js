@@ -132,7 +132,7 @@ function playNizarCrashSound() {
 }
 
 // Versioned local progress with a backup copy and import/export support.
-const GAME_VERSION = '2.18.2';
+const GAME_VERSION = '2.18.3';
 const SAVE_SCHEMA_VERSION = 10;
 const COSMETIC_REWARD_VERSION = 2;
 const SAVE_KEY = 'br_save_v2';
@@ -2786,9 +2786,8 @@ function updateCalebBossPhase(boss) {
     if (boss.phase === 'eyesOn') {
         boss.orbTimer--; if (boss.orbTimer <= 0) { spawnCalebOrb(boss); boss.orbTimer = boss.stage >= 2 ? 88 : 118; }
     } else {
-        boss.phaseTimer--; boss.rainTimer--; boss.schiminiTimer--;
+        boss.phaseTimer--; boss.rainTimer--;
         if (boss.rainTimer <= 0) { spawnCalebEyeRain(boss); boss.rainTimer = boss.stage >= 2 ? 58 : 78; }
-        if (boss.schiminiTimer <= 0 && boss.schiminis.length < (boss.stage >= 2 ? 6 : 4)) { spawnCalebSchimini(boss); boss.schiminiTimer = boss.stage >= 2 ? 170 : 235; }
         for (let index = boss.cores.length - 1; index >= 0; index--) {
             const core = boss.cores[index]; core.life--;
             if (core.sealed) { core.sealTimer--; if (core.sealTimer <= 0) { damageCalebBoss(2.2); boss.cores.splice(index, 1); } }

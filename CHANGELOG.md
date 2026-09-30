@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.18.3
+- Removed Schimini spawning from Caleb’s main boss phase; Leb still spawns them during the split phase.
+- Bumped the offline cache to `calebs-shift-v84`.
+
 ## 2.18.2
 - Improved Caleb’s hand sweep timing and added a visible hand-slam warning/impact telegraph.
 - Fixed PC `E` interactions for Caleb boss switches, eye cores, and Leb’s nests.
