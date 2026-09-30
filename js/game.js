@@ -281,7 +281,7 @@ calebBossMusic.addEventListener('ended', () => {
 });
 
 // Versioned local progress with a backup copy and import/export support.
-const GAME_VERSION = '2.18.12';
+const GAME_VERSION = '2.18.13';
 const SAVE_SCHEMA_VERSION = 10;
 const COSMETIC_REWARD_VERSION = 2;
 const SAVE_KEY = 'br_save_v2';
@@ -2369,6 +2369,7 @@ function drawLucasShadowDimension() {
         ctx.fillStyle = '#e1c3ff'; ctx.font = 'bold 11px Arial'; ctx.textAlign = 'center'; ctx.fillText('LUCAS', lucas.x, lucas.y - 32);
     }
     const playerX = event.player.x, playerY = event.player.y;
+    const playerColors = { blue:'#00f', crimson:'#d22', violet:'#a64dff', green:'#19c76b', amber:'#e7a21a', gold:'#e9ca35', sepia:'#800', white:'#f6f6f6' };
     if (cosmetics.trail !== 'none' && event.trail.length > 1) {
         const trailColor = cosmetics.trail === 'spark' ? 'rgba(255,238,86,.82)' : cosmetics.trail === 'ember' ? 'rgba(255,70,24,.78)' : cosmetics.trail === 'static' ? 'rgba(185,245,255,.65)' : cosmetics.trail === 'circle' ? 'rgba(255,255,255,.78)' : 'rgba(180,210,255,.42)';
         ctx.save(); ctx.globalAlpha = .72; ctx.strokeStyle = trailColor; ctx.lineWidth = cosmetics.trail === 'ghost' ? 10 : cosmetics.trail === 'ember' ? 4 : 6; ctx.lineCap = cosmetics.trail === 'static' ? 'butt' : 'round';

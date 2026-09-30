@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.18.13
+- Fixed the actual Lucas shadow-dimension crash: its renderer now owns the player color table it uses, so `playerColors is not defined` can no longer stop the frame before the player and Lucas are drawn.
+- Added the site favicon to remove the unrelated 404 console warning.
+- Bumped the offline cache to `calebs-shift-v94`.
+
 ## 2.18.12
 - Fixed a cross-browser rendering failure in the Lucas shadow dimension when an equipped cosmetic image is cached incompletely or fails to load; broken images now fall back to the procedural player, and the normal player renderer uses the same guard.
 - Reset canvas blend/filter state before drawing the shadow dimension so the player, Lucas, and HUD remain visible across browser implementations.
