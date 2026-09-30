@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.15.0
+- Reworked The Shadow Gate into a larger, seven-room Lucas route with distinct archive, service, underpass, transit yard, vessel, and exit areas.
+- Added staged Caleb fragment progression: first recovery, three shadow relays, second fragment release, and a slowed carry objective for the final fragment.
+- Added Lucas shadow pools, temporary route seals, shadow arrow barrages, a pull attack, and pool repositioning so his threat is based on controlling routes rather than repeating Rhys's charge.
+- Added carry-drop behavior when a shadow projectile hits the player, clearer objective/HUD states, relay prompts, carried-fragment visuals, and expanded room colors.
+- Bumped the offline cache to `calebs-shift-v76`.
+
 ## 2.14.0
 - Added The Shadow Gate, a dedicated pre-boss Lucas map with a connected serviceway, three Caleb fragments, misleading physical arrows, a Caleb Vessel, and a sealed shadow gate.
 - Added Lucas’s first encounter behavior: patrol pursuit, a corridor charge, a fragment-triggered run to the gate, line-of-sight gate blocking, and a shadow-drag ending that awards the normal run rewards.

@@ -124,7 +124,7 @@ function playNizarCrashSound() {
 }
 
 // Versioned local progress with a backup copy and import/export support.
-const GAME_VERSION = '2.14.0';
+const GAME_VERSION = '2.15.0';
 const SAVE_SCHEMA_VERSION = 10;
 const COSMETIC_REWARD_VERSION = 2;
 const SAVE_KEY = 'br_save_v2';
@@ -1690,7 +1690,7 @@ let forestCabins = [], forestBreakers = [], forestTrees = [], forestBeaconBatter
 let amineHoles = [], amineFireZones = [], amineExitGate = null, amineFocus = false, amineVisibleTimer = 0, amineFlashCooldown = 0, amineTeleportCooldown = 0, amineTurret = null, amineBullets = [], amineBurnTimer = 0, amineRoad = null;
 let subwayPanels = [], subwayTrains = [], subwayTrackRows = [], subwayTrackSegments = [], subwayTrap = null, subwayControl = null, subwayRouteReady = false, subwayTrapArmed = false, subwayTrainWarning = 0, subwayTrainTriggered = false, subwayDecor = [], subwaySigns = [], subwayCommitTimer = 0, subwayCommitTarget = null, subwayRouteMinX = 0, subwayRouteMaxX = 0, subwayTrainPaths = [], subwayControlPuzzle = null;
 let subwayTornTicket = null, subwayGoldSphere = null, subwayBronzeEligible = true, subwayFareCutscene = null, subwayGoldPressure = null;
-let lucasFragments = [], lucasAltar = null, lucasGate = null, lucasShadow = null, lucasArrows = [], lucasMonsterStart = null, lucasState = 'searching', lucasAbilityCooldown = 0, lucasCharge = null, lucasGateEndTimer = 0;
+let lucasFragments = [], lucasLevers = [], lucasAltar = null, lucasGate = null, lucasShadow = null, lucasArrows = [], lucasShadowPools = [], lucasRouteLocks = [], lucasLockSpots = [], lucasHazards = [], lucasMonsterStart = null, lucasState = 'searching', lucasObjectiveStage = 'fragment1', lucasAbilityCooldown = 0, lucasPoolCooldown = 0, lucasCharge = null, lucasPull = null, lucasCarryFragment = null, lucasGateEndTimer = 0;
 let routeBoard = null;
 const nizarCrashAudio = new Audio('assets/WallCrashSoundEffect.mp3');
 nizarCrashAudio.preload = 'auto';
@@ -1698,7 +1698,7 @@ let luckyBlocks = [];
 let playerTrail = [], trailLastX = 0, trailLastY = 0;
 let hotelEmployeesRequired = 3, hotelDialogueOpen = false, hotelTaskSerial = 0;
 let nearFuse = null, nearHide = null, nearValve = null, nearBoiler = false, nearEmployee = null, nearElevator = false, nearHotelTask = null, nearRhysSeal = false, nearRhysKey = false, nearRhysChest = false, nearRhysTrap = false;
-let nearSubwayPanel = null, nearSubwayControl = false, nearLucasFragment = null, nearLucasAltar = false;
+let nearSubwayPanel = null, nearSubwayControl = false, nearLucasFragment = null, nearLucasLever = null, nearLucasAltar = false;
 let nizarClones = [], nizarCloneCooldown = 2400, nizarCrush = null, nizarCrushCooldown = 900;
 let player = { x: 0, y: 0, r: 12, baseSpeed: 3.8, speed: 3.8, boostTimer: 0, dashTimer: 0, stunTimer: 0, crouching: false, breathing: false, breathTimer: 0, breathCooldown: 0, heat: 0, inHeatZone: false, hidden: false, hideTimer: 0, hideCompromised: false };
 let lastMoveX = 1, lastMoveY = 0;
@@ -2135,8 +2135,36 @@ window.addEventListener('keydown', (e) => {
         const lucky = luckyBlocks.find(block => !block.opened && Math.hypot(player.x-block.x,player.y-block.y)<36);
         if (lucky) { openLuckyBlock(lucky); return; }
         if (currentMapId === 'lucas') {
+            if (nearLucasLever) {
+                nearLucasLever.active = true;
+                playSound('success');
+                const activeLevers = lucasLevers.filter(lever => lever.active).length;
+                if (lucasLevers.length && lucasLevers.every(lever => lever.active)) {
+                    const secondFragment = lucasFragments.find(fragment => fragment.id === 2);
+                    if (secondFragment) secondFragment.available = true;
+                    lucasObjectiveStage = 'fragment2';
+                    notify('THE RELAYS CLICK · THE SERVICE FRAGMENT IS RELEASED', 'unlock');
+                } else notify(`SHADOW RELAY ${activeLevers}/${lucasLevers.length} RESTORED`, 'unlock');
+                updateHUD();
+                return;
+            }
             if (nearLucasFragment) {
                 nearLucasFragment.collected = true;
+                nearLucasFragment.carried = nearLucasFragment.id === 3;
+                if (nearLucasFragment.id === 1) {
+                    const secondFragment = lucasFragments.find(fragment => fragment.id === 2);
+                    if (secondFragment) lucasObjectiveStage = 'levers';
+                    notify('THE FIRST FRAGMENT IS COLD · FIND THE THREE SHADOW RELAYS', 'unlock');
+                } else if (nearLucasFragment.id === 2) {
+                    const thirdFragment = lucasFragments.find(fragment => fragment.id === 3);
+                    if (thirdFragment) thirdFragment.available = true;
+                    lucasObjectiveStage = 'fragment3';
+                    notify('THE UNDERPASS OPENS · THE LAST FRAGMENT MUST BE CARRIED', 'unlock');
+                } else if (nearLucasFragment.id === 3) {
+                    lucasCarryFragment = nearLucasFragment;
+                    lucasObjectiveStage = 'place';
+                    notify('THE FRAGMENT RESISTS · CARRY IT TO THE CALEB VESSEL', 'danger');
+                }
                 playSound('success');
                 notify(`CALEB FRAGMENT ${lucasFragments.filter(fragment => fragment.collected).length}/${lucasFragments.length} RECOVERED`, 'unlock');
                 updateHUD();
@@ -2144,11 +2172,18 @@ window.addEventListener('keydown', (e) => {
             }
             if (nearLucasAltar) {
                 if (!lucasFragments.length || !lucasFragments.every(fragment => fragment.collected)) {
-                    notify('THE SHADOW GATE NEEDS ALL THREE CALEB FRAGMENTS', 'warning');
+                    notify('THE CALEB VESSEL NEEDS ALL THREE FRAGMENTS', 'warning');
+                    return;
+                }
+                if (!lucasCarryFragment || lucasCarryFragment.id !== 3) {
+                    notify('THE LAST FRAGMENT MUST BE CARRIED HERE BY HAND', 'warning');
                     return;
                 }
                 if (!lucasAltar.placed) {
+                    lucasCarryFragment.carried = false;
+                    lucasCarryFragment = null;
                     lucasAltar.placed = true;
+                    lucasObjectiveStage = 'gate';
                     lucasState = 'runningToGate';
                     lucasGate.open = false;
                     monster.path = [];
@@ -2659,14 +2694,16 @@ function generateLucasArea() {
     map = Array.from({ length: ROWS }, () => Array(COLS).fill(1));
     rooms = []; hidingSpots = []; coolingValves = []; fuses = []; employees = [];
     reservedObjectTiles = new Set(); hotelDoorTiles = [];
-    lucasFragments = []; lucasAltar = null; lucasGate = null; lucasShadow = null; lucasArrows = [];
+    lucasFragments = []; lucasLevers = []; lucasAltar = null; lucasGate = null; lucasShadow = null; lucasArrows = [];
+    lucasShadowPools = []; lucasRouteLocks = []; lucasLockSpots = []; lucasHazards = []; lucasObjectiveStage = 'fragment1'; lucasCarryFragment = null;
     const nodes = [
-        { type:'entry', c:8, r:29, width:9, height:7 },
-        { type:'archive', c:24, r:13, width:11, height:9 },
-        { type:'service', c:40, r:44, width:11, height:9 },
-        { type:'underpass', c:56, r:16, width:13, height:11 },
-        { type:'vessel', c:68, r:31, width:9, height:7 },
-        { type:'gate', c:80, r:30, width:11, height:13 }
+        { type:'entry', c:10, r:39, width:11, height:9 },
+        { type:'archive', c:27, r:15, width:15, height:11 },
+        { type:'service', c:48, r:62, width:15, height:11 },
+        { type:'underpass', c:67, r:17, width:15, height:11 },
+        { type:'yard', c:85, r:49, width:17, height:13 },
+        { type:'vessel', c:101, r:35, width:13, height:9 },
+        { type:'gate', c:116, r:37, width:11, height:17 }
     ];
     for (const node of nodes) {
         carveBoilerRect(node.c, node.r, node.width, node.height);
@@ -2677,34 +2714,58 @@ function generateLucasArea() {
     for (let index = 1; index < nodes.length; index++) carveBoilerCorridor(nodes[index - 1], nodes[index]);
     carveBoilerCorridor(nodes[0], nodes[2]);
     carveBoilerCorridor(nodes[1], nodes[3]);
-    const gateRoom = nodes[5], gateCell = gateRoom.c + Math.floor(gateRoom.width / 2) + 1;
+    carveBoilerCorridor(nodes[2], nodes[4]);
+    carveBoilerCorridor(nodes[3], nodes[5]);
+    carveBoilerCorridor(nodes[4], nodes[6]);
+    const gateRoom = nodes[6], gateCell = gateRoom.c + Math.floor(gateRoom.width / 2) + 1;
     map[gateRoom.r][gateCell] = 0;
     map[gateRoom.r - 1][gateCell] = 0;
     map[gateRoom.r + 1][gateCell] = 0;
     rebuildFloors();
 
-    const fragmentRooms = [nodes[1], nodes[2], nodes[3]];
+    const fragmentRooms = [nodes[1], nodes[2], nodes[4]];
     lucasFragments = fragmentRooms.map((room, index) => {
-        const offsetX = index === 1 ? -TS : index === 2 ? TS : 0;
-        const offsetY = index === 0 ? TS : index === 1 ? -TS : 0;
-        const fragment = { id:index + 1, x:room.x + offsetX, y:room.y + offsetY, collected:false };
+        const offsetX = index === 1 ? -TS * 2 : index === 2 ? TS * 2 : 0;
+        const offsetY = index === 0 ? TS * 2 : index === 1 ? -TS * 2 : 0;
+        const fragment = { id:index + 1, x:room.x + offsetX, y:room.y + offsetY, homeX:room.x + offsetX, homeY:room.y + offsetY, collected:false, available:index === 0, carried:false };
         reserveObjectTile(Math.floor(fragment.x / TS), Math.floor(fragment.y / TS), 1);
         return fragment;
     });
-    lucasAltar = { x:nodes[4].x, y:nodes[4].y, placed:false };
+    lucasLevers = [
+        { id:1, x:(nodes[2].c - 4) * TS + TS / 2, y:(nodes[2].r - 3) * TS + TS / 2, active:false },
+        { id:2, x:(nodes[2].c + 4) * TS + TS / 2, y:(nodes[2].r + 3) * TS + TS / 2, active:false },
+        { id:3, x:nodes[2].x, y:(nodes[2].r - 4) * TS + TS / 2, active:false }
+    ];
+    for (const lever of lucasLevers) reserveObjectTile(Math.floor(lever.x / TS), Math.floor(lever.y / TS), 1);
+    lucasAltar = { x:nodes[5].x, y:nodes[5].y, placed:false };
     lucasGate = { x:gateCell * TS + TS / 2, y:gateRoom.y, blockX:(gateCell - 2) * TS + TS / 2, blockY:gateRoom.y, open:false };
     lucasShadow = { x:lucasGate.x + TS * .65, y:lucasGate.y, radius:48 };
     lucasMonsterStart = { x:nodes[3].x, y:nodes[3].y };
     reserveObjectTile(Math.floor(lucasAltar.x / TS), Math.floor(lucasAltar.y / TS), 2);
     reserveObjectTile(Math.floor(lucasGate.x / TS), Math.floor(lucasGate.y / TS), 2);
 
+    lucasShadowPools = [
+        { x:nodes[0].x, y:nodes[0].y, radius:34 },
+        { x:nodes[1].x - TS * 3, y:nodes[1].y + TS * 2, radius:30 },
+        { x:nodes[2].x + TS * 3, y:nodes[2].y - TS * 2, radius:34 },
+        { x:nodes[3].x - TS * 3, y:nodes[3].y, radius:32 },
+        { x:nodes[4].x + TS * 3, y:nodes[4].y - TS * 2, radius:36 },
+        { x:nodes[5].x - TS * 3, y:nodes[5].y, radius:30 }
+    ];
+    const candidateLockSpots = [
+        { c:18, r:39 }, { c:37, r:38 }, { c:57, r:39 }, { c:76, r:34 },
+        { c:93, r:42 }, { c:110, r:35 }, { c:60, r:17 }
+    ];
+    lucasLockSpots = candidateLockSpots.filter(spot => map[spot.r]?.[spot.c] === 0);
+
     const arrowPoints = [
-        { x:14 * TS + TS / 2, y:22 * TS + TS / 2, angle:-.8 },
-        { x:17 * TS + TS / 2, y:34 * TS + TS / 2, angle:.8 },
-        { x:31 * TS + TS / 2, y:24 * TS + TS / 2, angle:.2 },
-        { x:47 * TS + TS / 2, y:28 * TS + TS / 2, angle:-.55 },
-        { x:64 * TS + TS / 2, y:22 * TS + TS / 2, angle:.6 },
-        { x:67 * TS + TS / 2, y:37 * TS + TS / 2, angle:-.35 }
+        { x:17 * TS + TS / 2, y:29 * TS + TS / 2, angle:-.8 },
+        { x:20 * TS + TS / 2, y:43 * TS + TS / 2, angle:.8 },
+        { x:37 * TS + TS / 2, y:29 * TS + TS / 2, angle:.2 },
+        { x:55 * TS + TS / 2, y:36 * TS + TS / 2, angle:-.55 },
+        { x:74 * TS + TS / 2, y:29 * TS + TS / 2, angle:.6 },
+        { x:94 * TS + TS / 2, y:36 * TS + TS / 2, angle:-.35 },
+        { x:108 * TS + TS / 2, y:47 * TS + TS / 2, angle:.45 }
     ];
     lucasArrows = arrowPoints
         .filter(point => map[Math.floor(point.y / TS)]?.[Math.floor(point.x / TS)] === 0)
@@ -3929,7 +3990,8 @@ function updateAesonEvents() {
 function isDynamicBlockedCell(c, r) {
     return (currentMapId === 'hotel' && hotelLockdownActive && hotelBlockedDoor?.cells?.some(cell => cell.c === c && cell.r === r))
         || (currentMapId === 'crimson' && rhysBreakWall && !rhysBreakWall.broken && rhysBreakWall.cells?.some(cell => cell.c === c && cell.r === r))
-        || (currentMapId === 'subway' && subwayGoldPressure?.active && subwayGoldPressure.lockedDoorCells?.some(cell => cell.c === c && cell.r === r));
+        || (currentMapId === 'subway' && subwayGoldPressure?.active && subwayGoldPressure.lockedDoorCells?.some(cell => cell.c === c && cell.r === r))
+        || (currentMapId === 'lucas' && lucasRouteLocks.some(lock => lock.life > 0 && lock.cells?.some(cell => cell.c === c && cell.r === r)));
 }
 
 function isRhysEarlyLockedTile(tile) {
@@ -4493,7 +4555,7 @@ function startGame(diffLevel) {
     else if (currentMapId === 'crimson' || currentMapId === 'forest') { COLS = 93; ROWS = 65; }
     else if (currentMapId === 'amine') { COLS = 61; ROWS = 45; }
     else if (currentMapId === 'subway') { COLS = 122; ROWS = 72; }
-    else if (currentMapId === 'lucas') { COLS = 89; ROWS = 59; }
+    else if (currentMapId === 'lucas') { COLS = 125; ROWS = 79; }
     else { COLS = 41; ROWS = 33; }
     hotelTaskSerial = 0;
     if (currentMapId === 'boilerworks') generateBoilerworks();
@@ -4525,7 +4587,7 @@ function startGame(diffLevel) {
     boilerShutdown = false; boilerReadyShown = false; heatZones = []; heatEventCooldown = 360;
     rhysSealCollected = false; rhysTrapArmed = false; goopZones = []; goopShots = []; rhysSpitCooldown = 180; rhysDashTimer = 0; rhysChargeWindup = 0; rhysDashCooldown = 360; rhysEventCooldown = 900; rhysSweepTimer = 0; rhysSweepRadius = 0; rhysPressureZones = [];
     forestBeaconBattery = null; forestWatchtower = null; forestBeaconActive = false; forestFogTimer = 0; forestFogCooldown = currentMapId === 'forest' ? 720 : 0; forestGuideTimer = 0; forestGuideCooldown = currentMapId === 'forest' ? 1200 : 0; forestGuideMode = 'cabins'; noahCharge = null; noahLightningCooldown = 360; noahLightningZones = []; noahLightningPending = []; noahLightningWarning = 0; noahLightningFlashes = 0; noahShockTimer = 0; noahAppearanceWindow = 0;
-    amineFocus = false; amineVisibleTimer = 0; amineFlashCooldown = 90; amineTeleportCooldown = 240; amineTurret = null; amineBullets = []; amineBurnTimer = 0; amineRoad = null; nizarClones = []; nizarCloneCooldown = 2400; nizarCrush = null; nizarCrushCooldown = 900; subwayControlPuzzle = null; subwayFareCutscene = null; subwayGoldPressure = null; subwayTornTicket = null; subwayGoldSphere = null; subwayBronzeEligible = true; lucasState = 'searching'; lucasAbilityCooldown = 300; lucasCharge = null; lucasGateEndTimer = 0; luckyBlocks = [];
+    amineFocus = false; amineVisibleTimer = 0; amineFlashCooldown = 90; amineTeleportCooldown = 240; amineTurret = null; amineBullets = []; amineBurnTimer = 0; amineRoad = null; nizarClones = []; nizarCloneCooldown = 2400; nizarCrush = null; nizarCrushCooldown = 900; subwayControlPuzzle = null; subwayFareCutscene = null; subwayGoldPressure = null; subwayTornTicket = null; subwayGoldSphere = null; subwayBronzeEligible = true; lucasState = 'searching'; lucasObjectiveStage = 'fragment1'; lucasAbilityCooldown = 300; lucasPoolCooldown = 0; lucasCharge = null; lucasPull = null; lucasCarryFragment = null; lucasRouteLocks = []; lucasHazards = []; lucasGateEndTimer = 0; luckyBlocks = [];
     hotelLockdownTimer = 0; hotelEventCooldown = currentMapId === 'hotel' ? 480 : 0; hotelLockdownActive = false; hotelBlockedDoor = null;
     bassamState = 'roaming'; bassamRevealPending = false; bassamTrapTaskId = null; bassamFakeTask = null; bassamFakeLine = ''; bassamAmbushActive = false; bassamRelentlessChase = false; bassamLostTimer = 0; bassamAmbushCooldown = 900; bassamDecoys = []; bassamDecoyCooldown = 600 + Math.floor(Math.random() * 601); hotelTaskGame = null; bassamStaffDepartment = ['FRONT DESK','MAINTENANCE','HOUSEKEEPING','KITCHEN'][Math.floor(Math.random() * 4)]; closeHotelDialogue();
     document.getElementById('hotelTaskHUD').style.display = currentMapId === 'hotel' ? 'block' : 'none';
@@ -5114,13 +5176,20 @@ function updateHUD() {
                         ? `Parted Grid: ${objectiveGens} generators · ${activeGens>=totalGens?'FIND EXIT GATE':'RESTORE POWER'} · HOLD V / FOCUS TO SEE AMINE`
                     : 'Find and repair every generator';
         if (currentMapId === 'lucas') {
-            objective.textContent = lucasState === 'searching'
-                ? lucasFragmentCount >= lucasFragments.length && lucasFragments.length > 0
-                    ? 'Shadow Gate: PLACE THE FRAGMENTS AT THE CALEB VESSEL'
-                    : `Shadow Gate: RECOVER CALEB FRAGMENTS · ${lucasFragmentCount}/${lucasFragments.length || 3}`
-                : lucasState === 'runningToGate' || lucasState === 'blocking' || lucasState === 'dragging'
-                    ? 'Shadow Gate: LUCAS IS BLOCKING THE EXIT'
-                    : 'Shadow Gate: PLACE THE FRAGMENTS AT THE SEALED GATE';
+            const leverCount = lucasLevers.filter(lever => lever.active).length;
+            objective.textContent = lucasState === 'runningToGate' || lucasState === 'blocking' || lucasState === 'dragging'
+                ? 'Shadow Gate: LUCAS IS BLOCKING THE EXIT'
+                : lucasObjectiveStage === 'fragment1'
+                    ? 'Shadow Gate: FIND THE FIRST CALEB FRAGMENT'
+                    : lucasObjectiveStage === 'levers'
+                        ? `Shadow Gate: ACTIVATE SHADOW RELAYS · ${leverCount}/${lucasLevers.length}`
+                        : lucasObjectiveStage === 'fragment2'
+                            ? 'Shadow Gate: RECOVER THE RELEASED SERVICE FRAGMENT'
+                            : lucasObjectiveStage === 'fragment3'
+                                ? 'Shadow Gate: FIND THE UNDERPASS FRAGMENT'
+                                : lucasObjectiveStage === 'place'
+                                    ? 'Shadow Gate: CARRY THE LAST FRAGMENT TO THE CALEB VESSEL'
+                                    : 'Shadow Gate: REACH THE SEALED EXIT';
         }
     }
     
@@ -5144,6 +5213,7 @@ function updateHUD() {
     if (currentMapId === 'subway' && subwayTornTicket?.collected && !subwayTornTicket.delivered) invText.push('TORN TICKET: CARRY TO CONTROL');
     if (currentMapId === 'subway' && subwayGoldSphere?.collected) invText.push('GOLD FARE SPHERE: RECOVERED');
     if (currentMapId === 'lucas' && lucasFragmentCount > 0) invText.push(`CALEB FRAGMENTS: ${lucasFragmentCount}/${lucasFragments.length || 3}`);
+    if (currentMapId === 'lucas' && lucasCarryFragment) invText.push('CARRYING LAST FRAGMENT · MOVEMENT SLOWED');
     if (player.hidden) invText.push(`HIDDEN: ${Math.ceil(player.hideTimer / 60)}s`);
     if (upgDash) invText.push(`Dash: ${dashCooldown > 0 ? `${Math.ceil(dashCooldown / 60)}s` : 'READY'} (LEFT SHIFT)`);
     document.getElementById('inventory').innerText = invText.join(' | ');
@@ -5327,6 +5397,66 @@ function getMonsterSpeed(enemy = monster) {
     return enemy.speed * (player.crouching ? 0.55 : 1);
 }
 
+function dropLucasCarryFragment() {
+    if (!lucasCarryFragment) return;
+    lucasCarryFragment.collected = false;
+    lucasCarryFragment.carried = false;
+    lucasCarryFragment.available = true;
+    lucasCarryFragment.x = player.x;
+    lucasCarryFragment.y = player.y;
+    lucasCarryFragment = null;
+    lucasObjectiveStage = 'fragment3';
+    notify('LUCAS KNOCKS THE FRAGMENT LOOSE · RECOVER IT AGAIN', 'warning');
+    updateHUD();
+}
+
+function activateLucasRouteLock() {
+    const choices = lucasLockSpots.filter(spot => {
+        const x = spot.c * TS + TS / 2, y = spot.r * TS + TS / 2;
+        return Math.hypot(player.x - x, player.y - y) > TS * 5 && Math.hypot(monster.x - x, monster.y - y) > TS * 2 && !isReservedObjectSpot(x, y, TS * 1.5);
+    });
+    const spot = choices[Math.floor(Math.random() * Math.max(1, choices.length))];
+    if (!spot) return false;
+    lucasRouteLocks.push({ life:300, cells:[{ c:spot.c, r:spot.r }] });
+    notify('LUCAS SEALS A ROUTE · FIND ANOTHER WAY', 'danger');
+    return true;
+}
+
+function spawnLucasArrowBarrage() {
+    const angle = Math.atan2(player.y - monster.y, player.x - monster.x);
+    for (let index = -2; index <= 2; index++) {
+        const spread = angle + index * .16;
+        lucasHazards.push({ type:'arrow', x:monster.x, y:monster.y, vx:Math.cos(spread) * 5.1, vy:Math.sin(spread) * 5.1, life:115, r:7, radius:9 });
+    }
+    notify('LUCAS OPENS A SHADOW LANE', 'danger');
+}
+
+function updateLucasHazards() {
+    if (currentMapId !== 'lucas' || state !== 1) return;
+    for (const lock of lucasRouteLocks) lock.life--;
+    lucasRouteLocks = lucasRouteLocks.filter(lock => lock.life > 0);
+    for (const hazard of lucasHazards) {
+        hazard.life--;
+        const oldX = hazard.x, oldY = hazard.y;
+        moveEntity(hazard, hazard.vx, hazard.vy);
+        if (Math.hypot(hazard.x - oldX, hazard.y - oldY) < .2) hazard.life = 0;
+        if (!player.hidden && Math.hypot(player.x - hazard.x, player.y - hazard.y) < player.r + hazard.radius) {
+            player.stunTimer = Math.max(player.stunTimer, 42);
+            if (lucasCarryFragment) dropLucasCarryFragment();
+            hazard.life = 0;
+        }
+    }
+    lucasHazards = lucasHazards.filter(hazard => hazard.life > 0);
+    if (lucasPull) {
+        lucasPull.life--;
+        if (!player.hidden && lucasPull.life > 0) {
+            const angle = Math.atan2(monster.y - player.y, monster.x - player.x);
+            moveEntity(player, Math.cos(angle) * 2.7, Math.sin(angle) * 2.7);
+        }
+        if (lucasPull.life <= 0) lucasPull = null;
+    }
+}
+
 function updateLucasMonster() {
     if (currentMapId !== 'lucas' || !monster || monster.name !== 'LUCAS') return false;
     if (lucasState === 'dragging') return true;
@@ -5357,6 +5487,7 @@ function updateLucasMonster() {
         }
         return true;
     }
+    if (lucasPoolCooldown > 0) lucasPoolCooldown--;
     if (lucasAbilityCooldown > 0) lucasAbilityCooldown--;
     if (lucasCharge) {
         lucasCharge.life--;
@@ -5372,12 +5503,40 @@ function updateLucasMonster() {
         return true;
     }
     const distance = Math.hypot(player.x - monster.x, player.y - monster.y);
-    if (canSeePlayer && lucasAbilityCooldown <= 0 && distance > 150 && distance < 500 && Math.random() < .018) {
-        const angle = Math.atan2(player.y - monster.y, player.x - monster.x);
-        lucasCharge = { vx:Math.cos(angle) * 7.2, vy:Math.sin(angle) * 7.2, life:48 };
-        lucasAbilityCooldown = 420;
-        notify('LUCAS CHARGES THROUGH THE SERVICEWAY', 'danger');
-        return true;
+    const playerPool = lucasShadowPools.find(pool => Math.hypot(player.x - pool.x, player.y - pool.y) < pool.radius);
+    if (playerPool && lucasPoolCooldown <= 0 && distance > 240) {
+        const destinations = lucasShadowPools.filter(pool => pool !== playerPool && Math.hypot(player.x - pool.x, player.y - pool.y) > 260);
+        const destination = destinations[Math.floor(Math.random() * Math.max(1, destinations.length))];
+        if (destination) {
+            monster.x = destination.x; monster.y = destination.y; monster.path = [];
+            lucasPoolCooldown = 360;
+            notify('LUCAS STEPS OUT OF A SHADOW POOL', 'danger');
+        }
+    }
+    if (canSeePlayer && lucasAbilityCooldown <= 0 && distance > 130 && distance < 650 && Math.random() < .032) {
+        const roll = Math.random();
+        if (lucasObjectiveStage !== 'fragment1' && roll < .28 && activateLucasRouteLock()) {
+            lucasAbilityCooldown = 360;
+            return true;
+        }
+        if (roll < .62) {
+            spawnLucasArrowBarrage();
+            lucasAbilityCooldown = 330;
+            return true;
+        }
+        if (roll < .80 && distance > 220) {
+            lucasPull = { life:24 };
+            lucasAbilityCooldown = 420;
+            notify('THE SHADOW PULLS TOWARD LUCAS', 'danger');
+            return true;
+        }
+        if (lucasObjectiveStage !== 'fragment1' && distance > 180) {
+            const angle = Math.atan2(player.y - monster.y, player.x - monster.x);
+            lucasCharge = { vx:Math.cos(angle) * 6.7, vy:Math.sin(angle) * 6.7, life:42 };
+            lucasAbilityCooldown = 480;
+            notify('LUCAS CUTS ACROSS THE SERVICEWAY', 'danger');
+            return true;
+        }
     }
     if (canSeePlayer) {
         const targetC = Math.floor(player.x / TS), targetR = Math.floor(player.y / TS);
@@ -5519,6 +5678,7 @@ function update() {
     if (noahLightningFlashes > 0 && ambienceClock % 12 === 0) { flashAlpha = .72; noahLightningFlashes--; }
     if (noahShockTimer > 0) { heatOverlay ||= document.getElementById('heatOverlay'); if (heatOverlay) { heatOverlay.style.opacity = '.48'; heatOverlay.style.backdropFilter = setOptimization ? 'blur(1px)' : 'blur(4px)'; } }
     updateRhysHazards();
+    updateLucasHazards();
     updateAesonEvents();
     updateRhysEvents();
     updateForestEvent();
@@ -5582,7 +5742,9 @@ function update() {
     } else if (!player.hidden && !hotelDialogueOpen) {
         const heatPenalty = player.inHeatZone ? 0.48 : 1 - Math.min(0.28, player.heat / 1070);
         const rhysSlow = [...goopZones, ...rhysPressureZones].some(zone => Math.hypot(player.x - zone.x, player.y - zone.y) < zone.radius);
-        const normalSpeed = (player.crouching ? player.baseSpeed * 0.55 : player.baseSpeed) * heatPenalty * (rhysSlow ? 0.62 : 1) * (noahShockTimer > 0 ? .42 : 1) * (amineBurnTimer>0?.38:1);
+        const lucasCarrySlow = currentMapId === 'lucas' && lucasCarryFragment ? .76 : 1;
+        const lucasPoolSlow = currentMapId === 'lucas' && lucasShadowPools.some(pool => Math.hypot(player.x - pool.x, player.y - pool.y) < pool.radius) ? .62 : 1;
+        const normalSpeed = (player.crouching ? player.baseSpeed * 0.55 : player.baseSpeed) * heatPenalty * (rhysSlow ? 0.62 : 1) * (noahShockTimer > 0 ? .42 : 1) * (amineBurnTimer>0?.38:1) * lucasCarrySlow * lucasPoolSlow;
         if (player.boostTimer > 0) {
             player.boostTimer--;
             player.speed = normalSpeed * 1.5;
@@ -5606,7 +5768,7 @@ function update() {
         trailLastX = player.x; trailLastY = player.y;
     }
 
-    nearGen = null; nearFuse = null; nearHide = null; nearValve = null; nearBoiler = false; nearEmployee = null; nearElevator = false; nearHotelTask = null; nearRhysSeal = false; nearRhysKey = false; nearRhysChest = false; nearRhysTrap = false; nearSubwayPanel = null; nearSubwayControl = false; nearLucasFragment = null; nearLucasAltar = false;
+    nearGen = null; nearFuse = null; nearHide = null; nearValve = null; nearBoiler = false; nearEmployee = null; nearElevator = false; nearHotelTask = null; nearRhysSeal = false; nearRhysKey = false; nearRhysChest = false; nearRhysTrap = false; nearSubwayPanel = null; nearSubwayControl = false; nearLucasFragment = null; nearLucasLever = null; nearLucasAltar = false;
     if (state === 1 && player.stunTimer <= 0) {
         for (let g of generators) {
             if (!g.active && Math.hypot(player.x - g.x, player.y - g.y) < player.r + g.r + 15) {
@@ -5629,7 +5791,8 @@ function update() {
             nearSubwayControl = Boolean(subwayControl && Math.hypot(player.x - subwayControl.x, player.y - subwayControl.y) < 46);
         }
         if (currentMapId === 'lucas') {
-            nearLucasFragment = lucasFragments.find(fragment => !fragment.collected && Math.hypot(player.x - fragment.x, player.y - fragment.y) < 36) || null;
+            nearLucasLever = lucasLevers.find(lever => !lever.active && Math.hypot(player.x - lever.x, player.y - lever.y) < 36) || null;
+            nearLucasFragment = lucasFragments.find(fragment => fragment.available !== false && !fragment.collected && Math.hypot(player.x - fragment.x, player.y - fragment.y) < 36) || null;
             nearLucasAltar = Boolean(lucasAltar && Math.hypot(player.x - lucasAltar.x, player.y - lucasAltar.y) < 52);
         }
         if (currentMapId === 'hotel') {
@@ -5952,7 +6115,7 @@ function draw() {
                     ? ({ intake:'rgba(180,80,55,.24)', archive:'rgba(140,35,48,.28)', medical:'rgba(170,95,95,.25)', storage:'rgba(110,80,65,.27)', processing:'rgba(215,145,48,.22)', security:'rgba(90,110,145,.26)', maintenance:'rgba(150,130,55,.25)', containment:'rgba(205,55,45,.31)', vault:'rgba(150,35,65,.32)', service:'rgba(105,65,70,.24)', trap:'rgba(240,200,70,.24)' }[room.type] || 'rgba(120,35,45,.22)')
                 : currentMapId === 'forest' ? (room.lit ? 'rgba(255,220,100,.28)' : 'rgba(42,28,20,.6)')
                 : currentMapId === 'subway' ? (room.type.startsWith('platform_') ? 'rgba(81,94,102,.78)' : room.type === 'ticket_hall' ? 'rgba(91,79,62,.68)' : 'rgba(56,67,74,.76)')
-                : currentMapId === 'lucas' ? ({ entry:'rgba(80,55,105,.34)', archive:'rgba(155,115,205,.24)', service:'rgba(80,120,150,.24)', underpass:'rgba(30,20,48,.55)', vessel:'rgba(116,70,158,.36)', gate:'rgba(18,7,29,.72)' }[room.type] || 'rgba(80,55,105,.24)')
+                : currentMapId === 'lucas' ? ({ entry:'rgba(80,55,105,.34)', archive:'rgba(155,115,205,.24)', service:'rgba(80,120,150,.24)', underpass:'rgba(30,20,48,.55)', yard:'rgba(142,91,65,.34)', vessel:'rgba(116,70,158,.36)', gate:'rgba(18,7,29,.72)' }[room.type] || 'rgba(80,55,105,.24)')
                 : (room.type === 'safe' ? 'rgba(40,110,255,0.28)' : room.type === 'maintenance' ? 'rgba(255,190,40,0.22)' : room.type === 'storage' ? 'rgba(180,180,180,0.16)' : 'rgba(80,80,80,0.14)');
         ctx.fillStyle = roomColor;
         const roomWidth = room.width || 3, roomHeight = room.height || 3;
@@ -5966,6 +6129,30 @@ function draw() {
     }
 
     if (currentMapId === 'lucas') {
+        for (const pool of lucasShadowPools) {
+            const pulse = 1 + Math.sin(ambienceClock * .055 + pool.x) * .12;
+            ctx.fillStyle = 'rgba(9,2,22,.62)'; ctx.beginPath(); ctx.ellipse(pool.x, pool.y, pool.radius * pulse, pool.radius * .58, 0, 0, Math.PI * 2); ctx.fill();
+            ctx.strokeStyle = 'rgba(183,112,255,.55)'; ctx.lineWidth = 2; ctx.stroke();
+            ctx.fillStyle = 'rgba(212,165,255,.45)'; ctx.beginPath(); ctx.arc(pool.x, pool.y, 5 + Math.sin(ambienceClock * .08 + pool.y) * 2, 0, Math.PI * 2); ctx.fill();
+        }
+        for (const lock of lucasRouteLocks) {
+            for (const cell of lock.cells || []) {
+                const x = cell.c * TS, y = cell.r * TS;
+                ctx.fillStyle = 'rgba(20,5,35,.9)'; ctx.fillRect(x - 3, y - 3, TS + 6, TS + 6);
+                ctx.strokeStyle = '#c084ff'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(x + 7, y + 7); ctx.lineTo(x + TS - 7, y + TS - 7); ctx.moveTo(x + TS - 7, y + 7); ctx.lineTo(x + 7, y + TS - 7); ctx.stroke();
+            }
+        }
+        for (const hazard of lucasHazards) {
+            ctx.save(); ctx.translate(hazard.x, hazard.y); ctx.rotate(Math.atan2(hazard.vy, hazard.vx));
+            ctx.fillStyle = 'rgba(209,157,255,.9)'; ctx.shadowColor = '#bd75ff'; ctx.shadowBlur = 12;
+            ctx.beginPath(); ctx.moveTo(13, 0); ctx.lineTo(-9, -5); ctx.lineTo(-5, 0); ctx.lineTo(-9, 5); ctx.closePath(); ctx.fill(); ctx.restore();
+        }
+        for (const lever of lucasLevers) {
+            ctx.fillStyle = lever.active ? '#a7ffcc' : '#7a4e9e'; ctx.fillRect(lever.x - 10, lever.y - 14, 20, 28);
+            ctx.strokeStyle = lever.active ? '#e4ffef' : '#1c0d28'; ctx.lineWidth = 2; ctx.strokeRect(lever.x - 10, lever.y - 14, 20, 28);
+            ctx.fillStyle = lever.active ? '#2d9860' : '#e2b4ff'; ctx.fillRect(lever.x - 3, lever.y - 9, 6, 18);
+            if (nearLucasLever === lever && state === 1) { ctx.fillStyle='#fff1ff'; ctx.font='bold 10px Arial'; ctx.textAlign='center'; ctx.fillText('[E] FLIP SHADOW RELAY', lever.x, lever.y - 21); }
+        }
         for (const arrow of lucasArrows) {
             ctx.save(); ctx.translate(arrow.x, arrow.y); ctx.rotate(arrow.angle + Math.sin(ambienceClock * .025 + arrow.x) * .025);
             ctx.fillStyle = arrow.misleading ? 'rgba(255,94,177,.75)' : 'rgba(202,166,255,.82)';
@@ -5974,20 +6161,25 @@ function draw() {
             ctx.restore();
         }
         for (const fragment of lucasFragments) {
-            if (fragment.collected) continue;
+            if (fragment.collected || fragment.available === false) continue;
             const pulse = 1 + Math.sin(ambienceClock * .08 + fragment.id) * .12;
             ctx.save(); ctx.translate(fragment.x, fragment.y); ctx.rotate(.35);
             ctx.fillStyle = 'rgba(216,174,255,.18)'; ctx.beginPath(); ctx.arc(0, 0, 25 * pulse, 0, Math.PI * 2); ctx.fill();
             ctx.fillStyle = '#d7b0ff'; ctx.beginPath(); ctx.moveTo(0, -13 * pulse); ctx.lineTo(10 * pulse, 8 * pulse); ctx.lineTo(-11 * pulse, 9 * pulse); ctx.closePath(); ctx.fill();
             ctx.strokeStyle = '#fff1ff'; ctx.lineWidth = 2; ctx.stroke(); ctx.restore();
-            if (nearLucasFragment === fragment && state === 1) { ctx.fillStyle='#fff1ff'; ctx.font='bold 10px Arial'; ctx.textAlign='center'; ctx.fillText('[E] RECOVER CALEB FRAGMENT', fragment.x, fragment.y - 24); }
+            if (nearLucasFragment === fragment && state === 1) { ctx.fillStyle='#fff1ff'; ctx.font='bold 10px Arial'; ctx.textAlign='center'; ctx.fillText(fragment.id === 3 ? '[E] TAKE & CARRY FRAGMENT' : '[E] RECOVER CALEB FRAGMENT', fragment.x, fragment.y - 24); }
+        }
+        if (lucasCarryFragment) {
+            const pulse = 1 + Math.sin(ambienceClock * .12) * .08;
+            ctx.strokeStyle = '#f0d4ff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(player.x, player.y - 24, 12 * pulse, 0, Math.PI * 2); ctx.stroke();
+            ctx.fillStyle = '#d7b0ff'; ctx.beginPath(); ctx.moveTo(player.x, player.y - 37 * pulse); ctx.lineTo(player.x + 9 * pulse, player.y - 20 * pulse); ctx.lineTo(player.x - 9 * pulse, player.y - 20 * pulse); ctx.closePath(); ctx.fill();
         }
         if (lucasAltar) {
             ctx.fillStyle = lucasAltar.placed ? 'rgba(205,158,255,.42)' : 'rgba(76,41,102,.7)';
             ctx.fillRect(lucasAltar.x - 30, lucasAltar.y - 24, 60, 48);
             ctx.strokeStyle = lucasAltar.placed ? '#f0d9ff' : '#a77bd1'; ctx.lineWidth = 3; ctx.strokeRect(lucasAltar.x - 30, lucasAltar.y - 24, 60, 48);
             ctx.fillStyle = '#f0d9ff'; ctx.font='bold 9px Arial'; ctx.textAlign='center'; ctx.fillText(lucasAltar.placed ? 'FRAGMENTS PLACED' : 'CALEB VESSEL', lucasAltar.x, lucasAltar.y + 4);
-            if (nearLucasAltar && state === 1 && !lucasAltar.placed) ctx.fillText('[E] PLACE FRAGMENTS', lucasAltar.x, lucasAltar.y - 34);
+            if (nearLucasAltar && state === 1 && !lucasAltar.placed) ctx.fillText(lucasCarryFragment ? '[E] PLACE LAST FRAGMENT' : 'LAST FRAGMENT REQUIRED', lucasAltar.x, lucasAltar.y - 34);
             if (lucasAltar.placed) for (let index = 0; index < 3; index++) { const angle = ambienceClock * .02 + index * Math.PI * 2 / 3; ctx.fillStyle='#edcbff'; ctx.beginPath(); ctx.arc(lucasAltar.x + Math.cos(angle) * 18, lucasAltar.y + Math.sin(angle) * 13, 5, 0, Math.PI * 2); ctx.fill(); }
         }
         if (lucasGate && lucasShadow) {
