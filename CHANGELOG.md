@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.18.8
+- Reworked Caleb’s sweep and hand-slam animations with wind-up phases, directional motion effects, pulsing danger markers, impact bursts, and a brief screen shake on slam impact.
+- Bumped the offline cache to `calebs-shift-v89`.
+
 ## 2.18.7
 - Added animated arena atmosphere, drifting background motes, phase-colored pulses, hit bursts, teleport effects, and Cal/Leb movement trails.
 - Reduced Leb’s spread volley to three projectiles on a longer cooldown and made hearts slightly more available.

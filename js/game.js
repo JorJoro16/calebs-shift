@@ -132,7 +132,7 @@ function playNizarCrashSound() {
 }
 
 // Versioned local progress with a backup copy and import/export support.
-const GAME_VERSION = '2.18.7';
+const GAME_VERSION = '2.18.8';
 const SAVE_SCHEMA_VERSION = 10;
 const COSMETIC_REWARD_VERSION = 2;
 const SAVE_KEY = 'br_save_v2';
@@ -2450,21 +2450,39 @@ function getCalebHandPose(boss, side) {
     };
 
     if (boss.sweep?.side === side) {
-        const progress = Math.max(0, Math.min(1, 1 - boss.sweep.life / boss.sweep.duration));
-        const eased = progress * progress * (3 - 2 * progress);
         const startX = side === 'left' ? boss.arena.left - 72 : boss.arena.right + 72;
         const endX = side === 'left' ? canvas.width / 2 - 48 : canvas.width / 2 + 48;
-        pose.x = startX + (endX - startX) * eased;
-        pose.y = boss.arena.top + (boss.arena.bottom - boss.arena.top) * .52 + Math.sin(progress * Math.PI) * 12;
-        pose.angle = side === 'left' ? -.24 : .24;
+        const sweepY = boss.arena.top + (boss.arena.bottom - boss.arena.top) * .52;
+        const elapsed = boss.sweep.duration - boss.sweep.life;
+        if (elapsed < boss.sweep.windup) {
+            const progress = Math.max(0, Math.min(1, elapsed / boss.sweep.windup));
+            const eased = progress * progress * (3 - 2 * progress);
+            pose.x = idleX + (startX - idleX) * eased;
+            pose.y = idleY + (sweepY - idleY) * eased;
+            pose.angle = side === 'left' ? -.4 - eased * .18 : .4 + eased * .18;
+        } else {
+            const progress = Math.max(0, Math.min(1, (elapsed - boss.sweep.windup) / (boss.sweep.duration - boss.sweep.windup)));
+            const eased = progress * progress * (3 - 2 * progress);
+            pose.x = startX + (endX - startX) * eased;
+            pose.y = sweepY + Math.sin(progress * Math.PI) * 12;
+            pose.angle = side === 'left' ? -.24 : .24;
+        }
     } else if (boss.slam?.side === side) {
-        const progress = Math.max(0, Math.min(1, 1 - boss.slam.life / boss.slam.duration));
-        const eased = 1 - Math.pow(1 - progress, 3);
-        const targetX = boss.slam.x;
-        const targetY = boss.slam.y - 76;
-        pose.x = idleX + (targetX - idleX) * eased;
-        pose.y = idleY + (targetY - idleY) * eased;
-        pose.angle = side === 'left' ? -.12 : .12;
+        const elapsed = boss.slam.duration - boss.slam.life;
+        const targetX = boss.slam.x, targetY = boss.slam.y - 76, raisedY = boss.arena.top - 64;
+        if (elapsed < boss.slam.windup) {
+            const progress = Math.max(0, Math.min(1, elapsed / boss.slam.windup));
+            const eased = progress * progress * (3 - 2 * progress);
+            pose.x = idleX + (targetX - idleX) * eased;
+            pose.y = idleY + (raisedY - idleY) * eased;
+            pose.angle = side === 'left' ? -.2 - eased * .18 : .2 + eased * .18;
+        } else {
+            const progress = Math.max(0, Math.min(1, (elapsed - boss.slam.windup) / (boss.slam.duration - boss.slam.windup)));
+            const eased = 1 - Math.pow(1 - progress, 3);
+            pose.x = targetX;
+            pose.y = raisedY + (targetY - raisedY) * eased;
+            pose.angle = side === 'left' ? -.08 : .08;
+        }
     }
     return pose;
 }
@@ -2901,6 +2919,8 @@ function updateCalebBossAttacks(boss) {
         boss.slam.life--;
         if (!boss.slam.impactResolved && boss.slam.life <= boss.slam.impactAt) {
             boss.slam.impactResolved = true;
+            spawnCalebBossBurst(boss, boss.slam.x, boss.slam.y, '#ffd16a', 22);
+            canvas.classList.add('shake'); window.setTimeout(() => canvas.classList.remove('shake'), 180);
             if (Math.hypot(boss.player.x - boss.slam.x, boss.player.y - boss.slam.y) < boss.slam.radius) damageCalebBossPlayer(1, 'GROUND SLAM');
             if (boss.stage >= 2) boss.holes.push({ x:boss.slam.x - 42, y:boss.slam.y - 32, w:84, h:64, warning:0, life:330 });
         }
@@ -2910,8 +2930,8 @@ function updateCalebBossAttacks(boss) {
     boss.walls.forEach(wall => wall.life--); boss.walls = boss.walls.filter(wall => wall.life > 0);
     boss.spreadTimer--; boss.sweepTimer--; boss.slamTimer--;
     if (boss.spreadTimer <= 0) { spawnCalebSpread(boss); boss.spreadTimer = boss.stage >= 2 ? 205 : 285; }
-    if (!boss.sweep && boss.sweepTimer <= 0) { boss.sweep = { side:Math.random() < .5 ? 'left' : 'right', duration:120, life:120, hitAt:18, hitResolved:false }; boss.sweepTimer = boss.stage >= 2 ? 330 : 460; playSound('alarm'); }
-    if (!boss.slam && boss.slamTimer <= 0) { boss.slam = { x:boss.player.x, y:boss.player.y, radius:112, side:Math.random() < .5 ? 'left' : 'right', duration:108, life:108, impactAt:1, impactResolved:false }; boss.slamTimer = boss.stage >= 2 ? 350 : 520; playSound('alarm'); }
+    if (!boss.sweep && boss.sweepTimer <= 0) { boss.sweep = { side:Math.random() < .5 ? 'left' : 'right', duration:140, life:140, windup:38, hitAt:18, hitResolved:false }; boss.sweepTimer = boss.stage >= 2 ? 330 : 460; playSound('alarm'); }
+    if (!boss.slam && boss.slamTimer <= 0) { boss.slam = { x:boss.player.x, y:boss.player.y, radius:112, side:Math.random() < .5 ? 'left' : 'right', duration:132, life:132, windup:76, impactAt:1, impactResolved:false }; boss.slamTimer = boss.stage >= 2 ? 350 : 520; playSound('alarm'); }
     if (boss.stage >= 2) {
         boss.holeTimer--; boss.wallTimer--;
         if (boss.holeTimer <= 0 && boss.holes.length < 3) { boss.holes.push({ x:boss.arena.left + 45 + Math.random() * (boss.arena.right - boss.arena.left - 135), y:boss.arena.top + 130 + Math.random() * (boss.arena.bottom - boss.arena.top - 190), w:68, h:54, warning:65, life:300 }); boss.holeTimer = 260; }
@@ -3135,23 +3155,36 @@ function drawCalebBossEncounter() {
     }
     if (boss.sweep) {
         const left = boss.sweep.side === 'left';
-        const progress = Math.max(0, Math.min(1, 1 - boss.sweep.life / boss.sweep.duration));
-        const dangerAlpha = boss.sweep.life <= boss.sweep.hitAt + 18 ? .62 : .16 + progress * .12;
+        const elapsed = boss.sweep.duration - boss.sweep.life;
+        const windup = elapsed < boss.sweep.windup;
+        const progress = windup ? elapsed / boss.sweep.windup : (elapsed - boss.sweep.windup) / (boss.sweep.duration - boss.sweep.windup);
+        const dangerAlpha = windup ? .08 + Math.sin(boss.time * .2) * .025 : boss.sweep.life <= boss.sweep.hitAt + 18 ? .62 : .22 + Math.min(1, progress) * .16;
         ctx.fillStyle = `rgba(255,40,74,${dangerAlpha})`;
         ctx.fillRect(left ? arena.left : width / 2, arena.top, (arena.right - arena.left) / 2, arena.bottom - arena.top);
-        ctx.strokeStyle = `rgba(255,150,170,${.45 + progress * .4})`; ctx.lineWidth = 2; ctx.setLineDash([12, 9]);
+        ctx.strokeStyle = windup ? 'rgba(255,170,190,.42)' : `rgba(255,150,170,${.45 + Math.min(1, progress) * .4})`; ctx.lineWidth = windup ? 1 : 2; ctx.setLineDash(windup ? [6, 12] : [12, 9]);
         ctx.strokeRect(left ? arena.left + 4 : width / 2 + 4, arena.top + 4, (arena.right - arena.left) / 2 - 8, arena.bottom - arena.top - 8); ctx.setLineDash([]);
-        ctx.fillStyle = '#ffd2da'; ctx.font = 'bold 13px Arial'; ctx.textAlign = 'center'; ctx.fillText('HAND SWEEP — MOVE TO THE OTHER SIDE', width / 2, arena.top + 24);
+        if (!windup) {
+            const hand = getCalebHandPose(boss, boss.sweep.side);
+            for (let index = 1; index <= 4; index++) { ctx.strokeStyle = `rgba(255,112,145,${.22 - index * .035})`; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(hand.x + (left ? index * 19 : -index * 19), hand.y - 24); ctx.lineTo(hand.x + (left ? index * 19 : -index * 19), hand.y + 24); ctx.stroke(); }
+        } else {
+            const edgeX = left ? arena.left + 48 : arena.right - 48, arrowDirection = left ? -1 : 1;
+            ctx.strokeStyle = 'rgba(255,214,225,.68)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(edgeX, arena.top + 66); ctx.lineTo(edgeX + arrowDirection * 32, arena.top + 66); ctx.moveTo(edgeX + arrowDirection * 32, arena.top + 66); ctx.lineTo(edgeX + arrowDirection * 21, arena.top + 57); ctx.moveTo(edgeX + arrowDirection * 32, arena.top + 66); ctx.lineTo(edgeX + arrowDirection * 21, arena.top + 75); ctx.stroke();
+        }
+        ctx.fillStyle = '#ffd2da'; ctx.font = 'bold 13px Arial'; ctx.textAlign = 'center'; ctx.fillText(windup ? 'HAND PULLS BACK — MOVE' : 'HAND SWEEP — MOVE TO THE OTHER SIDE', width / 2, arena.top + 24);
     }
     if (boss.slam) {
-        const progress = Math.max(0, Math.min(1, 1 - boss.slam.life / boss.slam.duration));
+        const elapsed = boss.slam.duration - boss.slam.life;
+        const windup = elapsed < boss.slam.windup;
         const warning = boss.slam.life > boss.slam.impactAt;
-        const radius = boss.slam.radius * (.72 + progress * .28);
-        ctx.strokeStyle = warning ? `rgba(255,210,110,${.42 + Math.sin(boss.time * .18) * .12})` : 'rgba(255,90,110,.92)';
-        ctx.lineWidth = warning ? 4 : 7; ctx.setLineDash(warning ? [10, 7] : []);
-        ctx.beginPath(); ctx.arc(boss.slam.x, boss.slam.y, radius, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+        const progress = Math.max(0, Math.min(1, elapsed / boss.slam.duration));
+        const radius = boss.slam.radius * (warning ? .86 + progress * .14 : 1.12);
+        ctx.fillStyle = warning ? `rgba(255,188,76,${.06 + Math.sin(boss.time * .2) * .025})` : 'rgba(255,74,103,.2)'; ctx.beginPath(); ctx.arc(boss.slam.x, boss.slam.y, radius, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = warning ? `rgba(255,210,110,${.46 + Math.sin(boss.time * .18) * .16})` : 'rgba(255,90,110,.96)';
+        ctx.lineWidth = warning ? 4 : 7; ctx.setLineDash(warning ? [10, 7] : []); ctx.beginPath(); ctx.arc(boss.slam.x, boss.slam.y, radius, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+        for (let ring = 1; ring <= 2; ring++) { const ringRadius = radius * (.42 + ring * .2) + Math.sin(boss.time * .16 + ring) * 4; ctx.strokeStyle = warning ? 'rgba(255,224,147,.28)' : 'rgba(255,120,137,.55)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(boss.slam.x, boss.slam.y, ringRadius, 0, Math.PI * 2); ctx.stroke(); }
+        ctx.strokeStyle = warning ? 'rgba(255,238,182,.7)' : '#ffe0e6'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(boss.slam.x - 18, boss.slam.y); ctx.lineTo(boss.slam.x + 18, boss.slam.y); ctx.moveTo(boss.slam.x, boss.slam.y - 18); ctx.lineTo(boss.slam.x, boss.slam.y + 18); ctx.stroke();
         ctx.fillStyle = warning ? '#ffe0a6' : '#ffb6c3'; ctx.font = 'bold 13px Arial'; ctx.textAlign = 'center';
-        ctx.fillText(warning ? 'HAND SLAM — GET OUT' : 'IMPACT', boss.slam.x, boss.slam.y - radius - 12);
+        ctx.fillText(warning ? (windup ? 'HAND RISING — RUN' : 'HAND SLAM — GET OUT') : 'IMPACT', boss.slam.x, boss.slam.y - radius - 12);
     }
     for (const button of boss.switches || []) { ctx.fillStyle = button.active ? '#91ffd0' : '#5a2034'; ctx.shadowColor = button.active ? '#89ffd0' : '#e36b86'; ctx.shadowBlur = button.active ? 18 : 4; ctx.fillRect(button.x - 14, button.y - 14, 28, 28); ctx.shadowBlur = 0; ctx.strokeStyle = button.active ? '#eafff6' : '#e97891'; ctx.lineWidth = 2; ctx.strokeRect(button.x - 14, button.y - 14, 28, 28); ctx.fillStyle = '#240914'; ctx.fillRect(button.x - 5, button.y - 5, 10, 10); if (Math.hypot(boss.player.x - button.x, boss.player.y - button.y) < 60 && !button.active) { ctx.fillStyle = '#fff1f4'; ctx.font = 'bold 10px Arial'; ctx.textAlign = 'center'; ctx.fillText('[TAP / E] ARM SWITCH', button.x, button.y - 22); } }
     for (const core of boss.cores || []) { ctx.fillStyle = core.sealed ? '#caa4ff' : '#f5f1ff'; ctx.shadowColor = '#d0a0ff'; ctx.shadowBlur = 14; ctx.beginPath(); ctx.arc(core.x, core.y, 13 + Math.sin(boss.time * .12) * 2, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0; ctx.fillStyle = '#28132f'; ctx.beginPath(); ctx.arc(core.x, core.y, 5, 0, Math.PI * 2); ctx.fill(); if (Math.hypot(boss.player.x - core.x, boss.player.y - core.y) < 48 && !core.sealed) { ctx.fillStyle = '#fff'; ctx.font = 'bold 10px Arial'; ctx.textAlign = 'center'; ctx.fillText('[TAP / E] SEAL CORE', core.x, core.y - 22); } }
