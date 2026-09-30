@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.18.4
+- Added rare touch-collectible hearts to the Caleb and Cal/Leb boss phases. Each heart restores 1 player health and remains available when the player is already at full health.
+- Bumped the offline cache to `calebs-shift-v85`.
+
 ## 2.18.3
 - Removed Schimini spawning from Caleb’s main boss phase; Leb still spawns them during the split phase.
 - Bumped the offline cache to `calebs-shift-v84`.

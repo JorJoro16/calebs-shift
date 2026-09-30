@@ -132,7 +132,7 @@ function playNizarCrashSound() {
 }
 
 // Versioned local progress with a backup copy and import/export support.
-const GAME_VERSION = '2.18.3';
+const GAME_VERSION = '2.18.4';
 const SAVE_SCHEMA_VERSION = 10;
 const COSMETIC_REWARD_VERSION = 2;
 const SAVE_KEY = 'br_save_v2';
@@ -2495,9 +2495,9 @@ function beginCalebBossFight() {
             { x:arena.left + 70, y:arena.bottom - 62, active:false, life:0, flash:0 },
             { x:arena.right - 70, y:arena.bottom - 62, active:false, life:0, flash:0 }
         ],
-        orbs:[], shots:[], eyeRain:[], cores:[], schiminis:[], walls:[], holes:[], sweep:null, slam:null,
+        orbs:[], shots:[], eyeRain:[], cores:[], schiminis:[], walls:[], holes:[], hearts:[], sweep:null, slam:null,
         orbTimer:82, sweepTimer:230, slamTimer:340, spreadTimer:260, rainTimer:64, schiminiTimer:240,
-        holeTimer:300, wallTimer:360, pullTimer:420, fireballTimer:100, nestTimer:180, flash:0, messageTimer:0
+        holeTimer:300, wallTimer:360, heartTimer:520, pullTimer:420, fireballTimer:100, nestTimer:180, flash:0, messageTimer:0
     };
     state = 20;
     clearMovementKeys();
@@ -2585,6 +2585,48 @@ function damageCalebBoss(amount, target = 'CALEB') {
     if (target === 'LEB' && boss.healthLeb <= 0) { boss.leb = null; showStoryLine('LEB’S NESTS GO SILENT.', 1600); }
     if (boss.mode === 'split' && boss.healthCal <= 0 && boss.healthLeb <= 0) {
         calebBoss = null; setLucasOverlay(false); endGame(true, monster);
+    }
+}
+
+function spawnCalebHeart(boss) {
+    const arena = boss.arena;
+    for (let attempt = 0; attempt < 36; attempt++) {
+        const x = arena.left + 38 + Math.random() * (arena.right - arena.left - 76);
+        const y = arena.top + 54 + Math.random() * (arena.bottom - arena.top - 108);
+        const insideHole = (boss.holes || []).some(hole => x > hole.x - 22 && x < hole.x + hole.w + 22 && y > hole.y - 22 && y < hole.y + hole.h + 22);
+        const insideWall = (boss.walls || []).some(wall => x > wall.x - 22 && x < wall.x + wall.w + 22 && y > wall.y - 22 && y < wall.y + wall.h + 22);
+        const tooClose = Math.hypot(x - boss.player.x, y - boss.player.y) < 86;
+        if (!insideHole && !insideWall && !tooClose) {
+            boss.hearts.push({ x, y, r:15, life:720, phase:Math.random() * Math.PI * 2 });
+            playSound('unlock');
+            showMsg('<span style="color:#ff8299">A HEART APPEARS</span><br>TOUCH IT TO RECOVER 1 HEALTH', 1100);
+            return true;
+        }
+    }
+    return false;
+}
+
+function updateCalebBossHearts(boss) {
+    boss.hearts = boss.hearts || [];
+    boss.hearts.forEach(heart => heart.life--);
+    boss.hearts = boss.hearts.filter(heart => heart.life > 0);
+    if (boss.heartTimer > 0) boss.heartTimer--;
+    if (boss.heartTimer <= 0) {
+        if (boss.hearts.length < 2) {
+            const spawnChance = boss.playerHealth <= boss.maxPlayerHealth - 2 ? .78 : .48;
+            if (Math.random() < spawnChance) spawnCalebHeart(boss);
+        }
+        boss.heartTimer = 520 + Math.floor(Math.random() * 421);
+    }
+    for (let index = boss.hearts.length - 1; index >= 0; index--) {
+        const heart = boss.hearts[index];
+        if (boss.playerHealth < boss.maxPlayerHealth && Math.hypot(boss.player.x - heart.x, boss.player.y - heart.y) < heart.r + player.r + 4) {
+            boss.playerHealth = Math.min(boss.maxPlayerHealth, boss.playerHealth + 1);
+            boss.hearts.splice(index, 1);
+            boss.playerHitFlash = 0;
+            playSound('success');
+            showMsg(`<span style="color:#ff8299">HEART RECOVERED</span><br>${boss.playerHealth}/${boss.maxPlayerHealth} HEALTH`, 850);
+        }
     }
 }
 
@@ -2810,6 +2852,7 @@ function updateCalebBossMain() {
         updateCalebBossPhase(boss); updateCalebBossAttacks(boss); updateCalebOrbs(boss); updateCalebProjectiles(boss);
         if (boss.stage === 1 && boss.health <= boss.maxHealth * .56) boss.stage = 2;
     } else if (boss.mode === 'split') updateCalLebMain(boss);
+    updateCalebBossHearts(boss);
 }
 
 function spawnCalFireball(boss, spiral = false) {
@@ -2948,6 +2991,14 @@ function drawCalebBossEncounter() {
     ctx.restore(); ctx.strokeStyle = '#a43351'; ctx.lineWidth = 4; ctx.strokeRect(arena.left, arena.top, arena.right - arena.left, arena.bottom - arena.top);
     for (const hole of boss.holes || []) { ctx.fillStyle = hole.warning > 0 ? `rgba(255,190,70,${.15 + Math.sin(boss.time * .25) * .06})` : '#010103'; ctx.fillRect(hole.x, hole.y, hole.w, hole.h); ctx.strokeStyle = hole.warning > 0 ? '#ffd45c' : '#8c243b'; ctx.lineWidth = 3; if (hole.warning > 0) ctx.setLineDash([8, 6]); ctx.strokeRect(hole.x, hole.y, hole.w, hole.h); ctx.setLineDash([]); }
     for (const wall of boss.walls || []) { ctx.fillStyle = 'rgba(111,18,38,.92)'; ctx.fillRect(wall.x, wall.y, wall.w, wall.h); ctx.strokeStyle = '#e65c75'; ctx.lineWidth = 2; ctx.strokeRect(wall.x, wall.y, wall.w, wall.h); }
+    for (const heart of boss.hearts || []) {
+        const pulse = 1 + Math.sin(boss.time * .12 + heart.phase) * .1;
+        ctx.save(); ctx.translate(heart.x, heart.y); ctx.scale(pulse, pulse);
+        ctx.fillStyle = 'rgba(255,56,94,.22)'; ctx.beginPath(); ctx.arc(0, 0, 25, 0, Math.PI * 2); ctx.fill();
+        ctx.shadowColor = '#ff5d7b'; ctx.shadowBlur = 18; ctx.fillStyle = '#ff5575'; ctx.strokeStyle = '#ffd2dc'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(0, 14); ctx.bezierCurveTo(-18, 1, -16, -13, -7, -14); ctx.bezierCurveTo(-2, -14, 0, -10, 0, -6); ctx.bezierCurveTo(0, -10, 2, -14, 7, -14); ctx.bezierCurveTo(16, -13, 18, 1, 0, 14); ctx.fill(); ctx.stroke();
+        ctx.shadowBlur = 0; ctx.fillStyle = '#fff5f7'; ctx.font = 'bold 10px Arial'; ctx.textAlign = 'center'; ctx.fillText('+1', 0, 4); ctx.restore();
+    }
     if (boss.sweep) {
         const left = boss.sweep.side === 'left';
         const progress = Math.max(0, Math.min(1, 1 - boss.sweep.life / boss.sweep.duration));
