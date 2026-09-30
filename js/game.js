@@ -137,15 +137,36 @@ const calebBossMusic = new Audio('assets/big-c.mp3');
 calebBossMusic.preload = 'auto';
 calebBossMusic.loop = true;
 calebBossMusic.volume = .34;
+let calebBossMusicFading = false;
+
+const noahLullabyAudio = new Audio('assets/noah-lullaby.mp3');
+const noahChaseAudio = new Audio('assets/noah-chase.mp3');
+const noahScreamAudio = new Audio('assets/noah-scream.mp3');
+const rhysChaseAudio = new Audio('assets/rhys-chase.mp3');
+const rhysScreamAudio = new Audio('assets/rhys-scream.mp3');
+const specialLoopAudios = [noahLullabyAudio, noahChaseAudio, rhysChaseAudio];
+const specialAudioPhase = new WeakMap();
+const specialAudioCharge = new WeakMap();
+
+for (const audio of specialLoopAudios) {
+    audio.preload = 'auto';
+    audio.loop = true;
+    audio.volume = 0;
+    audio.__retryCooldown = 0;
+}
+for (const audio of [noahScreamAudio, rhysScreamAudio]) {
+    audio.preload = 'auto';
+}
 
 function syncCalebBossMusicVolume() {
     const master = Math.max(0, Math.min(1, Number(setVolM) / 100));
     const sfx = Math.max(0, Math.min(1, Number(setVolS) / 100));
-    calebBossMusic.volume = master * sfx * .38;
+    if (!calebBossMusicFading) calebBossMusic.volume = master * sfx * .38;
 }
 
 function startCalebBossMusic(restart = false) {
     if (!calebBossMusic) return;
+    calebBossMusicFading = false;
     syncCalebBossMusicVolume();
     calebBossMusic.loop = true;
     if (restart) {
@@ -157,8 +178,102 @@ function startCalebBossMusic(restart = false) {
 
 function stopCalebBossMusic() {
     if (!calebBossMusic) return;
-    calebBossMusic.pause();
-    try { calebBossMusic.currentTime = 0; } catch (_) {}
+    if (calebBossMusic.paused) {
+        calebBossMusic.volume = 0;
+        try { calebBossMusic.currentTime = 0; } catch (_) {}
+        return;
+    }
+    calebBossMusicFading = true;
+}
+
+function updateCalebBossMusicFade() {
+    if (!calebBossMusicFading) return;
+    calebBossMusic.volume = Math.max(0, calebBossMusic.volume - .035);
+    if (calebBossMusic.volume <= .002) {
+        calebBossMusic.pause();
+        try { calebBossMusic.currentTime = 0; } catch (_) {}
+        calebBossMusicFading = false;
+        syncCalebBossMusicVolume();
+    }
+}
+
+function specialMusicGain() {
+    const master = Math.max(0, Math.min(1, Number(setVolM) / 100));
+    const sfx = Math.max(0, Math.min(1, Number(setVolS) / 100));
+    return master * sfx;
+}
+
+function playSpecialScream(audio, gain = .58) {
+    if (!audio || specialMusicGain() <= 0) return;
+    try {
+        const scream = audio.cloneNode();
+        scream.volume = Math.min(1, specialMusicGain() * gain);
+        scream.currentTime = 0;
+        const playback = scream.play();
+        if (playback?.catch) playback.catch(() => {});
+        scream.addEventListener('ended', () => scream.remove(), { once: true });
+    } catch (_) {}
+}
+
+function startSpecialLoopAudio(audio, fromGesture = false) {
+    if (!audio || !audio.paused) return;
+    if (!fromGesture && (audio.__retryCooldown || 0) > 0) return;
+    audio.loop = true;
+    audio.__retryCooldown = fromGesture ? 0 : 45;
+    const playback = audio.play();
+    if (playback?.catch) playback.catch(() => {});
+}
+
+function fadeSpecialLoopAudio(audio, target, fromGesture = false) {
+    if (!audio) return;
+    const nextVolume = Math.max(0, Math.min(1, target));
+    if (nextVolume > audio.volume) {
+        startSpecialLoopAudio(audio, fromGesture);
+        audio.volume = Math.min(nextVolume, audio.volume + .026);
+    } else if (nextVolume < audio.volume) {
+        audio.volume = Math.max(nextVolume, audio.volume - .038);
+        if (audio.volume <= .002 && !audio.paused) audio.pause();
+    }
+}
+
+function updateSpecialMonsterAudio(fromGesture = false) {
+    for (const audio of specialLoopAudios) audio.__retryCooldown = Math.max(0, (audio.__retryCooldown || 0) - 1);
+    const activeGameplay = state === 1;
+    const noahEnemies = activeGameplay ? monsters.filter(enemy => enemy.name === 'NOAH') : [];
+    const rhysEnemies = activeGameplay ? monsters.filter(enemy => enemy.name === 'RHYS') : [];
+    let noahInvisible = false;
+    let noahChasing = false;
+
+    for (const enemy of noahEnemies) {
+        const primary = enemy === monster;
+        const phase = primary ? noahState : (enemy.invisible === false ? 'revealed' : 'hidden');
+        const previousPhase = specialAudioPhase.get(enemy);
+        if (primary && previousPhase && previousPhase !== 'burst' && phase === 'burst') playSpecialScream(noahScreamAudio);
+        if (!primary && previousPhase === 'hidden' && phase === 'revealed') playSpecialScream(noahScreamAudio);
+        specialAudioPhase.set(enemy, phase);
+        if (phase === 'hidden') noahInvisible = true;
+        else noahChasing = true;
+    }
+    // Noah chase music has priority over the lullaby, even if another Noah is
+    // still invisible somewhere else on the map.
+    if (noahChasing) noahInvisible = false;
+
+    let rhysChasing = false;
+    for (const enemy of rhysEnemies) {
+        const primary = enemy === monster;
+        const charging = primary
+            ? rhysChargeWindup > 0 || rhysDashTimer > 0
+            : (enemy.abilityRhysWindup || 0) > 0 || (enemy.abilityRhysDashTimer || 0) > 0;
+        const wasCharging = specialAudioCharge.get(enemy) === true;
+        if (charging && !wasCharging) playSpecialScream(rhysScreamAudio);
+        specialAudioCharge.set(enemy, charging);
+        if (!player.hidden && !player.breathing && monsterCanSeeUnhiddenPlayer(enemy)) rhysChasing = true;
+    }
+
+    const gain = specialMusicGain();
+    fadeSpecialLoopAudio(noahLullabyAudio, noahInvisible ? gain * .34 : 0, fromGesture);
+    fadeSpecialLoopAudio(noahChaseAudio, noahChasing ? gain * .44 : 0, fromGesture);
+    fadeSpecialLoopAudio(rhysChaseAudio, rhysChasing ? gain * .44 : 0, fromGesture);
 }
 
 calebBossMusic.addEventListener('ended', () => {
@@ -166,7 +281,7 @@ calebBossMusic.addEventListener('ended', () => {
 });
 
 // Versioned local progress with a backup copy and import/export support.
-const GAME_VERSION = '2.18.9';
+const GAME_VERSION = '2.18.10';
 const SAVE_SCHEMA_VERSION = 10;
 const COSMETIC_REWARD_VERSION = 2;
 const SAVE_KEY = 'br_save_v2';
@@ -6327,7 +6442,7 @@ function startGame(diffLevel, startAtBoss = false) {
     stats.encounters[monster.name] = (stats.encounters[monster.name] || 0) + 1;
     stats.favoriteMonster = Object.entries(stats.encounters).sort((a,b) => b[1] - a[1])[0]?.[0] || 'None';
     canvas.classList.remove('shake');
-    state = 1; updateHUD(); renderHotelTasks();
+    state = 1; updateHUD(); renderHotelTasks(); updateSpecialMonsterAudio(true);
     if (startAtBoss && currentMapId === 'lucas') {
         beginCalebBossIntro();
         return;
@@ -7121,6 +7236,8 @@ function separateMonsters() {
 }
 
 function update() {
+    updateCalebBossMusicFade();
+    updateSpecialMonsterAudio();
     if (mobileMenuPaused || hotelDialogueOpen) return;
     if (state === 16) { updateLucasFragmentPuzzle(); return; }
     if (state === 17) { updateLucasEndingAnimation(); return; }
@@ -8515,6 +8632,7 @@ document.addEventListener('click', event => {
     if (!button) return;
     if (button.disabled) { playSound('fail'); return; }
     playSound(/\bBACK\b/i.test(button.textContent) ? 'menuBack' : 'menuSelect');
+    if (state === 1) updateSpecialMonsterAudio(true);
 });
 
 // Mobile browsers require audio to be created or resumed from a user gesture.
@@ -8523,6 +8641,7 @@ document.addEventListener('click', event => {
 function resumeBossAudioFromGesture() {
     initAudio();
     if (calebBoss && (state === 19 || state === 20 || state === 21) && calebBossMusic.paused) startCalebBossMusic();
+    if (state === 1) updateSpecialMonsterAudio(true);
 }
 window.addEventListener('pointerdown', resumeBossAudioFromGesture, { passive: true });
 window.addEventListener('touchstart', resumeBossAudioFromGesture, { passive: true });
@@ -8531,6 +8650,7 @@ window.addEventListener('blur', clearMovementKeys);
 document.addEventListener('visibilitychange', () => {
     if (!document.hidden && audioCtx?.state === 'suspended') audioCtx.resume();
     if (!document.hidden && calebBoss && (state === 19 || state === 20 || state === 21) && calebBossMusic.paused) startCalebBossMusic();
+    if (!document.hidden && state === 1) updateSpecialMonsterAudio(true);
     if (document.hidden) clearMovementKeys();
 });
 

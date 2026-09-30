@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.18.10
+- Added Noah’s shared invisible-state lullaby and priority chase music, with independent Noah scream playback for each reveal/charge.
+- Added Rhys chase music that fades in while any Rhys can see the player and fades out when the chase is lost, plus independent charge screams.
+- Made the Caleb boss theme fade out cleanly as well, so non-scream tracks do not stop abruptly.
+- Added all five supplied tracks to the offline cache and bumped it to `calebs-shift-v91`.
+
 ## 2.18.9
 - Polished Caleb’s split cutscene with a staged crack buildup, branching energy seam, separation easing, afterimages, particles, and a controlled flash before Cal and Leb take over.
 - Added the supplied `Big_C` track as the looping Caleb boss theme; it continues through the split phase and respects the music/SFX volume settings.

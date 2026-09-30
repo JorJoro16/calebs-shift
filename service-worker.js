@@ -1,4 +1,4 @@
-const CACHE_NAME = 'calebs-shift-v90';
+const CACHE_NAME = 'calebs-shift-v91';
 const FILES_TO_CACHE = [
   './',
   './index.html',
@@ -27,6 +27,11 @@ const FILES_TO_CACHE = [
   './assets/gold-skin.png',
   './assets/WallCrashSoundEffect.mp3',
   './assets/big-c.mp3',
+  './assets/noah-lullaby.mp3',
+  './assets/noah-chase.mp3',
+  './assets/noah-scream.mp3',
+  './assets/rhys-chase.mp3',
+  './assets/rhys-scream.mp3',
   './assets/caleb-boss.png',
   './assets/caleb-left-hand.png',
   './assets/caleb-right-hand.png',
