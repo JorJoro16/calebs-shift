@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.18.2
+- Improved Caleb’s hand sweep timing and added a visible hand-slam warning/impact telegraph.
+- Fixed PC `E` interactions for Caleb boss switches, eye cores, and Leb’s nests.
+- Detached Caleb’s hand artwork from his body at rest and animated the active hand during sweeps and slams.
+- Bumped the offline cache to `calebs-shift-v83`.
+
 ## 2.18.1
 - Added a campaign-only Lucas replay choice after Lucas has been cleared: restart Lucas's level or begin the Caleb boss fight.
 - Bumped the offline cache to `calebs-shift-v82`.

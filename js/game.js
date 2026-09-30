@@ -132,7 +132,7 @@ function playNizarCrashSound() {
 }
 
 // Versioned local progress with a backup copy and import/export support.
-const GAME_VERSION = '2.18.1';
+const GAME_VERSION = '2.18.2';
 const SAVE_SCHEMA_VERSION = 10;
 const COSMETIC_REWARD_VERSION = 2;
 const SAVE_KEY = 'br_save_v2';
@@ -2438,6 +2438,37 @@ function getCalebEyePoints(boss = calebBoss) {
     ];
 }
 
+function getCalebHandPose(boss, side) {
+    const body = boss.caleb;
+    const direction = side === 'left' ? -1 : 1;
+    const idleX = body.x + direction * (body.size * .86 + 16);
+    const idleY = body.y + 62 + Math.sin(boss.time * .045 + (side === 'left' ? 0 : 1.6)) * 5;
+    const pose = {
+        x: idleX,
+        y: idleY,
+        angle: side === 'left' ? .055 : -.055
+    };
+
+    if (boss.sweep?.side === side) {
+        const progress = Math.max(0, Math.min(1, 1 - boss.sweep.life / boss.sweep.duration));
+        const eased = progress * progress * (3 - 2 * progress);
+        const startX = side === 'left' ? boss.arena.left - 72 : boss.arena.right + 72;
+        const endX = side === 'left' ? canvas.width / 2 - 48 : canvas.width / 2 + 48;
+        pose.x = startX + (endX - startX) * eased;
+        pose.y = boss.arena.top + (boss.arena.bottom - boss.arena.top) * .52 + Math.sin(progress * Math.PI) * 12;
+        pose.angle = side === 'left' ? -.24 : .24;
+    } else if (boss.slam?.side === side) {
+        const progress = Math.max(0, Math.min(1, 1 - boss.slam.life / boss.slam.duration));
+        const eased = 1 - Math.pow(1 - progress, 3);
+        const targetX = boss.slam.x;
+        const targetY = boss.slam.y - 76;
+        pose.x = idleX + (targetX - idleX) * eased;
+        pose.y = idleY + (targetY - idleY) * eased;
+        pose.angle = side === 'left' ? -.12 : .12;
+    }
+    return pose;
+}
+
 function beginCalebBossIntro() {
     monster.name = 'CALEB';
     monster.color = '#85001b'; monster.textColor = '#ffb4c7'; monster.r = 28; monster.drawRadius = 28;
@@ -2628,7 +2659,11 @@ function clickCalebBoss(clientX, clientY) {
 }
 
 function interactCalebBossAtPlayer() {
-    if (calebBoss?.player) clickCalebBoss(calebBoss.player.x, calebBoss.player.y);
+    if (!calebBoss?.player) return;
+    const rect = canvas.getBoundingClientRect();
+    const clientX = rect.left + calebBoss.player.x * rect.width / canvas.width;
+    const clientY = rect.top + calebBoss.player.y * rect.height / canvas.height;
+    clickCalebBoss(clientX, clientY);
 }
 
 function spawnCalebOrb(boss) {
@@ -2716,14 +2751,30 @@ function updateCalebProjectiles(boss) {
 
 function updateCalebBossAttacks(boss) {
     boss.switches.forEach(button => { if (button.life > 0) button.life--; if (button.life <= 0) button.active = false; if (button.cooldown > 0) button.cooldown--; if (button.flash > 0) button.flash--; });
-    if (boss.sweep) { boss.sweep.life--; if (boss.sweep.life === 20) { const unsafe = boss.sweep.side === 'left' ? boss.player.x < canvas.width / 2 : boss.player.x > canvas.width / 2; if (unsafe) damageCalebBossPlayer(1, 'HAND SWEEP'); } if (boss.sweep.life <= 0) boss.sweep = null; }
-    if (boss.slam) { boss.slam.life--; if (boss.slam.life === 1) { if (Math.hypot(boss.player.x - boss.slam.x, boss.player.y - boss.slam.y) < boss.slam.radius) damageCalebBossPlayer(1, 'GROUND SLAM'); if (boss.stage >= 2) boss.holes.push({ x:boss.slam.x - 42, y:boss.slam.y - 32, w:84, h:64, warning:0, life:330 }); } if (boss.slam.life <= 0) boss.slam = null; }
+    if (boss.sweep) {
+        boss.sweep.life--;
+        if (!boss.sweep.hitResolved && boss.sweep.life <= boss.sweep.hitAt) {
+            boss.sweep.hitResolved = true;
+            const unsafe = boss.sweep.side === 'left' ? boss.player.x < canvas.width / 2 : boss.player.x > canvas.width / 2;
+            if (unsafe) damageCalebBossPlayer(1, 'HAND SWEEP');
+        }
+        if (boss.sweep.life <= 0) boss.sweep = null;
+    }
+    if (boss.slam) {
+        boss.slam.life--;
+        if (!boss.slam.impactResolved && boss.slam.life <= boss.slam.impactAt) {
+            boss.slam.impactResolved = true;
+            if (Math.hypot(boss.player.x - boss.slam.x, boss.player.y - boss.slam.y) < boss.slam.radius) damageCalebBossPlayer(1, 'GROUND SLAM');
+            if (boss.stage >= 2) boss.holes.push({ x:boss.slam.x - 42, y:boss.slam.y - 32, w:84, h:64, warning:0, life:330 });
+        }
+        if (boss.slam.life <= 0) boss.slam = null;
+    }
     boss.holes.forEach(hole => { hole.warning--; hole.life--; }); boss.holes = boss.holes.filter(hole => hole.life > 0);
     boss.walls.forEach(wall => wall.life--); boss.walls = boss.walls.filter(wall => wall.life > 0);
     boss.spreadTimer--; boss.sweepTimer--; boss.slamTimer--;
     if (boss.spreadTimer <= 0) { spawnCalebSpread(boss); boss.spreadTimer = boss.stage >= 2 ? 205 : 285; }
-    if (!boss.sweep && boss.sweepTimer <= 0) { boss.sweep = { side:Math.random() < .5 ? 'left' : 'right', life:72 }; boss.sweepTimer = boss.stage >= 2 ? 330 : 460; playSound('alarm'); }
-    if (!boss.slam && boss.slamTimer <= 0) { boss.slam = { x:boss.player.x, y:boss.player.y, radius:112, life:58 }; boss.slamTimer = boss.stage >= 2 ? 350 : 520; playSound('alarm'); }
+    if (!boss.sweep && boss.sweepTimer <= 0) { boss.sweep = { side:Math.random() < .5 ? 'left' : 'right', duration:120, life:120, hitAt:18, hitResolved:false }; boss.sweepTimer = boss.stage >= 2 ? 330 : 460; playSound('alarm'); }
+    if (!boss.slam && boss.slamTimer <= 0) { boss.slam = { x:boss.player.x, y:boss.player.y, radius:112, side:Math.random() < .5 ? 'left' : 'right', duration:108, life:108, impactAt:1, impactResolved:false }; boss.slamTimer = boss.stage >= 2 ? 350 : 520; playSound('alarm'); }
     if (boss.stage >= 2) {
         boss.holeTimer--; boss.wallTimer--;
         if (boss.holeTimer <= 0 && boss.holes.length < 3) { boss.holes.push({ x:boss.arena.left + 45 + Math.random() * (boss.arena.right - boss.arena.left - 135), y:boss.arena.top + 130 + Math.random() * (boss.arena.bottom - boss.arena.top - 190), w:68, h:54, warning:65, life:300 }); boss.holeTimer = 260; }
@@ -2898,8 +2949,26 @@ function drawCalebBossEncounter() {
     ctx.restore(); ctx.strokeStyle = '#a43351'; ctx.lineWidth = 4; ctx.strokeRect(arena.left, arena.top, arena.right - arena.left, arena.bottom - arena.top);
     for (const hole of boss.holes || []) { ctx.fillStyle = hole.warning > 0 ? `rgba(255,190,70,${.15 + Math.sin(boss.time * .25) * .06})` : '#010103'; ctx.fillRect(hole.x, hole.y, hole.w, hole.h); ctx.strokeStyle = hole.warning > 0 ? '#ffd45c' : '#8c243b'; ctx.lineWidth = 3; if (hole.warning > 0) ctx.setLineDash([8, 6]); ctx.strokeRect(hole.x, hole.y, hole.w, hole.h); ctx.setLineDash([]); }
     for (const wall of boss.walls || []) { ctx.fillStyle = 'rgba(111,18,38,.92)'; ctx.fillRect(wall.x, wall.y, wall.w, wall.h); ctx.strokeStyle = '#e65c75'; ctx.lineWidth = 2; ctx.strokeRect(wall.x, wall.y, wall.w, wall.h); }
-    if (boss.sweep) { const left = boss.sweep.side === 'left'; ctx.fillStyle = `rgba(255,40,74,${boss.sweep.life < 24 ? .55 : .24})`; ctx.fillRect(left ? arena.left : width / 2, arena.top, (arena.right - arena.left) / 2, arena.bottom - arena.top); const handX = left ? arena.left + 46 + (72 - boss.sweep.life) * 2 : arena.right - 46 - (72 - boss.sweep.life) * 2; calebBossImage(left ? bossImages.leftHand : bossImages.rightHand, handX, height * .52, 142, 142, left ? -.24 : .24); }
-    if (boss.slam) { ctx.strokeStyle = `rgba(255,210,110,${Math.min(.92, boss.slam.life / 35)})`; ctx.lineWidth = 5; ctx.setLineDash([10, 7]); ctx.beginPath(); ctx.arc(boss.slam.x, boss.slam.y, boss.slam.radius * (1 + (58 - boss.slam.life) * .012), 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); calebBossImage(bossImages.leftHand, boss.slam.x, boss.slam.y - 76, 125, 125, .1); }
+    if (boss.sweep) {
+        const left = boss.sweep.side === 'left';
+        const progress = Math.max(0, Math.min(1, 1 - boss.sweep.life / boss.sweep.duration));
+        const dangerAlpha = boss.sweep.life <= boss.sweep.hitAt + 18 ? .62 : .16 + progress * .12;
+        ctx.fillStyle = `rgba(255,40,74,${dangerAlpha})`;
+        ctx.fillRect(left ? arena.left : width / 2, arena.top, (arena.right - arena.left) / 2, arena.bottom - arena.top);
+        ctx.strokeStyle = `rgba(255,150,170,${.45 + progress * .4})`; ctx.lineWidth = 2; ctx.setLineDash([12, 9]);
+        ctx.strokeRect(left ? arena.left + 4 : width / 2 + 4, arena.top + 4, (arena.right - arena.left) / 2 - 8, arena.bottom - arena.top - 8); ctx.setLineDash([]);
+        ctx.fillStyle = '#ffd2da'; ctx.font = 'bold 13px Arial'; ctx.textAlign = 'center'; ctx.fillText('HAND SWEEP — MOVE TO THE OTHER SIDE', width / 2, arena.top + 24);
+    }
+    if (boss.slam) {
+        const progress = Math.max(0, Math.min(1, 1 - boss.slam.life / boss.slam.duration));
+        const warning = boss.slam.life > boss.slam.impactAt;
+        const radius = boss.slam.radius * (.72 + progress * .28);
+        ctx.strokeStyle = warning ? `rgba(255,210,110,${.42 + Math.sin(boss.time * .18) * .12})` : 'rgba(255,90,110,.92)';
+        ctx.lineWidth = warning ? 4 : 7; ctx.setLineDash(warning ? [10, 7] : []);
+        ctx.beginPath(); ctx.arc(boss.slam.x, boss.slam.y, radius, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+        ctx.fillStyle = warning ? '#ffe0a6' : '#ffb6c3'; ctx.font = 'bold 13px Arial'; ctx.textAlign = 'center';
+        ctx.fillText(warning ? 'HAND SLAM — GET OUT' : 'IMPACT', boss.slam.x, boss.slam.y - radius - 12);
+    }
     for (const button of boss.switches || []) { ctx.fillStyle = button.active ? '#91ffd0' : '#5a2034'; ctx.shadowColor = button.active ? '#89ffd0' : '#e36b86'; ctx.shadowBlur = button.active ? 18 : 4; ctx.fillRect(button.x - 14, button.y - 14, 28, 28); ctx.shadowBlur = 0; ctx.strokeStyle = button.active ? '#eafff6' : '#e97891'; ctx.lineWidth = 2; ctx.strokeRect(button.x - 14, button.y - 14, 28, 28); ctx.fillStyle = '#240914'; ctx.fillRect(button.x - 5, button.y - 5, 10, 10); if (Math.hypot(boss.player.x - button.x, boss.player.y - button.y) < 60 && !button.active) { ctx.fillStyle = '#fff1f4'; ctx.font = 'bold 10px Arial'; ctx.textAlign = 'center'; ctx.fillText('[TAP / E] ARM SWITCH', button.x, button.y - 22); } }
     for (const core of boss.cores || []) { ctx.fillStyle = core.sealed ? '#caa4ff' : '#f5f1ff'; ctx.shadowColor = '#d0a0ff'; ctx.shadowBlur = 14; ctx.beginPath(); ctx.arc(core.x, core.y, 13 + Math.sin(boss.time * .12) * 2, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0; ctx.fillStyle = '#28132f'; ctx.beginPath(); ctx.arc(core.x, core.y, 5, 0, Math.PI * 2); ctx.fill(); if (Math.hypot(boss.player.x - core.x, boss.player.y - core.y) < 48 && !core.sealed) { ctx.fillStyle = '#fff'; ctx.font = 'bold 10px Arial'; ctx.textAlign = 'center'; ctx.fillText('[TAP / E] SEAL CORE', core.x, core.y - 22); } }
     for (const nest of boss.nests || []) { ctx.fillStyle = nest.sealed ? '#d79cff' : '#6d1d3e'; ctx.shadowColor = nest.sealed ? '#ddaaff' : '#d4476c'; ctx.shadowBlur = 12; ctx.beginPath(); ctx.arc(nest.x, nest.y, 21 + Math.sin(boss.time * .08 + nest.x) * 3, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0; ctx.strokeStyle = '#ff9cb4'; ctx.lineWidth = 2; ctx.stroke(); if (Math.hypot(boss.player.x - nest.x, boss.player.y - nest.y) < 54 && !nest.sealed) { ctx.fillStyle = '#fff'; ctx.font = 'bold 10px Arial'; ctx.textAlign = 'center'; ctx.fillText('[TAP / E] SEAL NEST', nest.x, nest.y - 29); } }
@@ -2907,7 +2976,14 @@ function drawCalebBossEncounter() {
     for (const shot of boss.shots || []) { ctx.fillStyle = shot.type === 'leb' ? '#ff8b9c' : '#ffa94f'; ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = 10; ctx.beginPath(); ctx.arc(shot.x, shot.y, shot.r, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0; }
     for (const eye of boss.eyeRain || []) { ctx.fillStyle = '#f5efff'; ctx.strokeStyle = '#9d4d83'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(eye.x, eye.y, eye.r, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); ctx.fillStyle = '#210916'; ctx.beginPath(); ctx.arc(eye.x, eye.y, 5, 0, Math.PI * 2); ctx.fill(); }
     for (const enemy of boss.schiminis || []) { ctx.fillStyle = '#71213e'; ctx.beginPath(); ctx.arc(enemy.x, enemy.y, 13, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(enemy.x - 4, enemy.y - 2, 2, 0, Math.PI * 2); ctx.arc(enemy.x + 4, enemy.y - 2, 2, 0, Math.PI * 2); ctx.fill(); }
-    if (boss.mode === 'caleb') { const eyes = getCalebEyePoints(boss), body = boss.caleb; calebBossImage(bossImages.caleb, body.x, body.y, body.size, body.size, Math.sin(boss.time * .03) * .012, boss.flash > 0 ? .62 : 1); calebBossImage(bossImages.leftHand, body.x - body.size * .69, body.y + 46, 145, 145, boss.slam ? -.16 : .05); calebBossImage(bossImages.rightHand, body.x + body.size * .69, body.y + 46, 145, 145, boss.slam ? .16 : -.05); if (boss.phase === 'eyesOn') eyes.forEach(eye => { ctx.fillStyle = 'rgba(7,0,9,.96)'; ctx.shadowColor = '#ff436e'; ctx.shadowBlur = 18; ctx.beginPath(); ctx.arc(eye.x, eye.y, body.size * .092, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0; ctx.strokeStyle = '#ff99aa'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(eye.x, eye.y, body.size * .115, 0, Math.PI * 2); ctx.stroke(); }); else eyes.forEach(eye => { ctx.strokeStyle = '#fff7fb'; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(eye.x, eye.y, body.size * .09, 0, Math.PI * 2); ctx.stroke(); }); }
+    if (boss.mode === 'caleb') {
+        const eyes = getCalebEyePoints(boss), body = boss.caleb, activeHand = boss.sweep?.side || boss.slam?.side;
+        if (activeHand !== 'left') { const hand = getCalebHandPose(boss, 'left'); calebBossImage(bossImages.leftHand, hand.x, hand.y, 132, 132, hand.angle); }
+        if (activeHand !== 'right') { const hand = getCalebHandPose(boss, 'right'); calebBossImage(bossImages.rightHand, hand.x, hand.y, 132, 132, hand.angle); }
+        calebBossImage(bossImages.caleb, body.x, body.y, body.size, body.size, Math.sin(boss.time * .03) * .012, boss.flash > 0 ? .62 : 1);
+        if (activeHand) { const hand = getCalebHandPose(boss, activeHand); calebBossImage(activeHand === 'left' ? bossImages.leftHand : bossImages.rightHand, hand.x, hand.y, 142, 142, hand.angle); }
+        if (boss.phase === 'eyesOn') eyes.forEach(eye => { ctx.fillStyle = 'rgba(7,0,9,.96)'; ctx.shadowColor = '#ff436e'; ctx.shadowBlur = 18; ctx.beginPath(); ctx.arc(eye.x, eye.y, body.size * .092, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0; ctx.strokeStyle = '#ff99aa'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(eye.x, eye.y, body.size * .115, 0, Math.PI * 2); ctx.stroke(); }); else eyes.forEach(eye => { ctx.strokeStyle = '#fff7fb'; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(eye.x, eye.y, body.size * .09, 0, Math.PI * 2); ctx.stroke(); });
+    }
     else if (boss.mode === 'split') { if (boss.cal) calebBossImage(bossImages.cal, boss.cal.x, boss.cal.y, boss.cal.size, boss.cal.size * 2.18, Math.sin(boss.time * .06) * .03); if (boss.leb) calebBossImage(bossImages.leb, boss.leb.x, boss.leb.y, boss.leb.size, boss.leb.size * 2.18, -Math.sin(boss.time * .055) * .03); }
     drawCalebBossPlayer(boss);
     ctx.fillStyle = '#ffe1e8'; ctx.font = 'bold 20px Arial'; ctx.textAlign = 'center'; ctx.fillText(boss.mode === 'split' ? 'THE BROKEN BODY' : 'CALEB', width / 2, 32);
