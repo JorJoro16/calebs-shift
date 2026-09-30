@@ -124,7 +124,7 @@ function playNizarCrashSound() {
 }
 
 // Versioned local progress with a backup copy and import/export support.
-const GAME_VERSION = '2.15.0';
+const GAME_VERSION = '2.16.0';
 const SAVE_SCHEMA_VERSION = 10;
 const COSMETIC_REWARD_VERSION = 2;
 const SAVE_KEY = 'br_save_v2';
@@ -1690,7 +1690,7 @@ let forestCabins = [], forestBreakers = [], forestTrees = [], forestBeaconBatter
 let amineHoles = [], amineFireZones = [], amineExitGate = null, amineFocus = false, amineVisibleTimer = 0, amineFlashCooldown = 0, amineTeleportCooldown = 0, amineTurret = null, amineBullets = [], amineBurnTimer = 0, amineRoad = null;
 let subwayPanels = [], subwayTrains = [], subwayTrackRows = [], subwayTrackSegments = [], subwayTrap = null, subwayControl = null, subwayRouteReady = false, subwayTrapArmed = false, subwayTrainWarning = 0, subwayTrainTriggered = false, subwayDecor = [], subwaySigns = [], subwayCommitTimer = 0, subwayCommitTarget = null, subwayRouteMinX = 0, subwayRouteMaxX = 0, subwayTrainPaths = [], subwayControlPuzzle = null;
 let subwayTornTicket = null, subwayGoldSphere = null, subwayBronzeEligible = true, subwayFareCutscene = null, subwayGoldPressure = null;
-let lucasFragments = [], lucasLevers = [], lucasAltar = null, lucasGate = null, lucasShadow = null, lucasArrows = [], lucasShadowPools = [], lucasRouteLocks = [], lucasLockSpots = [], lucasHazards = [], lucasMonsterStart = null, lucasState = 'searching', lucasObjectiveStage = 'fragment1', lucasAbilityCooldown = 0, lucasPoolCooldown = 0, lucasCharge = null, lucasPull = null, lucasCarryFragment = null, lucasGateEndTimer = 0;
+let lucasFragments = [], lucasLevers = [], lucasAltar = null, lucasGate = null, lucasShadow = null, lucasArrows = [], lucasShadowPools = [], lucasRouteLocks = [], lucasLockSpots = [], lucasHazards = [], lucasMonsterStart = null, lucasState = 'searching', lucasObjectiveStage = 'fragment1', lucasAbilityCooldown = 0, lucasPoolCooldown = 0, lucasTeleportFlash = null, lucasCharge = null, lucasPull = null, lucasCarryFragment = null, lucasFragmentPuzzle = null, lucasEndingAnimation = null, lucasGateEndTimer = 0;
 let routeBoard = null;
 const nizarCrashAudio = new Audio('assets/WallCrashSoundEffect.mp3');
 nizarCrashAudio.preload = 'auto';
@@ -1948,6 +1948,201 @@ function beginSimonPuzzle() {
     state = 10; const length = 4;
     simonSequence = []; for(let i=0;i<length;i++){let next=Math.floor(Math.random()*4);while(i&&next===simonSequence[i-1])next=Math.floor(Math.random()*4);simonSequence.push(next);} simonRound = 1; simonInput = 0; simonShowIndex = 0; simonTimer = 38; simonPhase = 'show'; simonFlashChoice = -1; simonFlashTimer = 0;
 }
+
+function setLucasOverlay(visible) {
+    hud.style.display = visible ? 'none' : 'block';
+    document.getElementById('mapTaskHUD').style.display = visible ? 'none' : 'block';
+    document.getElementById('hotelTaskHUD').style.display = 'none';
+    document.getElementById('mapButton').style.display = visible ? 'none' : '';
+    document.getElementById('amineRoadControls').style.display = 'none';
+}
+
+function beginLucasFragmentPuzzle(fragment) {
+    if (!fragment || currentMapId !== 'lucas' || state !== 1) return;
+    clearMovementKeys();
+    lucasFragmentPuzzle = {
+        fragment,
+        time:0,
+        maxTime:720,
+        fragmentY:canvas.height - 168,
+        bottomY:canvas.height - 168,
+        topY:112,
+        pointerY:canvas.height - 70,
+        pointerActive:false,
+        stable:0
+    };
+    state = 16;
+    setLucasOverlay(true);
+    playSound('unlock');
+}
+
+function recoverLucasFragment(fragment) {
+    if (!fragment) return;
+    fragment.collected = true;
+    fragment.carried = fragment.id === 3;
+    if (fragment.id === 1) {
+        lucasObjectiveStage = 'levers';
+        notify('THE FIRST FRAGMENT IS COLD · FIND THE THREE SHADOW RELAYS', 'unlock');
+    } else if (fragment.id === 2) {
+        const thirdFragment = lucasFragments.find(entry => entry.id === 3);
+        if (thirdFragment) thirdFragment.available = true;
+        lucasObjectiveStage = 'fragment3';
+        notify('THE UNDERPASS OPENS · THE LAST FRAGMENT MUST BE CARRIED', 'unlock');
+    } else if (fragment.id === 3) {
+        lucasCarryFragment = fragment;
+        lucasObjectiveStage = 'place';
+        notify('THE FRAGMENT RESISTS · CARRY IT TO THE CALEB VESSEL', 'danger');
+    }
+    playSound('success');
+    notify(`CALEB FRAGMENT ${lucasFragments.filter(entry => entry.collected).length}/${lucasFragments.length} RECOVERED`, 'unlock');
+    updateHUD();
+}
+
+function finishLucasFragmentPuzzle(won) {
+    if (!lucasFragmentPuzzle) return;
+    const fragment = lucasFragmentPuzzle.fragment;
+    lucasFragmentPuzzle = null;
+    state = 1;
+    setLucasOverlay(false);
+    if (won) recoverLucasFragment(fragment);
+    else {
+        fragment.collected = false;
+        fragment.carried = false;
+        fragment.available = true;
+        lucasAbilityCooldown = 90;
+        notify('THE FRAGMENT SLIPS AWAY · TRY AGAIN', 'warning');
+        updateHUD();
+    }
+}
+
+function updateLucasFragmentPointer(clientX, clientY, active = true) {
+    if (state !== 16 || !lucasFragmentPuzzle) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = (clientX - rect.left) * canvas.width / rect.width;
+    const y = (clientY - rect.top) * canvas.height / rect.height;
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+    lucasFragmentPuzzle.pointerY = Math.max(58, Math.min(canvas.height - 42, y));
+    lucasFragmentPuzzle.pointerActive = active;
+}
+
+function releaseLucasFragmentPointer() {
+    if (lucasFragmentPuzzle) lucasFragmentPuzzle.pointerActive = false;
+}
+
+function updateLucasFragmentPuzzle() {
+    if (!lucasFragmentPuzzle) return;
+    const puzzle = lucasFragmentPuzzle;
+    puzzle.time++;
+    if (puzzle.pointerActive && puzzle.pointerY > puzzle.fragmentY + 6) {
+        puzzle.fragmentY += Math.min(2.35, .9 + (puzzle.pointerY - puzzle.fragmentY) / 70);
+        puzzle.stable = puzzle.fragmentY >= puzzle.bottomY - 18 ? Math.min(300, puzzle.stable + 1.0) : Math.max(0, puzzle.stable - .25);
+    } else {
+        puzzle.fragmentY -= .88;
+        puzzle.stable = Math.max(0, puzzle.stable - .55);
+    }
+    puzzle.fragmentY = Math.min(puzzle.bottomY, puzzle.fragmentY);
+    if (puzzle.fragmentY <= puzzle.topY) { finishLucasFragmentPuzzle(false); return; }
+    if (puzzle.stable >= 300) { finishLucasFragmentPuzzle(true); return; }
+    if (puzzle.time >= puzzle.maxTime) finishLucasFragmentPuzzle(false);
+}
+
+function drawLucasFragmentPuzzle() {
+    const puzzle = lucasFragmentPuzzle;
+    if (!puzzle) return;
+    const cx = canvas.width / 2;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const bg = ctx.createLinearGradient(0, 0, 0, canvas.height);
+    bg.addColorStop(0, '#08040e'); bg.addColorStop(.52, '#17102a'); bg.addColorStop(1, '#050308');
+    ctx.fillStyle = bg; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#ead5ff'; ctx.font = 'bold 22px Arial'; ctx.fillText('CALEB FRAGMENT', cx, 42);
+    ctx.fillStyle = '#bca4d4'; ctx.font = '14px Arial'; ctx.fillText('THE SHADOW IS PULLING IT UP', cx, 69);
+
+    const laneTop = 94, laneBottom = canvas.height - 102;
+    ctx.fillStyle = 'rgba(0,0,0,.48)'; ctx.fillRect(cx - 48, laneTop, 96, laneBottom - laneTop);
+    ctx.strokeStyle = 'rgba(217,176,255,.35)'; ctx.lineWidth = 3; ctx.strokeRect(cx - 48, laneTop, 96, laneBottom - laneTop);
+    ctx.strokeStyle = 'rgba(190,120,255,.7)'; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(cx, laneTop - 12); ctx.lineTo(cx, puzzle.fragmentY - 18); ctx.stroke();
+    ctx.fillStyle = '#050208'; ctx.beginPath(); ctx.arc(cx, laneTop - 10, 24 + Math.sin(puzzle.time * .08) * 3, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#9d5bd4'; ctx.lineWidth = 2; ctx.stroke();
+
+    const pulse = 1 + Math.sin(puzzle.time * .13) * .08;
+    ctx.save(); ctx.translate(cx, puzzle.fragmentY); ctx.rotate(.35);
+    ctx.fillStyle = 'rgba(217,176,255,.22)'; ctx.beginPath(); ctx.arc(0, 0, 31 * pulse, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#d7b0ff'; ctx.beginPath(); ctx.moveTo(0, -17 * pulse); ctx.lineTo(14 * pulse, 11 * pulse); ctx.lineTo(-14 * pulse, 12 * pulse); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = '#fff1ff'; ctx.lineWidth = 3; ctx.stroke(); ctx.restore();
+
+    if (puzzle.pointerActive) {
+        ctx.strokeStyle = '#8fffd1'; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(cx, puzzle.pointerY, 19, 0, Math.PI * 2); ctx.stroke();
+        ctx.fillStyle = 'rgba(143,255,209,.16)'; ctx.beginPath(); ctx.arc(cx, puzzle.pointerY, 28, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.fillStyle = '#8fffd1'; ctx.font = 'bold 16px Arial'; ctx.fillText('HOLD OR DRAG BELOW THE FRAGMENT', cx, canvas.height - 62);
+    ctx.fillStyle = '#263c38'; ctx.fillRect(cx - 140, canvas.height - 35, 280, 12);
+    ctx.fillStyle = '#8fffd1'; ctx.fillRect(cx - 140, canvas.height - 35, 280 * (puzzle.stable / 300), 12);
+    ctx.strokeStyle = '#c9ffe9'; ctx.lineWidth = 1; ctx.strokeRect(cx - 140, canvas.height - 35, 280, 12);
+    ctx.fillStyle = '#d9c7e9'; ctx.font = '12px Arial'; ctx.fillText(`PULL STABILITY · ${Math.round(puzzle.stable / 3)}%`, cx, canvas.height - 43);
+}
+
+function beginLucasEndingAnimation() {
+    lucasEndingAnimation = { time:0, duration:180 };
+    lucasState = 'dragging';
+    lucasGate.open = true;
+    state = 17;
+    clearMovementKeys();
+    setLucasOverlay(true);
+    canvas.classList.add('shake');
+    playSound('emp');
+    showStoryLine('THE SHADOW TAKES LUCAS.', 3300);
+}
+
+function updateLucasEndingAnimation() {
+    if (!lucasEndingAnimation) return;
+    lucasEndingAnimation.time++;
+    if (lucasEndingAnimation.time === 42 || lucasEndingAnimation.time === 112) playSound('tick');
+    if (lucasEndingAnimation.time >= lucasEndingAnimation.duration) {
+        canvas.classList.remove('shake');
+        lucasEndingAnimation = null;
+        endGame(true, monster);
+    }
+}
+
+function drawLucasEndingAnimation() {
+    const scene = lucasEndingAnimation;
+    if (!scene) return;
+    const t = scene.time;
+    const progress = Math.min(1, t / scene.duration);
+    const ease = progress * progress * (3 - 2 * progress);
+    const gateX = canvas.width * .73, gateY = canvas.height * .52;
+    const startX = canvas.width * .28, startY = canvas.height * .52;
+    const lucasX = startX + (gateX - 72 - startX) * ease;
+    const lucasY = startY + Math.sin(t * .18) * (12 * (1 - ease)) - ease * 7;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const bg = ctx.createRadialGradient(gateX, gateY, 10, gateX, gateY, Math.max(canvas.width, canvas.height) * .85);
+    bg.addColorStop(0, 'rgba(92,42,128,.25)'); bg.addColorStop(.5, '#09050f'); bg.addColorStop(1, '#020204');
+    ctx.fillStyle = bg; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#ead5ff'; ctx.font = 'bold 22px Arial'; ctx.textAlign = 'center'; ctx.fillText('THE SHADOW GATE', canvas.width / 2, 45);
+    ctx.fillStyle = '#ad94c7'; ctx.font = '14px Arial'; ctx.fillText('THE EXIT HAS CHOSEN ITS HUNTER', canvas.width / 2, 71);
+
+    ctx.save(); ctx.translate(gateX, gateY);
+    const gatePulse = 1 + Math.sin(t * .12) * .08;
+    ctx.fillStyle = 'rgba(0,0,0,.96)'; ctx.beginPath(); ctx.ellipse(0, 0, 70 * gatePulse, 118 * gatePulse, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#b76bea'; ctx.lineWidth = 4; ctx.beginPath(); ctx.ellipse(0, 0, 76 * gatePulse, 124 * gatePulse, 0, 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = 'rgba(237,202,255,.8)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(-6, 0, 58 * gatePulse, 108 * gatePulse, 0, 0, Math.PI * 2); ctx.stroke();
+    ctx.restore();
+
+    const pullWidth = 5 + ease * 9;
+    ctx.save(); ctx.shadowColor = '#d89bff'; ctx.shadowBlur = 20;
+    ctx.strokeStyle = '#e2b4ff'; ctx.lineWidth = pullWidth; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(gateX - 55, gateY); ctx.bezierCurveTo(gateX - 180, gateY - 40, lucasX + 135, lucasY + 40, lucasX, lucasY); ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,244,255,.9)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(gateX - 55, gateY); ctx.bezierCurveTo(gateX - 180, gateY + 24, lucasX + 135, lucasY - 32, lucasX, lucasY); ctx.stroke();
+    ctx.restore();
+
+    ctx.fillStyle = 'rgba(0,0,0,.45)'; ctx.beginPath(); ctx.ellipse(lucasX + 7, lucasY + 28, 30, 10, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#211c32'; ctx.beginPath(); ctx.arc(lucasX, lucasY, 28, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#c5a9ff'; ctx.lineWidth = 3; ctx.stroke();
+    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(lucasX - 9, lucasY - 4, 4, 0, Math.PI * 2); ctx.arc(lucasX + 9, lucasY - 4, 4, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#d8c2ff'; ctx.font = 'bold 13px Arial'; ctx.fillText('LUCAS', lucasX, lucasY - 42);
+    if (t > 125) { ctx.fillStyle = `rgba(255,255,255,${Math.min(.95, (t - 125) / 45)})`; ctx.fillRect(0, 0, canvas.width, canvas.height); }
+}
 function failGeneratorTask(label) {
     if (generatorFailureTarget !== currentGen) { generatorFailureTarget = currentGen; generatorFailureStreak = 0; }
     generatorFailureStreak++;
@@ -2149,25 +2344,7 @@ window.addEventListener('keydown', (e) => {
                 return;
             }
             if (nearLucasFragment) {
-                nearLucasFragment.collected = true;
-                nearLucasFragment.carried = nearLucasFragment.id === 3;
-                if (nearLucasFragment.id === 1) {
-                    const secondFragment = lucasFragments.find(fragment => fragment.id === 2);
-                    if (secondFragment) lucasObjectiveStage = 'levers';
-                    notify('THE FIRST FRAGMENT IS COLD · FIND THE THREE SHADOW RELAYS', 'unlock');
-                } else if (nearLucasFragment.id === 2) {
-                    const thirdFragment = lucasFragments.find(fragment => fragment.id === 3);
-                    if (thirdFragment) thirdFragment.available = true;
-                    lucasObjectiveStage = 'fragment3';
-                    notify('THE UNDERPASS OPENS · THE LAST FRAGMENT MUST BE CARRIED', 'unlock');
-                } else if (nearLucasFragment.id === 3) {
-                    lucasCarryFragment = nearLucasFragment;
-                    lucasObjectiveStage = 'place';
-                    notify('THE FRAGMENT RESISTS · CARRY IT TO THE CALEB VESSEL', 'danger');
-                }
-                playSound('success');
-                notify(`CALEB FRAGMENT ${lucasFragments.filter(fragment => fragment.collected).length}/${lucasFragments.length} RECOVERED`, 'unlock');
-                updateHUD();
+                beginLucasFragmentPuzzle(nearLucasFragment);
                 return;
             }
             if (nearLucasAltar) {
@@ -2383,6 +2560,7 @@ window.addEventListener('keyup', (e) => {
 
 function handleCanvasPress(clientX, clientY) {
     const rect=canvas.getBoundingClientRect(), x=(clientX-rect.left)*canvas.width/rect.width, y=(clientY-rect.top)*canvas.height/rect.height;
+    if (state === 16) { updateLucasFragmentPointer(clientX, clientY, true); return; }
     if (state === 14) {
         if (x < 132 && y > canvas.height - 92) { exitSubwayControlPuzzle(); return; }
         clickSubwayControlSwitch(x, y); return;
@@ -2404,11 +2582,34 @@ canvas.addEventListener('pointerdown', event => {
     if (event.pointerType === 'touch') return;
     handleCanvasPress(event.clientX, event.clientY);
 });
+canvas.addEventListener('pointermove', event => {
+    if (event.pointerType === 'touch' || state !== 16) return;
+    updateLucasFragmentPointer(event.clientX, event.clientY, true);
+});
+canvas.addEventListener('pointerup', event => {
+    if (event.pointerType !== 'touch') releaseLucasFragmentPointer();
+});
+canvas.addEventListener('pointercancel', event => {
+    if (event.pointerType !== 'touch') releaseLucasFragmentPointer();
+});
 canvas.addEventListener('touchstart', event => {
     const touch = event.changedTouches[0];
     if (!touch) return;
     event.preventDefault();
     handleCanvasPress(touch.clientX, touch.clientY);
+}, { passive:false });
+canvas.addEventListener('touchmove', event => {
+    if (state !== 16) return;
+    const touch = event.changedTouches[0];
+    if (!touch) return;
+    event.preventDefault();
+    updateLucasFragmentPointer(touch.clientX, touch.clientY, true);
+}, { passive:false });
+canvas.addEventListener('touchend', event => {
+    if (state === 16) { event.preventDefault(); releaseLucasFragmentPointer(); }
+}, { passive:false });
+canvas.addEventListener('touchcancel', event => {
+    if (state === 16) { event.preventDefault(); releaseLucasFragmentPointer(); }
 }, { passive:false });
 
 function rebuildFloors() {
@@ -4587,7 +4788,7 @@ function startGame(diffLevel) {
     boilerShutdown = false; boilerReadyShown = false; heatZones = []; heatEventCooldown = 360;
     rhysSealCollected = false; rhysTrapArmed = false; goopZones = []; goopShots = []; rhysSpitCooldown = 180; rhysDashTimer = 0; rhysChargeWindup = 0; rhysDashCooldown = 360; rhysEventCooldown = 900; rhysSweepTimer = 0; rhysSweepRadius = 0; rhysPressureZones = [];
     forestBeaconBattery = null; forestWatchtower = null; forestBeaconActive = false; forestFogTimer = 0; forestFogCooldown = currentMapId === 'forest' ? 720 : 0; forestGuideTimer = 0; forestGuideCooldown = currentMapId === 'forest' ? 1200 : 0; forestGuideMode = 'cabins'; noahCharge = null; noahLightningCooldown = 360; noahLightningZones = []; noahLightningPending = []; noahLightningWarning = 0; noahLightningFlashes = 0; noahShockTimer = 0; noahAppearanceWindow = 0;
-    amineFocus = false; amineVisibleTimer = 0; amineFlashCooldown = 90; amineTeleportCooldown = 240; amineTurret = null; amineBullets = []; amineBurnTimer = 0; amineRoad = null; nizarClones = []; nizarCloneCooldown = 2400; nizarCrush = null; nizarCrushCooldown = 900; subwayControlPuzzle = null; subwayFareCutscene = null; subwayGoldPressure = null; subwayTornTicket = null; subwayGoldSphere = null; subwayBronzeEligible = true; lucasState = 'searching'; lucasObjectiveStage = 'fragment1'; lucasAbilityCooldown = 300; lucasPoolCooldown = 0; lucasCharge = null; lucasPull = null; lucasCarryFragment = null; lucasRouteLocks = []; lucasHazards = []; lucasGateEndTimer = 0; luckyBlocks = [];
+    amineFocus = false; amineVisibleTimer = 0; amineFlashCooldown = 90; amineTeleportCooldown = 240; amineTurret = null; amineBullets = []; amineBurnTimer = 0; amineRoad = null; nizarClones = []; nizarCloneCooldown = 2400; nizarCrush = null; nizarCrushCooldown = 900; subwayControlPuzzle = null; subwayFareCutscene = null; subwayGoldPressure = null; subwayTornTicket = null; subwayGoldSphere = null; subwayBronzeEligible = true; lucasState = 'searching'; lucasObjectiveStage = 'fragment1'; lucasAbilityCooldown = 300; lucasPoolCooldown = 0; lucasTeleportFlash = null; lucasCharge = null; lucasPull = null; lucasCarryFragment = null; lucasFragmentPuzzle = null; lucasEndingAnimation = null; lucasRouteLocks = []; lucasHazards = []; lucasGateEndTimer = 0; luckyBlocks = [];
     hotelLockdownTimer = 0; hotelEventCooldown = currentMapId === 'hotel' ? 480 : 0; hotelLockdownActive = false; hotelBlockedDoor = null;
     bassamState = 'roaming'; bassamRevealPending = false; bassamTrapTaskId = null; bassamFakeTask = null; bassamFakeLine = ''; bassamAmbushActive = false; bassamRelentlessChase = false; bassamLostTimer = 0; bassamAmbushCooldown = 900; bassamDecoys = []; bassamDecoyCooldown = 600 + Math.floor(Math.random() * 601); hotelTaskGame = null; bassamStaffDepartment = ['FRONT DESK','MAINTENANCE','HOUSEKEEPING','KITCHEN'][Math.floor(Math.random() * 4)]; closeHotelDialogue();
     document.getElementById('hotelTaskHUD').style.display = currentMapId === 'hotel' ? 'block' : 'none';
@@ -5431,8 +5632,30 @@ function spawnLucasArrowBarrage() {
     notify('LUCAS OPENS A SHADOW LANE', 'danger');
 }
 
+function teleportLucasToPlayerShadow() {
+    if (currentMapId !== 'lucas' || !monster || player.hidden) return false;
+    const choices = floors.filter(tile => {
+        const x = tile.c * TS + TS / 2, y = tile.r * TS + TS / 2;
+        return Math.hypot(player.x - x, player.y - y) > 100 && Math.hypot(player.x - x, player.y - y) < 285
+            && !isSafeRoom(x, y) && !isReservedObjectSpot(x, y, TS * 1.25) && !isDynamicBlockedCell(tile.c, tile.r);
+    });
+    const tile = choices[Math.floor(Math.random() * Math.max(1, choices.length))];
+    if (!tile) return false;
+    monster.x = tile.c * TS + TS / 2;
+    monster.y = tile.r * TS + TS / 2;
+    monster.path = [];
+    monster.lastTargetC = -1;
+    monster.lastTargetR = -1;
+    lucasTeleportFlash = { x:monster.x, y:monster.y, life:54 };
+    lucasPoolCooldown = 240;
+    notify('LUCAS EMERGES FROM A SHADOW NEAR YOU', 'danger');
+    return true;
+}
+
 function updateLucasHazards() {
     if (currentMapId !== 'lucas' || state !== 1) return;
+    if (lucasTeleportFlash?.life > 0) lucasTeleportFlash.life--;
+    if (lucasTeleportFlash && lucasTeleportFlash.life <= 0) lucasTeleportFlash = null;
     for (const lock of lucasRouteLocks) lock.life--;
     lucasRouteLocks = lucasRouteLocks.filter(lock => lock.life > 0);
     for (const hazard of lucasHazards) {
@@ -5479,11 +5702,7 @@ function updateLucasMonster() {
     if (lucasState === 'blocking') {
         monster.x = lucasGate.blockX; monster.y = lucasGate.blockY;
         if (canSeePlayer && Math.hypot(player.x - monster.x, player.y - monster.y) < 620) {
-            lucasState = 'dragging'; lucasGate.open = true; state = 8; clearMovementKeys();
-            canvas.classList.add('shake'); playSound('emp');
-            showStoryLine('THE SHADOW TAKES LUCAS.', 1900);
-            updateHUD();
-            setTimeout(() => { canvas.classList.remove('shake'); if (state === 8) endGame(true, monster); }, 1900);
+            beginLucasEndingAnimation();
         }
         return true;
     }
@@ -5504,13 +5723,15 @@ function updateLucasMonster() {
     }
     const distance = Math.hypot(player.x - monster.x, player.y - monster.y);
     const playerPool = lucasShadowPools.find(pool => Math.hypot(player.x - pool.x, player.y - pool.y) < pool.radius);
-    if (playerPool && lucasPoolCooldown <= 0 && distance > 240) {
-        const destinations = lucasShadowPools.filter(pool => pool !== playerPool && Math.hypot(player.x - pool.x, player.y - pool.y) > 260);
-        const destination = destinations[Math.floor(Math.random() * Math.max(1, destinations.length))];
-        if (destination) {
-            monster.x = destination.x; monster.y = destination.y; monster.path = [];
-            lucasPoolCooldown = 360;
-            notify('LUCAS STEPS OUT OF A SHADOW POOL', 'danger');
+    if (lucasPoolCooldown <= 0 && distance > 180 && (playerPool || (lucasObjectiveStage !== 'fragment1' && ambienceClock % 360 === 0))) {
+        if (!teleportLucasToPlayerShadow() && playerPool) {
+            const destination = lucasShadowPools.find(pool => pool !== playerPool && Math.hypot(player.x - pool.x, player.y - pool.y) > 260);
+            if (destination) {
+                monster.x = destination.x; monster.y = destination.y; monster.path = [];
+                lucasTeleportFlash = { x:monster.x, y:monster.y, life:54 };
+                lucasPoolCooldown = 240;
+                notify('LUCAS STEPS OUT OF A SHADOW POOL', 'danger');
+            }
         }
     }
     if (canSeePlayer && lucasAbilityCooldown <= 0 && distance > 130 && distance < 650 && Math.random() < .032) {
@@ -5618,6 +5839,8 @@ function separateMonsters() {
 
 function update() {
     if (mobileMenuPaused || hotelDialogueOpen) return;
+    if (state === 16) { updateLucasFragmentPuzzle(); return; }
+    if (state === 17) { updateLucasEndingAnimation(); return; }
     if (state === 14) { updateSubwayControlPuzzle(); return; }
     if (state === 15) { updateSubwayFareCutscene(); return; }
     if (![1,3,5,6,7,9,10,11,13].includes(state)) return;
@@ -6076,6 +6299,8 @@ function update() {
 
 function draw() {
     if (state === 11 && amineRoad) { drawAmineRoadChase(); return; }
+    if (state === 16 && lucasFragmentPuzzle) { drawLucasFragmentPuzzle(); return; }
+    if (state === 17 && lucasEndingAnimation) { drawLucasEndingAnimation(); return; }
     if (state === 14 && subwayControlPuzzle) { drawSubwayControlPuzzle(); return; }
     if (state === 15 && subwayFareCutscene) { drawSubwayFareCutscene(); return; }
     if (state === 0 || state === 4) {
@@ -6146,6 +6371,13 @@ function draw() {
             ctx.save(); ctx.translate(hazard.x, hazard.y); ctx.rotate(Math.atan2(hazard.vy, hazard.vx));
             ctx.fillStyle = 'rgba(209,157,255,.9)'; ctx.shadowColor = '#bd75ff'; ctx.shadowBlur = 12;
             ctx.beginPath(); ctx.moveTo(13, 0); ctx.lineTo(-9, -5); ctx.lineTo(-5, 0); ctx.lineTo(-9, 5); ctx.closePath(); ctx.fill(); ctx.restore();
+        }
+        if (lucasTeleportFlash) {
+            const flashProgress = 1 - lucasTeleportFlash.life / 54;
+            ctx.strokeStyle = `rgba(221,174,255,${Math.max(0, 1 - flashProgress)})`; ctx.lineWidth = 5;
+            ctx.beginPath(); ctx.arc(lucasTeleportFlash.x, lucasTeleportFlash.y, 18 + flashProgress * 44, 0, Math.PI * 2); ctx.stroke();
+            ctx.strokeStyle = `rgba(255,240,255,${Math.max(0, .7 - flashProgress)})`; ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.arc(lucasTeleportFlash.x, lucasTeleportFlash.y, 8 + flashProgress * 26, 0, Math.PI * 2); ctx.stroke();
         }
         for (const lever of lucasLevers) {
             ctx.fillStyle = lever.active ? '#a7ffcc' : '#7a4e9e'; ctx.fillRect(lever.x - 10, lever.y - 14, 20, 28);
@@ -6965,7 +7197,7 @@ function updateMobileSkillCheckButton() {
         if (puzzlePad) puzzlePad.style.display = (state === 2 || state === 6) ? 'grid' : 'none';
         const touchActions = document.querySelector('.touch-actions');
         const joystickElement = document.getElementById('joystick');
-        const canvasPuzzle = state === 9 || state === 10 || state === 11 || state === 14;
+        const canvasPuzzle = state === 9 || state === 10 || state === 11 || state === 14 || state === 16 || state === 17;
         if (touchActions) touchActions.style.visibility = canvasPuzzle ? 'hidden' : 'visible';
         if (joystickElement) joystickElement.style.visibility = canvasPuzzle ? 'hidden' : 'visible';
         updateMobileSkillCheckButton();

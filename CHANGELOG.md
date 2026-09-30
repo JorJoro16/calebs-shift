@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.16.0
+- Added a touch/mouse pull-down fragment minigame that pauses the Lucas area when a Caleb fragment is recovered.
+- Made Lucas emerge from a visible shadow pulse near the player more often, especially after the final fragment is being carried.
+- Replaced the Lucas gate dialogue-only ending with a shaking shadow-gate animation: a glowing tether extends from the gate and pulls Lucas into the darkness while the existing dialogue remains.
+- Added mobile canvas drag/hold input for the fragment challenge and hid normal movement controls while the challenge or ending animation is active.
+- Bumped the offline cache to `calebs-shift-v77`.
+
 ## 2.15.0
 - Reworked The Shadow Gate into a larger, seven-room Lucas route with distinct archive, service, underpass, transit yard, vessel, and exit areas.
 - Added staged Caleb fragment progression: first recovery, three shadow relays, second fragment release, and a slowed carry objective for the final fragment.
