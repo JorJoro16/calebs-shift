@@ -124,7 +124,7 @@ function playNizarCrashSound() {
 }
 
 // Versioned local progress with a backup copy and import/export support.
-const GAME_VERSION = '2.16.0';
+const GAME_VERSION = '2.16.1';
 const SAVE_SCHEMA_VERSION = 10;
 const COSMETIC_REWARD_VERSION = 2;
 const SAVE_KEY = 'br_save_v2';
@@ -5633,13 +5633,27 @@ function spawnLucasArrowBarrage() {
 }
 
 function teleportLucasToPlayerShadow() {
-    if (currentMapId !== 'lucas' || !monster || player.hidden) return false;
-    const choices = floors.filter(tile => {
+    // Give the player a real opening before Lucas can use the shadow shortcut.
+    // This also prevents a shadow pool in the starting area from feeling like
+    // an immediate ambush.
+    if (currentMapId !== 'lucas' || !monster || player.hidden || ambienceClock < 600) return false;
+    const minDistance = TS * 6;
+    const maxDistance = TS * 13;
+    const playerRoom = getRoomAt(player.x, player.y);
+    const isValidTile = (tile, requireDifferentRoom) => {
         const x = tile.c * TS + TS / 2, y = tile.r * TS + TS / 2;
-        return Math.hypot(player.x - x, player.y - y) > 100 && Math.hypot(player.x - x, player.y - y) < 285
+        const distance = Math.hypot(player.x - x, player.y - y);
+        const targetRoom = getRoomAt(x, y);
+        const differentRoom = playerRoom ? targetRoom && targetRoom !== playerRoom : targetRoom;
+        return distance >= minDistance && distance <= maxDistance
+            && (!requireDifferentRoom || differentRoom)
             && !isSafeRoom(x, y) && !isReservedObjectSpot(x, y, TS * 1.25) && !isDynamicBlockedCell(tile.c, tile.r);
-    });
-    const tile = choices[Math.floor(Math.random() * Math.max(1, choices.length))];
+    };
+    // Prefer a genuinely different room. The fallback still keeps the larger
+    // distance when the player is in a corridor or the map has a tight layout.
+    const choices = floors.filter(tile => isValidTile(tile, true));
+    const fallbackChoices = choices.length ? choices : floors.filter(tile => isValidTile(tile, false));
+    const tile = fallbackChoices[Math.floor(Math.random() * Math.max(1, fallbackChoices.length))];
     if (!tile) return false;
     monster.x = tile.c * TS + TS / 2;
     monster.y = tile.r * TS + TS / 2;
@@ -5648,7 +5662,8 @@ function teleportLucasToPlayerShadow() {
     monster.lastTargetR = -1;
     lucasTeleportFlash = { x:monster.x, y:monster.y, life:54 };
     lucasPoolCooldown = 240;
-    notify('LUCAS EMERGES FROM A SHADOW NEAR YOU', 'danger');
+    monster.stunTimer = Math.max(monster.stunTimer || 0, 18);
+    notify('LUCAS EMERGES FROM A DISTANT SHADOW', 'danger');
     return true;
 }
 
@@ -5723,9 +5738,16 @@ function updateLucasMonster() {
     }
     const distance = Math.hypot(player.x - monster.x, player.y - monster.y);
     const playerPool = lucasShadowPools.find(pool => Math.hypot(player.x - pool.x, player.y - pool.y) < pool.radius);
-    if (lucasPoolCooldown <= 0 && distance > 180 && (playerPool || (lucasObjectiveStage !== 'fragment1' && ambienceClock % 360 === 0))) {
+    if (ambienceClock >= 600 && lucasPoolCooldown <= 0 && distance > 180 && (playerPool || (lucasObjectiveStage !== 'fragment1' && ambienceClock % 360 === 0))) {
         if (!teleportLucasToPlayerShadow() && playerPool) {
-            const destination = lucasShadowPools.find(pool => pool !== playerPool && Math.hypot(player.x - pool.x, player.y - pool.y) > 260);
+            const playerRoom = getRoomAt(player.x, player.y);
+            const destinations = lucasShadowPools.filter(pool => {
+                const poolDistance = Math.hypot(player.x - pool.x, player.y - pool.y);
+                const poolRoom = getRoomAt(pool.x, pool.y);
+                return pool !== playerPool && poolDistance >= TS * 6
+                    && (!playerRoom || (poolRoom && poolRoom !== playerRoom));
+            });
+            const destination = destinations[Math.floor(Math.random() * Math.max(1, destinations.length))];
             if (destination) {
                 monster.x = destination.x; monster.y = destination.y; monster.path = [];
                 lucasTeleportFlash = { x:monster.x, y:monster.y, life:54 };
