@@ -282,7 +282,7 @@ calebBossMusic.addEventListener('ended', () => {
 });
 
 // Versioned local progress with a backup copy and import/export support.
-const GAME_VERSION = '2.18.14';
+const GAME_VERSION = '2.18.16';
 const SAVE_SCHEMA_VERSION = 10;
 const COSMETIC_REWARD_VERSION = 2;
 const SAVE_KEY = 'br_save_v2';
@@ -362,6 +362,15 @@ function normalizeCosmetics(value) {
     const allCosmetics = [...colors, ...trails, ...hats, ...masks, ...skins];
     const unlocked = Array.isArray(source.unlocked) ? source.unlocked.filter(id => allCosmetics.includes(id)) : [];
     const legacyMask = masks.includes(source.mask) ? source.mask : masks.includes(source.hat) ? source.hat : 'none';
+    const savedMapMastery = source.mapMastery && typeof source.mapMastery === 'object' ? source.mapMastery : {};
+    const savedCampaignCleared = Array.isArray(source.campaignCleared) ? source.campaignCleared.filter(id => MAP_DEFINITIONS[id]) : [];
+    const lucasMasteryCleared = Array.isArray(savedMapMastery.lucas) && savedMapMastery.lucas.some(Boolean);
+    // Older saves can have a completed Lucas run in map mastery without the
+    // campaign-clear marker. Repair that record so the boss replay choice is
+    // available without asking players to repeat the level.
+    if (lucasMasteryCleared && !savedCampaignCleared.includes('lucas')) {
+        savedCampaignCleared.push('lucas');
+    }
     return {
         color: colors.includes(source.color) ? source.color : 'blue',
         trail: trails.includes(source.trail) ? source.trail : 'none',
@@ -437,10 +446,11 @@ function normalizeProgress(raw) {
         cosmetics: normalizeCosmetics(source.cosmetics),
         stats: normalizeStats(source.stats),
         unlockedMaps: Array.from(new Set(['level0', ...unlockedMaps])),
-        campaignCleared: Array.isArray(source.campaignCleared) ? source.campaignCleared.filter(id => MAP_DEFINITIONS[id]) : [],
+        campaignCleared: Array.from(new Set(savedCampaignCleared)),
+        lucasBossUnlocked: Boolean(source.lucasBossUnlocked) || lucasMasteryCleared || savedCampaignCleared.includes('lucas'),
         selectedLoadout: LOADOUT_DEFINITIONS[source.selectedLoadout] || /^custom[123]$/.test(source.selectedLoadout) ? source.selectedLoadout : 'free',
         customLoadouts: Array.isArray(source.customLoadouts) ? source.customLoadouts.slice(0, 3).map(normalizeCustomLoadout) : [{}, {}, {}],
-        mapMastery: source.mapMastery && typeof source.mapMastery === 'object' ? source.mapMastery : {},
+        mapMastery: savedMapMastery,
         mapIntel: Array.isArray(source.mapIntel) ? source.mapIntel.filter(id => MAP_DEFINITIONS[id]) : [],
         cosmeticRewardVersion: boundedInt(source.cosmeticRewardVersion, 0, COSMETIC_REWARD_VERSION, 0),
         daily: { date: String(dailySource.date || ''), objectives: dailyObjectives, bonusClaimed: Boolean(dailySource.bonusClaimed) }
@@ -492,6 +502,7 @@ let cosmetics = normalizeCosmetics(loadedProgress.cosmetics);
 let stats = normalizeStats(loadedProgress.stats);
 let unlockedMaps = loadedProgress.unlockedMaps || ['level0'];
 let campaignCleared = loadedProgress.campaignCleared || [];
+let lucasBossUnlocked = Boolean(loadedProgress.lucasBossUnlocked);
 let selectedLoadout = loadedProgress.selectedLoadout || 'free';
 let customLoadouts = loadedProgress.customLoadouts || [{}, {}, {}];
 let runLoadoutRemaining = null;
@@ -509,7 +520,11 @@ let setVolM = localStorage.getItem('br_volM') || 100;
 let setVolS = localStorage.getItem('br_volS') || 100;
 
 function currentProgress() {
-    return { tokens, upgShoe, upgHack, upgQuick, upgCoin, upgDash, invAdrenaline, invFlashbang, invNoiseMaker, invBearTrap, invBattery, invBreathFilter, invSignalScrambler, invNeutralizer, invRepairKit, invFlare, cosmetics, stats, unlockedMaps, campaignCleared, selectedLoadout, customLoadouts, mapMastery, mapIntel, cosmeticRewardVersion, daily };
+    return { tokens, upgShoe, upgHack, upgQuick, upgCoin, upgDash, invAdrenaline, invFlashbang, invNoiseMaker, invBearTrap, invBattery, invBreathFilter, invSignalScrambler, invNeutralizer, invRepairKit, invFlare, cosmetics, stats, unlockedMaps, campaignCleared, lucasBossUnlocked, selectedLoadout, customLoadouts, mapMastery, mapIntel, cosmeticRewardVersion, daily };
+}
+
+function hasLucasCampaignClear() {
+    return lucasBossUnlocked || campaignCleared.includes('lucas') || (Array.isArray(mapMastery?.lucas) && mapMastery.lucas.some(Boolean));
 }
 
 function syncEndlessCosmeticUnlocks() {
@@ -1703,7 +1718,7 @@ function selectMap(mapId) {
     if (gameMode === 'campaign' && MAP_DEFINITIONS[mapId].campaignOrder > campaignCleared.length) return;
     currentMapId = mapId;
     campaignStartAtBoss = false;
-    if (gameMode === 'campaign' && mapId === 'lucas' && campaignCleared.includes('lucas')) {
+    if (gameMode === 'campaign' && mapId === 'lucas' && hasLucasCampaignClear()) {
         showMenu('lucasCampaignChoice');
         return;
     }
@@ -1715,7 +1730,7 @@ function selectMap(mapId) {
 }
 
 function chooseLucasCampaignStart(startAtBoss) {
-    if (gameMode !== 'campaign' || currentMapId !== 'lucas' || !campaignCleared.includes('lucas')) {
+    if (gameMode !== 'campaign' || currentMapId !== 'lucas' || !hasLucasCampaignClear()) {
         showMenu('mapMenu');
         return;
     }
@@ -2147,7 +2162,7 @@ function beginLucasShadowEvent() {
     lucasShadowEvent = {
         phase: 'survive',
         time: 0,
-        duration: 1800,
+        duration: 900,
         bounds,
         returnX: player.x,
         returnY: player.y,
@@ -2664,6 +2679,13 @@ function getCalebHandPose(boss, side) {
 }
 
 function beginCalebBossIntro() {
+    // Reaching the gate is the completion of Lucas's level. Persist this
+    // separately from the full campaign clear so players can replay the
+    // boss even if they have not defeated Caleb yet.
+    if (!lucasBossUnlocked) {
+        lucasBossUnlocked = true;
+        saveData();
+    }
     monster.name = 'CALEB';
     monster.color = '#85001b'; monster.textColor = '#ffb4c7'; monster.r = 28; monster.drawRadius = 28;
     calebBoss = { introTime:0, introDuration:190, arena:calebBossArena(), player:{ x:canvas.width / 2, y:canvas.height * .78 }, playerTrail:[], playerInvuln:0 };
@@ -3944,29 +3966,7 @@ window.addEventListener('keydown', (e) => {
                 beginLucasFragmentPuzzle(nearLucasFragment);
                 return;
             }
-            if (nearLucasAltar) {
-                if (!lucasFragments.length || !lucasFragments.every(fragment => fragment.collected)) {
-                    notify('THE CALEB VESSEL NEEDS ALL THREE FRAGMENTS', 'warning');
-                    return;
-                }
-                if (!lucasCarryFragment || lucasCarryFragment.id !== 3) {
-                    notify('THE LAST FRAGMENT MUST BE CARRIED HERE BY HAND', 'warning');
-                    return;
-                }
-                if (!lucasAltar.placed) {
-                    lucasCarryFragment.carried = false;
-                    lucasCarryFragment = null;
-                    lucasAltar.placed = true;
-                    lucasObjectiveStage = 'gate';
-                    lucasState = 'runningToGate';
-                    lucasGate.open = false;
-                    monster.path = [];
-                    notify('THE FRAGMENTS HUM · LUCAS RUNS FOR THE GATE', 'danger');
-                    playSound('alarm');
-                    updateHUD();
-                }
-                return;
-            }
+            if (nearLucasAltar) { interactWithLucasAltar(); return; }
         }
         if (currentMapId === 'amine' && activeGens >= totalGens && amineExitGate && Math.hypot(player.x-amineExitGate.x,player.y-amineExitGate.y)<44) { beginAmineFinalChase(); return; }
         if (currentMapId === 'subway' && subwayTornTicket && !subwayTornTicket.collected && Math.hypot(player.x - subwayTornTicket.x, player.y - subwayTornTicket.y) < 34) {
@@ -4155,10 +4155,39 @@ window.addEventListener('keyup', (e) => {
     if (k === 'b') player.breathing = false;
 });
 
+function interactWithLucasAltar() {
+    if (state !== 1 || currentMapId !== 'lucas' || !lucasAltar || lucasAltar.placed) return false;
+    if (Math.hypot(player.x - lucasAltar.x, player.y - lucasAltar.y) >= 64) return false;
+    if (!lucasFragments.length || !lucasFragments.every(fragment => fragment.collected)) {
+        notify('THE CALEB VESSEL NEEDS ALL THREE FRAGMENTS', 'warning');
+        return true;
+    }
+    if (!lucasCarryFragment || lucasCarryFragment.id !== 3) {
+        notify('THE LAST FRAGMENT MUST BE CARRIED HERE BY HAND', 'warning');
+        return true;
+    }
+    lucasCarryFragment.carried = false;
+    lucasCarryFragment = null;
+    lucasAltar.placed = true;
+    lucasObjectiveStage = 'gate';
+    lucasState = 'runningToGate';
+    lucasGate.open = false;
+    monster.path = [];
+    notify('THE FRAGMENTS HUM · LUCAS RUNS FOR THE GATE', 'danger');
+    playSound('alarm');
+    updateHUD();
+    return true;
+}
+
 function handleCanvasPress(clientX, clientY) {
     const rect=canvas.getBoundingClientRect(), x=(clientX-rect.left)*canvas.width/rect.width, y=(clientY-rect.top)*canvas.height/rect.height;
     if (state === 16) { updateLucasFragmentPointer(clientX, clientY, true); return; }
     if (state === 20) { clickCalebBoss(clientX, clientY); return; }
+    if (state === 1 && currentMapId === 'lucas' && lucasAltar) {
+        const altarX = canvas.width / 2 + (lucasAltar.x - camera.x - canvas.width / 2) * camera.zoom;
+        const altarY = canvas.height / 2 + (lucasAltar.y - camera.y - canvas.height / 2) * camera.zoom;
+        if (Math.hypot(x - altarX, y - altarY) < 70) { interactWithLucasAltar(); return; }
+    }
     if (state === 14) {
         if (x < 132 && y > canvas.height - 92) { exitSubwayControlPuzzle(); return; }
         clickSubwayControlSwitch(x, y); return;
@@ -8867,7 +8896,13 @@ function updateMobileSkillCheckButton() {
         button.addEventListener('pointercancel', release);
     }
 
-    bindAction('touchInteract', 'e');
+    const interactButton = document.getElementById('touchInteract');
+    interactButton?.addEventListener('pointerdown', event => {
+        event.preventDefault();
+        if (state === 20) interactCalebBossAtPlayer();
+        else if (state === 1 && currentMapId === 'lucas' && nearLucasAltar) interactWithLucasAltar();
+        else triggerKey('e');
+    });
     bindHoldAction('amineRoadLeft', 'a');
     bindHoldAction('amineRoadRight', 'd');
     document.getElementById('amineRoadFire')?.addEventListener('pointerdown', event => { event.preventDefault(); fireAmineRoadWeapon(amineRoad?.aimX); });
@@ -8899,7 +8934,13 @@ function updateMobileSkillCheckButton() {
         const shadowDimension = state === 18;
         const bossFight = state === 20;
         const bossScene = state === 19 || state === 21 || state === 22;
-        if (touchActions) touchActions.style.visibility = canvasPuzzle || shadowDimension || bossFight || bossScene ? 'hidden' : 'visible';
+        if (touchActions) touchActions.style.visibility = canvasPuzzle || shadowDimension || bossScene ? 'hidden' : 'visible';
+        const touchInteract = document.getElementById('touchInteract');
+        const touchAbilities = document.getElementById('touchAbilities');
+        const touchItems = document.getElementById('touchItems');
+        if (touchInteract) touchInteract.style.display = bossScene || shadowDimension || canvasPuzzle ? 'none' : '';
+        if (touchAbilities) touchAbilities.style.display = bossFight ? 'none' : '';
+        if (touchItems) touchItems.style.display = bossFight ? 'none' : '';
         if (joystickElement) joystickElement.style.visibility = canvasPuzzle || bossScene ? 'hidden' : 'visible';
         updateMobileSkillCheckButton();
     }

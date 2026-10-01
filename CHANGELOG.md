@@ -1,5 +1,17 @@
 # Changelog
 
+## 2.18.16
+- Repaired older Lucas campaign saves that recorded a completed Lucas run in map mastery but not in the campaign-clear list.
+- Reaching Lucas's gate now saves a dedicated boss-replay unlock, so players do not need to defeat Caleb before the `START CALEB BOSS` choice appears.
+- The Lucas map now reliably shows the boss replay choice for any save with a completed Lucas record.
+- Bumped the offline cache so friends receive the menu/save fix after refreshing.
+
+## 2.18.15
+- Shortened the Lucas shadow dimension survival section from 30 seconds to 15 seconds.
+- Made the Caleb Vessel directly touchable on mobile and routed its mobile `E` action through a dedicated interaction handler.
+- Kept the mobile `E` button visible during Caleb’s boss fight so players can arm resonance switches; unrelated ability/item buttons are hidden there.
+- Routed mobile boss interaction directly to switches, eye cores, and Leb’s nests, then bumped the offline cache to `calebs-shift-v96`.
+
 ## 2.18.14
 - Fixed the boss intro crash caused by the same out-of-scope `playerColors` reference in `drawCalebBossPlayer()`.
 - Centralized player colors so the Lucas renderer, normal renderer, boss intro, boss fight, and victory scenes use the same safe table.

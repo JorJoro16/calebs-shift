@@ -218,8 +218,8 @@
     <div id="lucasCampaignChoice" class="menu-panel">
         <h2>LUCAS'S ROUTE</h2>
         <p style="font-size:13px;color:#aaa;line-height:1.45;margin:0;">You have already completed Lucas's level. Choose where this campaign run should begin.</p>
-        <button onclick="chooseLucasCampaignStart(false)">START LUCAS'S LEVEL<br><span style="font-size:12px;color:#aaa">Collect the fragments and open the gate.</span></button>
-        <button onclick="chooseLucasCampaignStart(true)" style="border-color:#c5a9ff;color:#e4d8ff;">START CALEB BOSS<br><span style="font-size:12px;color:#aaa">Skip straight to the boss encounter.</span></button>
+        <button onclick="chooseLucasCampaignStart(false)" ontouchend="event.preventDefault(); chooseLucasCampaignStart(false)">START LUCAS'S LEVEL<br><span style="font-size:12px;color:#aaa">Collect the fragments and open the gate.</span></button>
+        <button onclick="chooseLucasCampaignStart(true)" ontouchend="event.preventDefault(); chooseLucasCampaignStart(true)" style="border-color:#c5a9ff;color:#e4d8ff;">START CALEB BOSS<br><span style="font-size:12px;color:#aaa">Skip straight to the boss encounter.</span></button>
         <button onclick="showMenu('mapMenu')" style="margin-top:5px;border-color:#ff4444;color:#ff4444;">BACK TO MAPS</button>
     </div>
 
