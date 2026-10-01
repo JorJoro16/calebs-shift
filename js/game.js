@@ -8987,11 +8987,19 @@ if ('serviceWorker' in navigator) {
             const banner = document.getElementById('updateBanner');
             const updateButton = document.getElementById('updateButton');
             const showUpdate = () => { if (banner) banner.style.display = 'flex'; };
-            if (registration.waiting) showUpdate();
+            if (registration.waiting) {
+                // Recover automatically from an older cached build that cannot
+                // render the update button or respond to user input.
+                registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+                showUpdate();
+            }
             registration.addEventListener('updatefound', () => {
                 const worker = registration.installing;
                 worker?.addEventListener('statechange', () => {
-                    if (worker.state === 'installed' && navigator.serviceWorker.controller) showUpdate();
+                    if (worker.state === 'installed' && navigator.serviceWorker.controller) {
+                        worker.postMessage({ type: 'SKIP_WAITING' });
+                        showUpdate();
+                    }
                 });
             });
             updateButton?.addEventListener('click', () => {
