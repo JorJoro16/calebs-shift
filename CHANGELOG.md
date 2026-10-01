@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.18.19
+- Restored Cal’s original fire pattern.
+- Widened Caleb’s hand-spread volley and slightly reduced its projectile speed to create reliable dodge lanes.
+- Bumped the offline cache to `calebs-shift-v101`.
+- Added Caleb’s Crown and automatically unlocked it for existing Lucas boss victories.
+- Moved the Caleb intro text into a foreground title band so the boss sprite cannot cover it.
+
+## 2.18.18
+- Adjusted the wrong fire pattern; superseded by 2.18.19.
+
 ## 2.18.17
 - Fixed the Lucas save migration placement bug that could make the full progress save fail validation and load only the legacy partial save.
 - Bumped the offline cache again so every device receives the corrected save loader.

@@ -3,7 +3,7 @@
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 const PLAYER_COLORS = { blue:'#00f', crimson:'#d22', violet:'#a64dff', green:'#19c76b', amber:'#e7a21a', gold:'#e9ca35', sepia:'#800', white:'#f6f6f6' };
-const hatImages = { noahCap: new Image(), cowboyHat: new Image(), luffyHat: new Image(), krustyHat: new Image(), headlightHat: new Image() };
+const hatImages = { noahCap: new Image(), cowboyHat: new Image(), luffyHat: new Image(), krustyHat: new Image(), headlightHat: new Image(), calebCrown: new Image() };
 const maskImages = { idiotMask: new Image(), spongeMask: new Image(), jordanMask: new Image(), smileMask: new Image(), stopSignMask: new Image() };
 const skinImages = {
     trollFace: new Image(), generator: new Image(), trainSkin: new Image(),
@@ -22,6 +22,7 @@ maskImages.jordanMask.src = 'assets/jordan-mask.png';
 maskImages.smileMask.src = 'assets/smile-mask.png';
 maskImages.stopSignMask.src = 'assets/stop-sign-mask.png';
 hatImages.headlightHat.src = 'assets/headlight-hat.png';
+hatImages.calebCrown.src = 'assets/caleb-crown.png';
 skinImages.trollFace.src = 'assets/troll-face-skin.png';
 skinImages.generator.src = 'assets/generator-skin.png';
 skinImages.trainSkin.src = 'assets/train-skin.png';
@@ -282,7 +283,7 @@ calebBossMusic.addEventListener('ended', () => {
 });
 
 // Versioned local progress with a backup copy and import/export support.
-const GAME_VERSION = '2.18.17';
+const GAME_VERSION = '2.18.20';
 const SAVE_SCHEMA_VERSION = 10;
 const COSMETIC_REWARD_VERSION = 2;
 const SAVE_KEY = 'br_save_v2';
@@ -356,7 +357,7 @@ function normalizeCosmetics(value) {
     const source = value && typeof value === 'object' ? value : {};
     const colors = ['blue', 'crimson', 'violet', 'green', 'amber', 'gold', 'sepia', 'white'];
     const trails = ['none', 'spark', 'ghost', 'ember', 'static', 'circle', 'afterimage'];
-    const hats = ['none', 'noahCap', 'cowboyHat', 'luffyHat', 'krustyHat', 'headlightHat'];
+    const hats = ['none', 'noahCap', 'cowboyHat', 'luffyHat', 'krustyHat', 'headlightHat', 'calebCrown'];
     const masks = ['none', 'idiotMask', 'spongeMask', 'jordanMask', 'smileMask', 'stopSignMask'];
     const skins = ['default', 'trollFace', 'generator', 'trainSkin', 'bronzeSkin', 'silverSkin', 'goldSkin'];
     const allCosmetics = [...colors, ...trails, ...hats, ...masks, ...skins];
@@ -511,6 +512,9 @@ let mapIntel = loadedProgress.mapIntel || [];
 let cosmeticRewardVersion = loadedProgress.cosmeticRewardVersion || 0;
 let daily = loadedProgress.daily || { date: '', objectives: [], bonusClaimed: false };
 if (stats.generators >= 1000 && !cosmetics.unlocked.includes('generator')) cosmetics.unlocked.push('generator');
+if ((mapMastery.lucas || []).some(Boolean) || campaignCleared.includes('lucas')) {
+    if (!cosmetics.unlocked.includes('calebCrown')) cosmetics.unlocked.push('calebCrown');
+}
 
 // Settings Data
 let setFPS = localStorage.getItem('br_fps') === 'true';
@@ -957,7 +961,8 @@ function renderCosmetics() {
             { id:'cowboyHat', label:'Cowboy Hat', desc:'For surviving on your own terms.', how:'Complete a Challenge with no items equipped.', preview:'#d7a94b', image:'cowboy-hat.png' },
             { id:'luffyHat', label:'Luffy’s Straw Hat', desc:'A famous hat with a very specific number attached.', how:'Repair 56 generators across your career.', preview:'#e5bd43', image:'luffy-hat.png' },
             { id:'krustyHat', label:'Krusty Krab Hat', desc:'A hotel uniform for a dangerous assignment.', how:'Complete the hotel after accidentally completing Bassam’s task, then survive his chase for the rest of the run.', preview:'#4aa8e8', image:'krusty-krab-hat.png' },
-            { id:'headlightHat', label:'Headlight', desc:'A beam for finding the next platform in the dark.', how:'First earn the Stop Sign Mask. Then let three trains miss Nizar, let the passenger pass, and catch him.', preview:'#d8e8ff', image:'headlight-hat.png' }
+            { id:'headlightHat', label:'Headlight', desc:'A beam for finding the next platform in the dark.', how:'First earn the Stop Sign Mask. Then let three trains miss Nizar, let the passenger pass, and catch him.', preview:'#d8e8ff', image:'headlight-hat.png' },
+            { id:'calebCrown', label:'Caleb’s Crown', desc:'A crown for defeating the broken body above the arena.', how:'Defeat Caleb, Cal, and Leb in the Shadow Gate boss fight.', preview:'#f0c65a', image:'caleb-crown.png' }
         ]},
         masks: { type:'mask', items:[
             { id:'none', label:'No Mask', desc:'No face covering equipped.', how:'Available from the start.', preview:'#888' },
@@ -3151,8 +3156,10 @@ function spawnCalebSpread(boss) {
     const origin = { x:boss.caleb.x + side * boss.caleb.size * .66, y:boss.caleb.y + 52 };
     const angle = Math.atan2(boss.player.y - origin.y, boss.player.x - origin.x);
     for (let index = -2; index <= 2; index++) {
-        const spread = angle + index * .15;
-        boss.shots.push({ x:origin.x, y:origin.y, vx:Math.cos(spread) * 5.4, vy:Math.sin(spread) * 5.4, life:150, r:8, type:'caleb' });
+        // Give the hand volley distinct lanes so the player can move through
+        // a gap instead of being covered by an almost-parallel wall of shots.
+        const spread = angle + index * .27;
+        boss.shots.push({ x:origin.x, y:origin.y, vx:Math.cos(spread) * 4.9, vy:Math.sin(spread) * 4.9, life:150, r:8, type:'caleb' });
     }
 }
 
@@ -3403,8 +3410,6 @@ function drawCalebBossIntro() {
     const gradient = ctx.createRadialGradient(cx, canvas.height * .55, 10, cx, canvas.height * .55, Math.max(canvas.width, canvas.height) * .75);
     gradient.addColorStop(0, 'rgba(109,0,30,.45)'); gradient.addColorStop(.56, '#0d0209'); gradient.addColorStop(1, '#020103');
     ctx.fillStyle = gradient; ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = '#ffcad6'; ctx.font = 'bold 23px Arial'; ctx.textAlign = 'center'; ctx.fillText('THE OTHER SIDE OF THE GATE', cx, 54);
-    ctx.fillStyle = '#b98595'; ctx.font = '14px Arial'; ctx.fillText('THE FRAGMENTS WERE NEVER A KEY', cx, 80);
     const gateY = canvas.height * .42;
     ctx.fillStyle = 'rgba(0,0,0,.94)'; ctx.beginPath(); ctx.ellipse(cx, gateY, 84 + Math.sin(t * .08) * 5, 142 + Math.sin(t * .08) * 7, 0, 0, Math.PI * 2); ctx.fill();
     ctx.strokeStyle = '#c36688'; ctx.lineWidth = 4; ctx.beginPath(); ctx.ellipse(cx, gateY, 90, 148, 0, 0, Math.PI * 2); ctx.stroke();
@@ -3413,6 +3418,11 @@ function drawCalebBossIntro() {
     const size = Math.min(310, canvas.width * .5), y = gateY - 24 - progress * 32;
     calebBossImage(bossImages.caleb, cx, y, size, size, Math.sin(t * .025) * .015, Math.min(1, Math.max(0, (progress - .34) * 2.3)));
     if (progress > .35) { ctx.strokeStyle = `rgba(255,30,75,${(progress - .35) * 1.35})`; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(cx - size * .18, y - size * .14); ctx.lineTo(cx + size * .18, y - size * .14); ctx.stroke(); }
+    // Keep the intro copy in a foreground title band so the large Caleb
+    // sprite cannot swallow it on short/mobile canvases.
+    ctx.fillStyle = 'rgba(2,1,3,.78)'; ctx.fillRect(0, 0, canvas.width, 94);
+    ctx.fillStyle = '#ffcad6'; ctx.font = 'bold 23px Arial'; ctx.textAlign = 'center'; ctx.fillText('THE OTHER SIDE OF THE GATE', cx, 36);
+    ctx.fillStyle = '#b98595'; ctx.font = '14px Arial'; ctx.fillText('THE FRAGMENTS WERE NEVER A KEY', cx, 63);
     if (t > 125) { ctx.fillStyle = `rgba(255,255,255,${Math.min(.75, (t - 125) / 80)})`; ctx.fillRect(0, 0, canvas.width, canvas.height); }
 }
 
@@ -6780,7 +6790,7 @@ function endGame(isWin, sourceMonster = monster) {
         if (sourceMonster.name === 'RHYS') { unlockCosmetic('gold'); unlockCosmetic('ember'); }
         if (sourceMonster.name === 'AMINE') { unlockCosmetic('white'); unlockCosmetic('circle'); }
         if (sourceMonster.name === 'NOAH') { advanceDailyObjective('noah'); if (currentMapId === 'forest') unlockCosmetic('noahCap'); }
-        if (sourceMonster.name === 'CALEB') { unlockCosmetic('sepia'); unlockCosmetic('static'); }
+        if (sourceMonster.name === 'CALEB') { unlockCosmetic('sepia'); unlockCosmetic('static'); if (currentMapId === 'lucas') unlockCosmetic('calebCrown'); }
         if (sourceMonster.name === 'BASSAM' && currentMapId === 'hotel' && bassamRelentlessChase) unlockCosmetic('krustyHat');
         if (gameMode === 'challenge') { stats.challengesCleared++; advanceDailyObjective('challenge'); if (runItemsUsed === 0) unlockCosmetic('cowboyHat'); }
         if (!mapMastery[currentMapId]) mapMastery[currentMapId] = [false, false, false];
