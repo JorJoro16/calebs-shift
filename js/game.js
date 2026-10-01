@@ -282,7 +282,7 @@ calebBossMusic.addEventListener('ended', () => {
 });
 
 // Versioned local progress with a backup copy and import/export support.
-const GAME_VERSION = '2.18.16';
+const GAME_VERSION = '2.18.17';
 const SAVE_SCHEMA_VERSION = 10;
 const COSMETIC_REWARD_VERSION = 2;
 const SAVE_KEY = 'br_save_v2';
@@ -362,15 +362,6 @@ function normalizeCosmetics(value) {
     const allCosmetics = [...colors, ...trails, ...hats, ...masks, ...skins];
     const unlocked = Array.isArray(source.unlocked) ? source.unlocked.filter(id => allCosmetics.includes(id)) : [];
     const legacyMask = masks.includes(source.mask) ? source.mask : masks.includes(source.hat) ? source.hat : 'none';
-    const savedMapMastery = source.mapMastery && typeof source.mapMastery === 'object' ? source.mapMastery : {};
-    const savedCampaignCleared = Array.isArray(source.campaignCleared) ? source.campaignCleared.filter(id => MAP_DEFINITIONS[id]) : [];
-    const lucasMasteryCleared = Array.isArray(savedMapMastery.lucas) && savedMapMastery.lucas.some(Boolean);
-    // Older saves can have a completed Lucas run in map mastery without the
-    // campaign-clear marker. Repair that record so the boss replay choice is
-    // available without asking players to repeat the level.
-    if (lucasMasteryCleared && !savedCampaignCleared.includes('lucas')) {
-        savedCampaignCleared.push('lucas');
-    }
     return {
         color: colors.includes(source.color) ? source.color : 'blue',
         trail: trails.includes(source.trail) ? source.trail : 'none',
@@ -426,6 +417,15 @@ function normalizeProgress(raw) {
         target: boundedInt(item.target, 1, 999, 1), progress: boundedInt(item.progress, 0, 999, 0),
         reward: boundedInt(item.reward, 0, 9999, 0), claimed: Boolean(item.claimed)
     })).slice(0, 3) : [];
+    const savedMapMastery = source.mapMastery && typeof source.mapMastery === 'object' ? source.mapMastery : {};
+    const savedCampaignCleared = Array.isArray(source.campaignCleared) ? source.campaignCleared.filter(id => MAP_DEFINITIONS[id]) : [];
+    const lucasMasteryCleared = Array.isArray(savedMapMastery.lucas) && savedMapMastery.lucas.some(Boolean);
+    // Older saves can have a completed Lucas run in map mastery without the
+    // campaign-clear marker. Repair that record so the boss replay choice is
+    // available without asking players to repeat the level.
+    if (lucasMasteryCleared && !savedCampaignCleared.includes('lucas')) {
+        savedCampaignCleared.push('lucas');
+    }
     return {
         tokens: boundedInt(source.tokens, 0, 999999, 0),
         upgShoe: boundedInt(source.upgShoe, 0, 3, 0),

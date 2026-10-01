@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.18.17
+- Fixed the Lucas save migration placement bug that could make the full progress save fail validation and load only the legacy partial save.
+- Bumped the offline cache again so every device receives the corrected save loader.
+
 ## 2.18.16
 - Repaired older Lucas campaign saves that recorded a completed Lucas run in map mastery but not in the campaign-clear list.
 - Reaching Lucas's gate now saves a dedicated boss-replay unlock, so players do not need to defeat Caleb before the `START CALEB BOSS` choice appears.
