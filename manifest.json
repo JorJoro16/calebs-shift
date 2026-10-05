@@ -1,11 +1,11 @@
 {
-  "name": "The Backrooms: Caleb's Shift",
+  "name": "Caleb's Shift",
   "short_name": "Caleb's Shift",
   "start_url": "./index.html",
   "display": "fullscreen",
   "orientation": "any",
-  "background_color": "#0a0a0a",
-  "theme_color": "#0a0a0a",
+  "background_color": "#17190e",
+  "theme_color": "#17190e",
   "description": "Repair the generators, survive the Backrooms, and catch the monster before it catches you.",
   "categories": ["games", "entertainment"],
   "icons": [

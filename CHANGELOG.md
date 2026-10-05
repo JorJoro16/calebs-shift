@@ -1,5 +1,249 @@
 # Changelog
 
+## 2.18.77
+- Added procedural dead-end halls and small pillar chambers to Level 0 while keeping every passage connected.
+- Varied the positions and strengths of Level 0's cached ambient light pools from run to run.
+- Repaired generators now add a soft, persistent local light pool to Level 0; this is baked into the cached map layer to avoid per-frame rendering cost.
+- Refreshed the offline cache to `calebs-shift-v162`.
+
+## 2.18.76
+- Restored Level 0's original generator colors, active glow, outlines, and labels.
+- Refreshed the offline cache to `calebs-shift-v161`.
+
+## 2.18.75
+- Softened Level 0 generator colors, active glow, and task labels to fit the map's muted palette while preserving distinct generator types.
+- Bumped the offline cache to `calebs-shift-v160`.
+
+## 2.18.74
+- Extended Level 0's ambient falloff across the visible area so it blends smoothly beyond the cached maze edges.
+- Kept the static wall, floor, shadow, and light rendering cached for performance.
+- Bumped the offline cache to `calebs-shift-v159`.
+
+## 2.18.73
+- Pre-rendered Level 0 walls, floors, wall-edge shadows, ambient falloff, and light pools into a single cached canvas layer per generated map.
+- Removed Level 0's per-frame tile shading and gradient construction to reduce render cost and stutter.
+- Bumped the offline cache to `calebs-shift-v158`.
+
+## 2.18.72
+- Added soft, fixed fluorescent light pools across Level 0 with gentle ambient falloff toward the outer maze.
+- Kept the lighting static and restrained to preserve visibility and avoid distracting flicker.
+- Bumped the offline cache to `calebs-shift-v157`.
+
+## 2.18.71
+- Slightly darkened the Level 0 yellow walls and beige floor while keeping the existing wall shadows.
+- Bumped the offline cache to `calebs-shift-v156`.
+
+## 2.18.70
+- Refined Level 0's wall and floor colors into a more cohesive muted yellow and warm beige palette.
+- Slightly deepened the soft wall-edge shadows.
+- Bumped the offline cache to `calebs-shift-v155`.
+
+## 2.18.69
+- Added soft lower and right edge shading where Level 0 walls meet walkable areas, keeping the flat surfaces free of tile outlines.
+- Bumped the offline cache to `calebs-shift-v154`.
+
+## 2.18.68
+- Replaced Level 0's wall and floor textures with flat warm-yellow walls and beige floors.
+- Removed Level 0's tile outlines and grid, including beyond the map bounds.
+- Bumped the offline cache to `calebs-shift-v153`.
+
+## 2.18.67
+- Repeated the complete Level 0 wallpaper image independently on every wall tile and the complete carpet image independently on every floor tile.
+- Extended the wallpaper tile pattern beyond the map bounds so the surrounding exterior uses the same wall texture.
+- Bumped the offline cache to `calebs-shift-v152`.
+
+## 2.18.66
+- Applied the supplied wallpaper to Level 0 wall tiles and the supplied carpet to its walkable floor.
+- Added both textures to the offline cache; other maps keep their current palettes and tile rendering.
+
+## 2.18.65
+- Simplified generator panels into a shared, low-glow layout with puzzle-only labels and compact progress.
+- Fixed the wiring arrow/key mismatch, routed touch controls through the same actions as keyboard input, and ignored held-key repeats during discrete puzzle inputs.
+- Removed the separate mobile generator buttons and corrected the frequency needle reset so it snaps to the start of its meter.
+- Preserved generator puzzle timing and difficulty settings; bumped the offline cache to `calebs-shift-v150`.
+
+## 2.18.64
+- Rebuilt the standard generator repair tasks as a shared, responsive field console with distinct visual identities for wiring, circuit, timing, frequency, relay, and memory repairs.
+- Added touch-ready controls, live progress and timing displays, restrained effects, reduced-motion support, and a back arrow that returns to the shift.
+- Kept Subway's route board and rail-control interfaces map-specific.
+- Added the generator interface stylesheet to the offline cache and bumped it to `calebs-shift-v149`.
+
+## 2.18.63
+- Replaced plain gameplay notices with compact icon-led cards that show their type and message clearly.
+- Combined mobile notification bursts into one bounded card, and capped desktop notices at four visible cards.
+- Kept urgent danger notices visible for at least 4.8 seconds.
+- Added Campaign, Endless, Challenge, Survival, Information, Reward, and Danger icons to custom kit choices.
+- Bumped the offline cache to `calebs-shift-v148`.
+
+## 2.18.62
+- Fixed collapsed HUD tabs inheriting legacy button margins and padding, leaving a doubled frame.
+- Made collapsed status and objective panels render as single centered arrow buttons.
+- Bumped the offline cache to `calebs-shift-v147`.
+
+## 2.18.61
+- Rebuilt the shared in-run field status and objective panels as compact, responsive cards.
+- Added collapsible arrow controls, an expandable supplies list, condition chips, and a threat roster with accessible state labels.
+- Added separate current and next objective summaries for every map, plus an update indicator while the objective card is collapsed.
+- Kept panel state session-only and left save data untouched.
+- Bumped the offline cache to `calebs-shift-v146`.
+
+## 2.18.60
+- Added facility-style completion and incident reports with run details and rewards.
+- Added varied monster-specific death report lines.
+- Removed captured hunters from play and gave the player three seconds to roam before filing a win.
+- Required individual captures for multi-hunter runs; Blackwood Forest clears the whole group on the first capture.
+- Bumped the offline cache to `calebs-shift-v145`.
+
+## 2.18.59
+- Filled the space outside map boundaries with a subtle, map-matched wall grid.
+- Applied the backdrop to every gameplay map.
+- Bumped the offline cache to `calebs-shift-v144`.
+
+## 2.18.58
+- Zoomed the game camera in slightly and kept the player centered at all times.
+- Removed camera clamping at map edges so the view continues following the player.
+- Bumped the offline cache to `calebs-shift-v143`.
+
+## 2.18.57
+- Expanded the gameplay canvas to fill the available screen and resize when the viewport changes.
+- Restored the lobby canvas dimensions when returning from a run.
+- Bumped the offline cache to `calebs-shift-v142`.
+
+## 2.18.56
+- Stacked the Market title above its back and token controls on phone widths so they no longer collide.
+- Bumped the offline cache to `calebs-shift-v141`.
+
+## 2.18.55
+- Removed the mobile viewport zoom lock, so players can pinch-zoom the interface.
+- Fixed nested Wardrobe scrolling and the Menu Style action bar covering settings on phones.
+- Bumped the offline cache to `calebs-shift-v140`.
+
+## 2.18.54
+- Removed the destination marker’s dashed circle and crosshair.
+- Switched the marker to a centered sans-serif character for more even alignment.
+- Bumped the offline cache to `calebs-shift-v139`.
+
+## 2.18.53
+- Cleaned the map illustration into regular concentric rings and removed the stray route trace.
+- Centered the destination marker in its frame.
+- Bumped the offline cache to `calebs-shift-v138`.
+
+## 2.18.52
+- Replaced the old map and setup panels with a full-screen location index and run briefing for Campaign, Endless, and Survival.
+- Added map unlock, campaign route, mastery, and Endless record details to the site picker.
+- Added mode-specific difficulty and Survival rules controls, with the equipped loadout shown as a read-only summary on both screens.
+- Removed loadout picking from the Play flow; loadouts remain managed in the Loadouts screen.
+- Bumped the offline cache to `calebs-shift-v137`.
+
+## 2.18.51
+- Restored the Campaign icon’s original two-tone fill while keeping both fills fully opaque and preserving the shared pale tint filter.
+- Bumped the offline cache to `calebs-shift-v136`.
+
+## 2.18.50
+- Shifted the solid Campaign book icon to a muted olive-gold shade distinct from the cream mode icons.
+- Bumped the offline cache to `calebs-shift-v135`.
+
+## 2.18.49
+- Made the Campaign book icon fully opaque and matched its tint to the other mode icons.
+- Rotated the Campaign book with its surrounding seal and bumped the offline cache to `calebs-shift-v134`.
+
+## 2.18.48
+- Added the supplied SVGs to the Campaign, Endless, Survival, and Daily Challenges mode cards.
+- Centered the Campaign route markers on their progress line and corrected the future-modes footer copy.
+- Bumped the offline cache to `calebs-shift-v133`.
+
+## 2.18.47
+- Added a full-screen Play dispatch for Campaign, Endless, Survival, and Daily Challenges, with the existing mode setup and progression paths preserved.
+- Daily challenge boards now keep their three assignments and completion marks in the local save until local midnight; each completed contract pays its reward only once.
+- Added responsive, keyboard-accessible mode and contract screens and bumped the offline cache to `calebs-shift-v132`.
+
+## 2.18.46
+- Replaced the menu hover sound with the supplied `click-8bit.mp3` clip.
+- Bumped the offline cache to `calebs-shift-v131`.
+
+## 2.18.45
+- Restored `select-006.mp3` for selection feedback and added the supplied `hover-tick.mp3` for menu-control hover feedback.
+- Bumped the offline cache to `calebs-shift-v130`.
+
+## 2.18.44
+- Set selection sound volume to 100% of the Master and SFX levels.
+- Bumped the offline cache to `calebs-shift-v129`.
+
+## 2.18.43
+- Changed selection feedback to the distinct `click-002.mp3` file and cached it for offline play.
+- Bumped the offline cache to `calebs-shift-v128`.
+
+## 2.18.42
+- Switched selection feedback to the supplied `click-soft.mp3` asset and cached it for offline play.
+- Bumped the offline cache to `calebs-shift-v127`.
+
+## 2.18.41
+- UI sounds now play through their preloaded audio elements instead of unready clones, and playback failures are reported in the browser console.
+- Bumped the offline cache to `calebs-shift-v126`.
+
+## 2.18.40
+- Removed all UI hover sound behavior and assigned the supplied click sound to normal selection sounds.
+- Bumped the offline cache to `calebs-shift-v125`.
+
+## 2.18.39
+- Reused the preloaded hover audio element instead of cloning it, explicitly primed it after the user's first pointer or key gesture, and added a visible console warning plus built-in hover-tone fallback if the supplied clip fails.
+- Bumped the offline cache to `calebs-shift-v124`.
+
+## 2.18.38
+- Removed the continuous scrolling sound from menu navigation.
+- Made hover feedback louder, switched to a broadly supported mouse-entry event, and added the existing synthesized hover tone as a playback fallback.
+- Bumped the offline cache to `calebs-shift-v123`.
+
+## 2.18.37
+- Added the supplied menu hover, select, switch, scroll, purchase, and discard sounds, with volume controlled by Master and SFX settings.
+- Fixed repeated hover playback when the pointer moves across content inside a single button.
+- Added custom kit renaming and a picker using the current game icon library; Free Carry, Chase, and Utility profiles now use the requested icons.
+- Supply discards now return 5 tokens and report the refund in the Shop.
+- Bumped the offline cache to `calebs-shift-v122`.
+
+## 2.18.36
+- Rebuilt Loadouts as a full-screen field kit bench with direct access from the lobby and clear preset/custom kit selection.
+- Custom kit editors now show only supplies currently owned, use the available item icons, and display the live eight-item pack limit.
+- Lowered the Shop supply ownership counts to align more closely with their icons.
+- Bumped the offline cache to `calebs-shift-v121`.
+
+## 2.18.35
+- Replaced the minimap cards’ crosshair with the supplied folded-map icon and removed the decorative lines behind it.
+- Added the supplied icons to all upgrade cards and the remaining supply cards, including their matching Black Market offers.
+- Bumped the offline cache to `calebs-shift-v120`.
+
+## 2.18.34
+- Fixed save imports so map unlocks, campaign clears, difficulty mastery, minimap ownership, loadouts, and daily progress transfer with stats and inventory.
+- Existing completed saves must be imported again once to restore their map progress after the previous incomplete import.
+- Bumped the offline cache to `calebs-shift-v119`.
+
+## 2.18.33
+- Limited each daily Black Market rotation to three discounted supply offers and renamed its feature heading to “The Black Market.”
+- Added a local-midnight countdown to Today’s Shift and renamed the Shop and Map Intel headers.
+- Added the supplied market and supply icons, and repaired map visibility for saves with campaign clears or recorded map mastery.
+- Bumped the offline cache to `calebs-shift-v118`.
+
+## 2.18.32
+- Replaced the combined Black Market screen with a Market hub for Shop, Map Intel, and a separate rotating Black Market.
+- Rebuilt Shop as a full-screen supply counter with dedicated upgrade and supply shelves; Breath Filter, Goop Neutralizer, and Repair Kit are no longer sold there, while existing owned quantities remain in saves.
+- Map Intel now sells live minimaps only for unlocked sites after all three difficulties are cleared.
+- Added a daily Black Market rotation of regular shop supplies with lower prices and limited local stock, stored separately from player progress.
+- Bumped the offline cache to `calebs-shift-v117`.
+
+## 2.18.31
+- Rebuilt the Wardrobe as a full-screen fitting room with distinct color, trail, hat, mask, skin, and menu-theme layouts.
+- Added an animated top-down survivor preview that shows the equipped look and moving trail, with try-on previews that do not save until equipped.
+- Added the Menu Themes route into Menu Styles and enabled the Wardrobe entry from the main menu.
+- Bumped the offline cache to `calebs-shift-v116`.
+
+## 2.18.21
+- Added Caleb’s black-eye sprite for the eyes-on phase and restored the normal white-eye sprite for the eyes-off phase.
+- Removed the old drawn eye overlays, the duplicate Caleb header label, and the red intro line across Caleb’s eyes.
+- Added a persistent Speedrun Timer setting that stays visible during normal gameplay, puzzles, cutscenes, and the entire Caleb fight.
+- Bumped the offline cache to `calebs-shift-v102`.
+
+## 2.18.20
+
 ## 2.18.19
 - Restored Cal’s original fire pattern.
 - Widened Caleb’s hand-spread volley and slightly reduced its projectile speed to create reliable dodge lanes.

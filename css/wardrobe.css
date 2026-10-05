@@ -1,0 +1,246 @@
+/* The wardrobe is a fitting room and catalog, intentionally distinct from the report-style screens. */
+#cosmeticsMenu.lobby-wardrobe-screen {
+    position: fixed; z-index: 155; inset: 0; display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start;
+    width: 100vw; width: 100dvw; height: 100vh; height: 100dvh; max-width: none; max-height: none; min-width: 0; overflow: hidden;
+    box-sizing: border-box; padding: 0; color: #edecd0; text-align: left; background: #17190e; border: 0; border-radius: 0; box-shadow: none;
+    isolation: isolate; gap: 0; --wardrobe-line: rgba(223,226,174,.18); --wardrobe-accent: #d9df92; --wardrobe-muted: #a9ae91;
+}
+#cosmeticsMenu.lobby-wardrobe-screen::before { position: absolute; z-index: -1; inset: 0; background: linear-gradient(112deg,rgba(12,15,9,.95),rgba(25,29,17,.88) 45%,rgba(10,14,9,.94)),url('../assets/ui/themes/the-lobby-wallpaper.png') center / 560px 553px repeat; content: ''; pointer-events: none; }
+#cosmeticsMenu .lobby-wardrobe-atmosphere { position: absolute; z-index: -1; inset: 0; background: radial-gradient(ellipse at 67% 51%,rgba(207,215,115,.12),transparent 49%),linear-gradient(180deg,rgba(231,232,177,.025),transparent 40%,rgba(4,7,4,.24)); pointer-events: none; }
+#cosmeticsMenu .lobby-wardrobe-topbar { position: relative; z-index: 2; display: flex; flex: 0 0 78px; align-items: center; justify-content: space-between; gap: 20px; box-sizing: border-box; padding: 0 clamp(18px,3vw,46px); background: rgba(8,11,8,.78); border-bottom: 1px solid var(--wardrobe-line); backdrop-filter: blur(14px); }
+#cosmeticsMenu .lobby-wardrobe-back { display: inline-flex; flex: 0 1 220px; align-items: center; gap: 10px; min-width: 155px; margin: 0; padding: 9px 0; color: #d9dec0; text-align: left; background: transparent; border: 0; font: bold 10px 'Courier New',Courier,monospace; letter-spacing: .11em; white-space: nowrap; cursor: pointer; transition: color 160ms ease,transform 160ms ease; }
+#cosmeticsMenu .lobby-wardrobe-back > span { color: var(--wardrobe-accent); font: normal 19px/1 Georgia,serif; }
+#cosmeticsMenu .lobby-wardrobe-back:hover { color: #fffde1; background: transparent; transform: translateX(-3px); }
+#cosmeticsMenu .lobby-wardrobe-heading { position: absolute; left: 50%; text-align: center; transform: translateX(-50%); }
+#cosmeticsMenu .lobby-wardrobe-heading > span { display: block; color: #aab18c; font: bold 8px 'Courier New',Courier,monospace; letter-spacing: .18em; white-space: nowrap; }
+#cosmeticsMenu .lobby-wardrobe-heading > span i { margin-left: 8px; color: var(--wardrobe-accent); font-style: normal; }
+#cosmeticsMenu .lobby-wardrobe-heading h1 { margin: 4px 0 0; color: #f0f0d9; text-shadow: none; font: 500 22px Georgia,'Times New Roman',serif; letter-spacing: .15em; }
+#cosmeticsMenu .lobby-wardrobe-balance { display: flex; flex: 0 1 220px; align-items: center; justify-content: flex-end; gap: 9px; color: #e6e8c8; font: bold 14px 'Courier New',Courier,monospace; }
+#cosmeticsMenu .lobby-wardrobe-balance-mark { display: grid; width: 25px; height: 25px; place-items: center; color: #1c2112; background: var(--wardrobe-accent); border-radius: 50%; font: bold 11px Georgia,serif; }
+#cosmeticsMenu .lobby-wardrobe-balance small { color: #aeb496; font: 8px 'Courier New',Courier,monospace; letter-spacing: .1em; }
+#cosmeticsMenu .lobby-wardrobe-tabs { position: relative; z-index: 1; display: flex; flex: 0 0 58px; align-items: stretch; justify-content: center; overflow-x: auto; overflow-y: hidden; padding: 0 clamp(12px,4vw,58px); background: rgba(13,16,10,.67); border-bottom: 1px solid var(--wardrobe-line); scrollbar-width: thin; scrollbar-color: rgba(217,223,146,.25) transparent; }
+#cosmeticsMenu .lobby-wardrobe-tab { position: relative; display: inline-flex; flex: 0 0 auto; align-items: center; gap: 9px; min-width: 140px; justify-content: center; margin: 0; padding: 0 18px; color: #b5bb9e; background: transparent; border: 0; border-bottom: 2px solid transparent; font: bold 10px 'Courier New',Courier,monospace; letter-spacing: .09em; white-space: nowrap; cursor: pointer; transition: color 160ms ease,background 160ms ease,border-color 160ms ease; }
+#cosmeticsMenu .lobby-wardrobe-tab > span { color: #8f977b; font: 8px 'Courier New',Courier,monospace; letter-spacing: 0; }
+#cosmeticsMenu .lobby-wardrobe-tab:hover { color: #f0f0d9; background: rgba(217,223,146,.035); transform: none; }
+#cosmeticsMenu .lobby-wardrobe-tab.is-active { color: #f1f1da; border-bottom-color: var(--wardrobe-accent); background: linear-gradient(180deg,transparent,rgba(217,223,146,.055)); }
+#cosmeticsMenu .lobby-wardrobe-tab.is-active > span { color: var(--wardrobe-accent); }
+#cosmeticsMenu .lobby-wardrobe-workspace { position: relative; z-index: 1; display: grid; flex: 1 1 auto; grid-template-columns: minmax(300px,.82fr) minmax(0,1.18fr); min-height: 0; }
+#cosmeticsMenu .lobby-wardrobe-preview { position: relative; display: flex; min-width: 0; min-height: 0; flex-direction: column; box-sizing: border-box; padding: clamp(18px,3vh,30px) clamp(18px,3vw,42px) 18px; overflow: auto; background: rgba(9,12,8,.82); border-right: 1px solid var(--wardrobe-line); box-shadow: 12px 0 40px rgba(3,6,4,.18); }
+#cosmeticsMenu .lobby-wardrobe-preview-topline,#cosmeticsMenu .lobby-wardrobe-preview-footer { display: flex; align-items: center; justify-content: space-between; gap: 14px; color: #b5bb9e; font: bold 8px 'Courier New',Courier,monospace; letter-spacing: .11em; }
+#cosmeticsMenu .lobby-wardrobe-preview-topline > span:first-child { display: inline-flex; align-items: center; gap: 8px; color: #d9dfb9; }
+#cosmeticsMenu .lobby-wardrobe-preview-topline > span:first-child i,#cosmeticsMenu .lobby-wardrobe-preview-footer > span:first-child i { width: 6px; height: 6px; border-radius: 50%; background: var(--wardrobe-accent); box-shadow: 0 0 9px rgba(217,223,146,.45); }
+#cosmeticsMenu .lobby-wardrobe-preview-topline > span:last-child { text-align: right; }
+#cosmeticsMenu .lobby-wardrobe-preview-stage { position: relative; display: grid; flex: 1 1 280px; place-items: center; min-height: 205px; max-height: min(48vh,430px); margin: clamp(12px,2vh,22px) 0 17px; overflow: hidden; border: 1px solid rgba(223,226,174,.15); background: rgba(8,11,7,.52); box-shadow: inset 0 0 45px rgba(0,0,0,.3); }
+#cosmeticsMenu #wardrobePreviewCanvas { display: block; width: min(100%, min(38vh,320px)); height: auto; aspect-ratio: 1; border-radius: 50%; box-shadow: 0 14px 45px rgba(0,0,0,.3),0 0 0 1px rgba(218,224,153,.15); }
+#cosmeticsMenu .lobby-wardrobe-stage-corner { position: absolute; width: 16px; height: 16px; border-color: rgba(217,223,146,.68); border-style: solid; pointer-events: none; }
+#cosmeticsMenu .lobby-wardrobe-stage-corner-a { top: 10px; left: 10px; border-width: 1px 0 0 1px; }
+#cosmeticsMenu .lobby-wardrobe-stage-corner-b { right: 10px; bottom: 10px; border-width: 0 1px 1px 0; }
+#cosmeticsMenu .lobby-wardrobe-preview-caption { display: grid; gap: 5px; padding: 0 0 17px; border-bottom: 1px solid var(--wardrobe-line); }
+#cosmeticsMenu .lobby-wardrobe-preview-caption > span { color: #aab18c; font: bold 8px 'Courier New',Courier,monospace; letter-spacing: .15em; }
+#cosmeticsMenu .lobby-wardrobe-preview-caption strong { color: #ececd1; font: 500 23px Georgia,'Times New Roman',serif; letter-spacing: .03em; }
+#cosmeticsMenu .lobby-wardrobe-preview-caption small { color: #b1b69c; font: 10px/1.5 'Courier New',Courier,monospace; }
+#cosmeticsMenu .lobby-wardrobe-preview-footer { margin-top: auto; padding-top: 14px; color: #a3aa8b; font-size: 7px; letter-spacing: .09em; }
+#cosmeticsMenu .lobby-wardrobe-preview-footer > span:first-child { display: inline-flex; align-items: center; gap: 7px; }
+#cosmeticsMenu .lobby-wardrobe-preview-footer > span:first-child i { width: 4px; height: 4px; }
+#cosmeticsMenu .lobby-wardrobe-preview-footer > span:last-child { color: var(--wardrobe-accent); text-align: right; }
+#cosmeticsMenu .lobby-wardrobe-catalog { display: flex; min-width: 0; min-height: 0; flex-direction: column; overflow: auto; box-sizing: border-box; padding: clamp(25px,4vh,45px) clamp(22px,4vw,62px) 0; scrollbar-width: thin; scrollbar-color: rgba(217,223,146,.28) transparent; }
+#cosmeticsMenu .lobby-wardrobe-catalog-content { display: flex; flex: 1 0 auto; max-width: 1120px; min-height: 100%; flex-direction: column; box-sizing: border-box; margin: 0 auto; color: #e9e9ce; font-size: inherit; text-align: left; width: min(100%,1120px); }
+#cosmeticsMenu .wardrobe-category-heading { max-width: 680px; margin: 0 0 25px; }
+#cosmeticsMenu .wardrobe-category-heading h2 { margin: 0 0 8px; color: #efefd7; text-shadow: none; font: 500 clamp(27px,3vw,39px)/1.05 Georgia,'Times New Roman',serif; letter-spacing: .01em; }
+#cosmeticsMenu .wardrobe-category-heading p { max-width: 570px; margin: 0; color: #b8bea3; font: 12px/1.55 'Courier New',Courier,monospace; }
+#cosmeticsMenu .wardrobe-action-bar { position: sticky; z-index: 1; bottom: 0; display: flex; align-items: center; justify-content: space-between; gap: 18px; box-sizing: border-box; margin: auto calc(clamp(22px,4vw,62px) * -1) 0; padding: 15px clamp(22px,4vw,62px); background: rgba(12,15,9,.94); border-top: 1px solid var(--wardrobe-line); backdrop-filter: blur(14px); }
+#cosmeticsMenu .wardrobe-action-copy { display: grid; min-width: 0; gap: 5px; }
+#cosmeticsMenu .wardrobe-action-copy > span { color: #aab18c; font: bold 8px 'Courier New',Courier,monospace; letter-spacing: .12em; }
+#cosmeticsMenu .wardrobe-action-copy > strong { overflow: hidden; color: #e2e4c9; font: 10px/1.45 'Courier New',Courier,monospace; text-overflow: ellipsis; }
+#cosmeticsMenu .wardrobe-action-copy > small { color: #b8bea3; font: 9px/1.45 'Courier New',Courier,monospace; }
+#cosmeticsMenu .wardrobe-equip-button,#cosmeticsMenu .wardrobe-theme-link { display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: center; gap: 12px; min-height: 44px; margin: 0; padding: 0 17px; color: #171a10; background: var(--wardrobe-accent); border: 1px solid var(--wardrobe-accent); font: bold 9px 'Courier New',Courier,monospace; letter-spacing: .1em; cursor: pointer; transition: background 160ms ease,color 160ms ease,transform 160ms ease,box-shadow 160ms ease; }
+#cosmeticsMenu .wardrobe-equip-button:hover,#cosmeticsMenu .wardrobe-theme-link:hover { color: #11150c; background: #eff2b5; box-shadow: 0 0 20px rgba(217,223,146,.18); transform: translateY(-1px); }
+#cosmeticsMenu .wardrobe-equip-button:disabled { color: #858b74; background: rgba(14,17,11,.84); border-color: rgba(223,226,174,.19); cursor: not-allowed; box-shadow: none; transform: none; }
+#cosmeticsMenu .wardrobe-equip-button > span,#cosmeticsMenu .wardrobe-theme-link > span { font: normal 15px Georgia,serif; }
+#cosmeticsMenu .wardrobe-item:focus-visible,#cosmeticsMenu .wardrobe-color-chip:focus-visible,#cosmeticsMenu .wardrobe-equip-button:focus-visible,#cosmeticsMenu .wardrobe-theme-link:focus-visible,#cosmeticsMenu .lobby-wardrobe-tab:focus-visible,#cosmeticsMenu .lobby-wardrobe-back:focus-visible { outline: 2px solid rgba(218,224,151,.83); outline-offset: 3px; }
+
+/* Colors are a swatch atlas. */
+#cosmeticsMenu .wardrobe-color-mosaic { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 10px; }
+#cosmeticsMenu .wardrobe-color-chip { display: flex; min-width: 0; flex-direction: column; align-items: stretch; gap: 8px; margin: 0; padding: 10px; color: #dadcbe; text-align: left; background: rgba(12,15,9,.56); border: 1px solid rgba(223,226,174,.15); cursor: pointer; transition: border-color 160ms ease,background 160ms ease,transform 160ms ease; }
+#cosmeticsMenu .wardrobe-color-chip:hover { background: rgba(217,223,146,.055); border-color: rgba(217,223,146,.42); transform: translateY(-2px); }
+#cosmeticsMenu .wardrobe-color-chip.is-previewing { background: rgba(217,223,146,.08); border-color: rgba(217,223,146,.74); box-shadow: inset 0 0 0 1px rgba(217,223,146,.13); }
+#cosmeticsMenu .wardrobe-color-chip.is-locked { opacity: .72; }
+#cosmeticsMenu .wardrobe-color-sample { position: relative; display: grid; min-height: 84px; place-items: center; overflow: hidden; background: linear-gradient(145deg,rgba(255,255,255,.04),transparent 55%),#10140d; border: 1px solid rgba(223,226,174,.1); }
+#cosmeticsMenu .wardrobe-color-sample::before,#cosmeticsMenu .wardrobe-color-sample::after { position: absolute; width: 75%; height: 1px; background: rgba(229,231,192,.15); content: ''; transform: rotate(-35deg); }
+#cosmeticsMenu .wardrobe-color-sample::after { width: 55%; transform: rotate(35deg); }
+#cosmeticsMenu .wardrobe-color-sample > i { z-index: 1; width: 28px; height: 28px; border: 1px solid rgba(255,255,255,.55); border-radius: 50%; background: var(--item-color); box-shadow: 0 0 18px color-mix(in srgb,var(--item-color) 48%,transparent),inset 0 0 0 4px rgba(0,0,0,.12); }
+#cosmeticsMenu .wardrobe-color-sample > b { position: absolute; top: 6px; right: 7px; z-index: 1; color: var(--wardrobe-accent); font: 9px 'Courier New',monospace; }
+#cosmeticsMenu .wardrobe-color-chip > strong { overflow: hidden; color: #e1e2c9; font: bold 10px 'Courier New',Courier,monospace; letter-spacing: .04em; text-overflow: ellipsis; white-space: nowrap; }
+#cosmeticsMenu .wardrobe-color-chip > small { min-height: 30px; color: #aeb496; font: 8px/1.45 'Courier New',Courier,monospace; letter-spacing: .03em; }
+#cosmeticsMenu .wardrobe-color-orb { position: relative; display: grid; width: 30px; height: 30px; place-items: center; border: 1px solid rgba(255,255,255,.55); border-radius: 50%; background: var(--item-color); box-shadow: 0 0 14px color-mix(in srgb,var(--item-color) 38%,transparent),inset 0 0 0 4px rgba(0,0,0,.16); }
+#cosmeticsMenu .wardrobe-color-orb > i { width: 4px; height: 4px; border-radius: 50%; background: rgba(242,244,211,.7); box-shadow: -6px 0 rgba(242,244,211,.7),6px 0 rgba(242,244,211,.7); }
+
+/* Trails get a motion-test lane and a compact effects register. */
+#cosmeticsMenu .wardrobe-trail-heading { margin-bottom: 18px; }
+#cosmeticsMenu .wardrobe-trail-surface { position: relative; display: flex; min-height: 116px; align-items: center; justify-content: center; overflow: hidden; margin-bottom: 13px; border: 1px solid rgba(217,223,146,.27); background: linear-gradient(100deg,rgba(10,13,9,.55),rgba(83,88,52,.13),rgba(10,13,9,.55)); }
+#cosmeticsMenu .wardrobe-trail-surface::before { position: absolute; inset: 0; background: repeating-linear-gradient(90deg,transparent 0 54px,rgba(225,229,180,.055) 55px,transparent 56px); content: ''; }
+#cosmeticsMenu .wardrobe-trail-surface-label,#cosmeticsMenu .wardrobe-trail-surface-coordinate,#cosmeticsMenu .wardrobe-trail-surface-foot { position: absolute; z-index: 1; color: #b5bb9e; font: bold 8px 'Courier New',Courier,monospace; letter-spacing: .1em; }
+#cosmeticsMenu .wardrobe-trail-surface-label { top: 10px; left: 12px; }
+#cosmeticsMenu .wardrobe-trail-surface-coordinate { top: 10px; right: 12px; color: #858d72; }
+#cosmeticsMenu .wardrobe-trail-surface-foot { bottom: 9px; left: 12px; color: #858d72; }
+#cosmeticsMenu .wardrobe-trail-route { position: relative; width: 76%; height: 1px; background: linear-gradient(90deg,transparent,rgba(217,223,146,.4),transparent); }
+#cosmeticsMenu .wardrobe-trail-route > i { position: absolute; top: -2px; width: 5px; height: 5px; border-radius: 50%; background: var(--wardrobe-accent); opacity: .22; animation: wardrobe-route-pulse 1.9s ease-in-out infinite; }
+#cosmeticsMenu .wardrobe-trail-route > i:nth-child(1) { left: 15%; animation-delay: -.4s; }
+#cosmeticsMenu .wardrobe-trail-route > i:nth-child(2) { left: 48%; animation-delay: -.95s; }
+#cosmeticsMenu .wardrobe-trail-route > i:nth-child(3) { left: 80%; animation-delay: -1.45s; }
+#cosmeticsMenu .wardrobe-trail-route > b { position: absolute; top: -5px; left: 0; width: 10px; height: 10px; border: 1px solid #edf0be; border-radius: 50%; background: #d9df92; box-shadow: 0 0 14px rgba(217,223,146,.8); animation: wardrobe-route-walk 4.4s ease-in-out infinite alternate; }
+#cosmeticsMenu .wardrobe-trail-choices { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 7px; }
+#cosmeticsMenu .wardrobe-item { position: relative; display: grid; min-width: 0; grid-template-columns: 26px 58px minmax(0,1fr) auto; align-items: center; gap: 10px; margin: 0; padding: 9px 11px; color: #dfe0c6; text-align: left; background: rgba(12,15,9,.55); border: 1px solid rgba(223,226,174,.15); cursor: pointer; transition: border-color 150ms ease,background 150ms ease,transform 150ms ease,opacity 150ms ease; }
+#cosmeticsMenu .wardrobe-item:hover { background: rgba(217,223,146,.055); border-color: rgba(217,223,146,.42); transform: translateY(-1px); }
+#cosmeticsMenu .wardrobe-item.is-previewing { background: rgba(217,223,146,.075); border-color: rgba(217,223,146,.65); }
+#cosmeticsMenu .wardrobe-item.is-equipped .wardrobe-item-state { color: var(--wardrobe-accent); }
+#cosmeticsMenu .wardrobe-item.is-locked .wardrobe-item-artwell { filter: grayscale(.25); }
+#cosmeticsMenu .wardrobe-item-mark { color: #788168; font: 7px 'Courier New',Courier,monospace; }
+#cosmeticsMenu .wardrobe-item-artwell { position: relative; display: grid; width: 58px; height: 48px; place-items: center; overflow: hidden; background: rgba(0,0,0,.18); border: 1px solid rgba(223,226,174,.1); }
+#cosmeticsMenu .wardrobe-trail-glyph { position: relative; display: block; width: 47px; height: 1px; background: color-mix(in srgb,var(--item-color) 35%,transparent); transform: rotate(-15deg); }
+#cosmeticsMenu .wardrobe-trail-glyph > i { position: absolute; top: -3px; width: 7px; height: 7px; border: 1px solid var(--item-color); border-radius: 50%; box-shadow: 0 0 8px var(--item-color); }
+#cosmeticsMenu .wardrobe-trail-glyph > i:nth-child(1) { left: 5px; opacity: .25; }
+#cosmeticsMenu .wardrobe-trail-glyph > i:nth-child(2) { left: 20px; opacity: .5; }
+#cosmeticsMenu .wardrobe-trail-glyph > i:nth-child(3) { left: 34px; opacity: .8; }
+#cosmeticsMenu .wardrobe-trail-glyph > b { position: absolute; top: -5px; right: 0; width: 11px; height: 11px; background: var(--item-color); border: 1px solid #eff0c8; border-radius: 50%; box-shadow: 0 0 12px var(--item-color); animation: wardrobe-route-pulse 1.4s ease-in-out infinite; }
+#cosmeticsMenu .wardrobe-trail-glyph-none { background: rgba(223,226,174,.2); }
+#cosmeticsMenu .wardrobe-trail-glyph-none > i,#cosmeticsMenu .wardrobe-trail-glyph-none > b { display: none; }
+#cosmeticsMenu .wardrobe-item-copy { display: grid; min-width: 0; gap: 4px; }
+#cosmeticsMenu .wardrobe-item-copy strong { overflow: hidden; color: #e5e6cc; font: bold 10px 'Courier New',Courier,monospace; letter-spacing: .04em; text-overflow: ellipsis; white-space: nowrap; }
+#cosmeticsMenu .wardrobe-item-copy small { display: -webkit-box; min-height: 22px; overflow: hidden; color: #b2b99d; font: 9px/1.35 'Courier New',Courier,monospace; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+#cosmeticsMenu .wardrobe-item-unlock { display: -webkit-box; overflow: hidden; color: #c0c79c; font: 8px/1.35 'Courier New',Courier,monospace; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+#cosmeticsMenu .wardrobe-item-progress { overflow: hidden; color: #c0c79c; font: 8px/1.3 'Courier New',Courier,monospace; letter-spacing: .02em; text-overflow: ellipsis; }
+#cosmeticsMenu .wardrobe-item-state { align-self: start; padding-top: 3px; color: #a2a98d; font: 7px 'Courier New',Courier,monospace; letter-spacing: .02em; white-space: nowrap; }
+
+/* Hats use a headwear rack, masks use classified contact files, and skins use tall portrait tiles. */
+#cosmeticsMenu .wardrobe-rack-header,#cosmeticsMenu .wardrobe-skin-register { display: flex; align-items: center; gap: 10px; margin: 0 0 11px; color: #b4bb9b; font: bold 8px 'Courier New',Courier,monospace; letter-spacing: .1em; }
+#cosmeticsMenu .wardrobe-rack-header > i { height: 1px; flex: 1; background: var(--wardrobe-line); }
+#cosmeticsMenu .wardrobe-rack-header > span:last-child,#cosmeticsMenu .wardrobe-skin-register > span:last-child { color: var(--wardrobe-accent); }
+#cosmeticsMenu .wardrobe-headwear-rack { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 9px; }
+#cosmeticsMenu .wardrobe-item-hat { grid-template-columns: 24px 78px minmax(0,1fr); min-height: 112px; padding: 10px; background: linear-gradient(145deg,rgba(217,223,146,.045),rgba(8,11,7,.56) 65%); }
+#cosmeticsMenu .wardrobe-item-hat .wardrobe-item-artwell { width: 78px; height: 82px; background: radial-gradient(ellipse,rgba(217,223,146,.11),transparent 70%); border-color: transparent; }
+#cosmeticsMenu .wardrobe-item-art-hat { width: 90%; height: 90%; object-fit: contain; filter: drop-shadow(0 6px 7px rgba(0,0,0,.44)); }
+#cosmeticsMenu .wardrobe-item-hat .wardrobe-item-state { position: absolute; right: 9px; bottom: 8px; }
+#cosmeticsMenu .wardrobe-contact-sheet { position: relative; padding: 13px; border: 1px solid rgba(223,226,174,.24); background: rgba(9,12,8,.37); box-shadow: inset 0 0 30px rgba(0,0,0,.17); }
+#cosmeticsMenu .wardrobe-contact-sheet-stamp { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; padding-bottom: 9px; color: #aeb496; border-bottom: 1px dashed rgba(223,226,174,.2); font: 8px 'Courier New',Courier,monospace; letter-spacing: .12em; }
+#cosmeticsMenu .wardrobe-contact-sheet-stamp strong { color: var(--wardrobe-accent); font: bold 8px 'Courier New',Courier,monospace; }
+#cosmeticsMenu .wardrobe-mask-files { display: grid; grid-template-columns: 1fr; gap: 5px; }
+#cosmeticsMenu .wardrobe-item-mask { grid-template-columns: 24px 66px minmax(0,1fr) auto; min-height: 90px; padding: 7px 9px; background: rgba(216,221,178,.025); border-color: rgba(223,226,174,.11); }
+#cosmeticsMenu .wardrobe-item-mask .wardrobe-item-artwell { width: 66px; height: 55px; background: rgba(0,0,0,.17); }
+#cosmeticsMenu .wardrobe-item-art-mask { width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 3px 4px rgba(0,0,0,.5)); }
+#cosmeticsMenu .wardrobe-skin-register { justify-content: space-between; margin-top: 4px; padding: 9px 10px; border-top: 1px solid var(--wardrobe-line); border-bottom: 1px solid var(--wardrobe-line); }
+#cosmeticsMenu .wardrobe-skin-gallery { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 9px; margin-top: 10px; }
+#cosmeticsMenu .wardrobe-item-skin { display: flex; min-height: 194px; flex-direction: column; align-items: stretch; gap: 7px; padding: 9px; background: linear-gradient(180deg,rgba(217,223,146,.035),rgba(8,11,7,.62)); }
+#cosmeticsMenu .wardrobe-item-skin .wardrobe-item-mark { align-self: flex-start; }
+#cosmeticsMenu .wardrobe-item-skin .wardrobe-item-artwell { flex: 0 0 116px; width: 100%; height: 116px; box-sizing: border-box; background: radial-gradient(ellipse at 50% 50%,rgba(217,223,146,.13),transparent 68%); border: 0; }
+#cosmeticsMenu .wardrobe-item-art-skin { display: block; width: min(100%,150px); max-width: 100%; height: 100%; object-fit: contain; object-position: center; margin: 0 auto; filter: drop-shadow(0 7px 8px rgba(0,0,0,.4)); }
+#cosmeticsMenu .wardrobe-item-skin .wardrobe-item-copy { align-content: start; }
+#cosmeticsMenu .wardrobe-item-skin .wardrobe-item-copy small { min-height: 29px; }
+#cosmeticsMenu .wardrobe-item-skin .wardrobe-item-state { align-self: flex-end; margin-top: auto; }
+
+/* The theme library shows only themes which exist now; new unlocks can join this shelf later. */
+#cosmeticsMenu .wardrobe-theme-heading { margin-bottom: 26px; }
+#cosmeticsMenu .wardrobe-theme-feature { display: grid; grid-template-columns: minmax(180px,.82fr) minmax(0,1.18fr); min-height: 270px; overflow: hidden; border: 1px solid rgba(217,223,146,.3); background: rgba(9,12,8,.68); box-shadow: 0 14px 35px rgba(0,0,0,.18); }
+#cosmeticsMenu .wardrobe-theme-art { position: relative; display: flex; min-height: 230px; flex-direction: column; justify-content: space-between; overflow: hidden; box-sizing: border-box; padding: 17px; background-color: #777a43; background-image: linear-gradient(180deg,rgba(16,20,10,.08),rgba(9,12,8,.48)),url('../assets/ui/themes/the-lobby-wallpaper.png'); background-position: center; background-repeat: no-repeat; background-size: cover; }
+#cosmeticsMenu .wardrobe-theme-art::before { position: absolute; inset: 0; background: linear-gradient(90deg,rgba(226,218,112,.1),transparent 50%,rgba(8,12,7,.28)); content: ''; }
+#cosmeticsMenu .wardrobe-theme-art > span,#cosmeticsMenu .wardrobe-theme-art > b { position: relative; z-index: 1; color: #f0efd0; text-shadow: 0 2px 12px rgba(0,0,0,.75); }
+#cosmeticsMenu .wardrobe-theme-art > span { font: bold 9px 'Courier New',Courier,monospace; letter-spacing: .14em; }
+#cosmeticsMenu .wardrobe-theme-art > b { align-self: flex-end; font: 500 clamp(28px,3vw,43px)/.9 Georgia,'Times New Roman',serif; text-align: right; }
+#cosmeticsMenu .wardrobe-theme-feature-copy { display: flex; min-width: 0; flex-direction: column; align-items: flex-start; justify-content: center; padding: clamp(18px,3vw,35px); }
+#cosmeticsMenu .wardrobe-theme-state { display: inline-flex; align-items: center; gap: 8px; color: var(--wardrobe-accent); font: bold 8px 'Courier New',Courier,monospace; letter-spacing: .1em; }
+#cosmeticsMenu .wardrobe-theme-state > i { width: 6px; height: 6px; border-radius: 50%; background: var(--wardrobe-accent); box-shadow: 0 0 9px rgba(217,223,146,.5); }
+#cosmeticsMenu .wardrobe-theme-feature-copy h3 { margin: 14px 0 9px; color: #ededd4; font: 500 27px Georgia,'Times New Roman',serif; }
+#cosmeticsMenu .wardrobe-theme-feature-copy p { max-width: 400px; margin: 0; color: #b6bc9f; font: 11px/1.65 'Courier New',Courier,monospace; }
+#cosmeticsMenu .wardrobe-theme-feature-meta { display: flex; gap: 8px; margin-top: 21px; }
+#cosmeticsMenu .wardrobe-theme-feature-meta span { padding: 6px 8px; color: #cdd2b4; border: 1px solid rgba(223,226,174,.19); font: bold 8px 'Courier New',Courier,monospace; letter-spacing: .08em; }
+#cosmeticsMenu .wardrobe-theme-feature-meta span:last-child { color: #1b2012; background: var(--wardrobe-accent); border-color: var(--wardrobe-accent); }
+#cosmeticsMenu .wardrobe-theme-link-row { display: flex; align-items: center; justify-content: space-between; gap: 22px; margin-top: 16px; padding: 18px; background: rgba(217,223,146,.045); border-left: 2px solid var(--wardrobe-accent); }
+#cosmeticsMenu .wardrobe-theme-link-row > div { display: grid; min-width: 0; gap: 7px; }
+#cosmeticsMenu .wardrobe-theme-link-row > div > span { color: #d8ddb7; font: bold 9px 'Courier New',Courier,monospace; letter-spacing: .1em; }
+#cosmeticsMenu .wardrobe-theme-link-row p { margin: 0; color: #b1b89a; font: 10px/1.5 'Courier New',Courier,monospace; }
+
+@keyframes wardrobe-route-walk { from { left: 4%; } to { left: calc(96% - 10px); } }
+@keyframes wardrobe-route-pulse { 0%,100% { opacity: .25; transform: scale(.8); } 50% { opacity: .95; transform: scale(1.25); } }
+
+@media (max-width: 980px) {
+    #cosmeticsMenu .lobby-wardrobe-workspace { grid-template-columns: minmax(250px,.72fr) minmax(0,1.28fr); }
+    #cosmeticsMenu .lobby-wardrobe-preview { padding-right: 20px; padding-left: 20px; }
+    #cosmeticsMenu .lobby-wardrobe-catalog { padding-right: 25px; padding-left: 25px; }
+    #cosmeticsMenu .wardrobe-color-mosaic { grid-template-columns: repeat(3,minmax(0,1fr)); }
+    #cosmeticsMenu .wardrobe-skin-gallery { grid-template-columns: repeat(2,minmax(0,1fr)); }
+    #cosmeticsMenu .wardrobe-item-hat { grid-template-columns: 20px 62px minmax(0,1fr); }
+    #cosmeticsMenu .wardrobe-item-hat .wardrobe-item-artwell { width: 62px; }
+}
+@media (max-width: 760px) {
+    #cosmeticsMenu .lobby-wardrobe-topbar { flex-basis: 67px; padding: 0 17px; }
+    #cosmeticsMenu .lobby-wardrobe-workspace { display: grid; grid-template-columns: minmax(0,1fr); grid-template-rows: minmax(290px,auto) minmax(450px,auto); overflow: auto; }
+    #cosmeticsMenu .lobby-wardrobe-preview { min-height: 290px; overflow: visible; padding: 16px 20px 13px; border-right: 0; border-bottom: 1px solid var(--wardrobe-line); }
+    #cosmeticsMenu .lobby-wardrobe-preview-stage { min-height: 180px; max-height: 28vh; margin: 9px 0 11px; }
+    #cosmeticsMenu #wardrobePreviewCanvas { width: min(100%, min(24vh,245px)); }
+    #cosmeticsMenu .lobby-wardrobe-preview-caption { gap: 4px; padding-bottom: 10px; }
+    #cosmeticsMenu .lobby-wardrobe-preview-caption strong { font-size: 16px; }
+    #cosmeticsMenu .lobby-wardrobe-preview-caption small { font-size: 8px; }
+    #cosmeticsMenu .lobby-wardrobe-preview-footer { padding-top: 10px; }
+    #cosmeticsMenu .lobby-wardrobe-catalog { overflow: visible; padding: 24px clamp(17px,5vw,35px) 0; }
+    #cosmeticsMenu .wardrobe-action-bar { margin-right: calc(clamp(17px,5vw,35px) * -1); margin-left: calc(clamp(17px,5vw,35px) * -1); padding-right: clamp(17px,5vw,35px); padding-left: clamp(17px,5vw,35px); }
+}
+@media (max-width: 560px) {
+    #cosmeticsMenu .lobby-wardrobe-topbar { display: grid; grid-template-columns: minmax(75px,1fr) auto minmax(70px,1fr); gap: 5px; flex-basis: 61px; padding: 0 10px; }
+    #cosmeticsMenu .lobby-wardrobe-back { min-width: 0; gap: 5px; font-size: 7px; letter-spacing: .04em; }
+    #cosmeticsMenu .lobby-wardrobe-back > span { font-size: 15px; }
+    #cosmeticsMenu .lobby-wardrobe-heading { position: static; transform: none; }
+    #cosmeticsMenu .lobby-wardrobe-heading > span { font-size: 6px; letter-spacing: .07em; }
+    #cosmeticsMenu .lobby-wardrobe-heading > span i { display: none; }
+    #cosmeticsMenu .lobby-wardrobe-heading h1 { margin-top: 3px; font-size: 13px; letter-spacing: .1em; white-space: nowrap; }
+    #cosmeticsMenu .lobby-wardrobe-balance { gap: 5px; font-size: 9px; }
+    #cosmeticsMenu .lobby-wardrobe-balance-mark { width: 19px; height: 19px; font-size: 9px; }
+    #cosmeticsMenu .lobby-wardrobe-balance small { font-size: 6px; }
+    #cosmeticsMenu .lobby-wardrobe-tabs { flex-basis: 49px; justify-content: flex-start; padding: 0 8px; }
+    #cosmeticsMenu .lobby-wardrobe-tab { min-width: 112px; gap: 6px; padding: 0 10px; font-size: 9px; }
+    #cosmeticsMenu .lobby-wardrobe-tab > span { font-size: 7px; }
+    #cosmeticsMenu .lobby-wardrobe-workspace { grid-template-rows: minmax(260px,auto) minmax(470px,auto); }
+    #cosmeticsMenu .lobby-wardrobe-preview { min-height: 260px; padding: 12px 13px 10px; }
+    #cosmeticsMenu .lobby-wardrobe-preview-topline { font-size: 7px; }
+    #cosmeticsMenu .lobby-wardrobe-preview-stage { min-height: 150px; max-height: 23vh; }
+    #cosmeticsMenu #wardrobePreviewCanvas { width: min(100%, min(21vh,190px)); }
+    #cosmeticsMenu .lobby-wardrobe-preview-caption strong { font-size: 14px; }
+    #cosmeticsMenu .lobby-wardrobe-preview-caption small { font-size: 8px; }
+    #cosmeticsMenu .lobby-wardrobe-preview-footer { font-size: 6px; }
+    #cosmeticsMenu .lobby-wardrobe-catalog { padding: 21px 14px 0; }
+    #cosmeticsMenu .wardrobe-category-heading { margin-bottom: 17px; }
+    #cosmeticsMenu .wardrobe-category-heading h2 { font-size: 28px; }
+    #cosmeticsMenu .wardrobe-category-heading p { font-size: 10px; }
+    #cosmeticsMenu .wardrobe-color-mosaic { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 7px; }
+    #cosmeticsMenu .wardrobe-color-sample { min-height: 61px; }
+    #cosmeticsMenu .wardrobe-trail-surface { min-height: 95px; }
+    #cosmeticsMenu .wardrobe-trail-choices { grid-template-columns: 1fr; }
+    #cosmeticsMenu .wardrobe-item { grid-template-columns: 20px 49px minmax(0,1fr) auto; gap: 7px; padding: 7px; }
+    #cosmeticsMenu .wardrobe-item-artwell { width: 49px; height: 42px; }
+    #cosmeticsMenu .wardrobe-item-copy strong { font-size: 9px; }
+    #cosmeticsMenu .wardrobe-item-copy small { font-size: 8px; }
+    #cosmeticsMenu .wardrobe-item-unlock,#cosmeticsMenu .wardrobe-item-progress,#cosmeticsMenu .wardrobe-item-state { font-size: 7px; }
+    #cosmeticsMenu .wardrobe-headwear-rack { grid-template-columns: 1fr; }
+    #cosmeticsMenu .wardrobe-item-hat { min-height: 91px; grid-template-columns: 19px 58px minmax(0,1fr); }
+    #cosmeticsMenu .wardrobe-item-hat .wardrobe-item-artwell { width: 58px; height: 65px; }
+    #cosmeticsMenu .wardrobe-item-mask { grid-template-columns: 16px 48px minmax(0,1fr); min-height: 80px; }
+    #cosmeticsMenu .wardrobe-item-mask .wardrobe-item-artwell { width: 48px; height: 49px; }
+    #cosmeticsMenu .wardrobe-item-mask .wardrobe-item-state { position: absolute; right: 6px; bottom: 5px; }
+    #cosmeticsMenu .wardrobe-contact-sheet { padding: 8px; }
+    #cosmeticsMenu .wardrobe-skin-gallery { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 6px; }
+    #cosmeticsMenu .wardrobe-item-skin { min-height: 170px; }
+    #cosmeticsMenu .wardrobe-item-skin .wardrobe-item-artwell { flex-basis: 96px; height: 96px; }
+    #cosmeticsMenu .wardrobe-theme-feature { grid-template-columns: minmax(0,1fr); }
+    #cosmeticsMenu .wardrobe-theme-art { min-height: 155px; }
+    #cosmeticsMenu .wardrobe-theme-art > b { font-size: 32px; }
+    #cosmeticsMenu .wardrobe-theme-feature-copy { padding: 17px; }
+    #cosmeticsMenu .wardrobe-theme-feature-copy h3 { margin-top: 9px; font-size: 22px; }
+    #cosmeticsMenu .wardrobe-theme-feature-meta { margin-top: 13px; }
+    #cosmeticsMenu .wardrobe-theme-link-row { align-items: stretch; flex-direction: column; gap: 13px; padding: 13px; }
+    #cosmeticsMenu .wardrobe-theme-link { width: 100%; min-height: 43px; }
+    #cosmeticsMenu .wardrobe-action-bar { align-items: stretch; flex-direction: column; gap: 11px; margin: 20px -14px 0; padding: 12px 14px; }
+    #cosmeticsMenu .wardrobe-equip-button { width: 100%; min-height: 42px; }
+}
+@media (prefers-reduced-motion: reduce) {
+    #cosmeticsMenu .lobby-wardrobe-back,#cosmeticsMenu .lobby-wardrobe-tab,#cosmeticsMenu .wardrobe-color-chip,#cosmeticsMenu .wardrobe-item,#cosmeticsMenu .wardrobe-equip-button,#cosmeticsMenu .wardrobe-theme-link { transition: none !important; scroll-behavior: auto; }
+    #cosmeticsMenu .wardrobe-trail-route > i,#cosmeticsMenu .wardrobe-trail-route > b,#cosmeticsMenu .wardrobe-trail-glyph > b { animation: none !important; }
+}

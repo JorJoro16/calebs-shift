@@ -2,6 +2,16 @@
 
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
+function resizeGameCanvas() {
+    const playing = document.body.dataset.gameRunning === 'true';
+    const width = playing ? Math.max(1, Math.round(window.innerWidth)) : 800;
+    const height = playing ? Math.max(1, Math.round(window.innerHeight)) : 600;
+    if (canvas.width !== width) canvas.width = width;
+    if (canvas.height !== height) canvas.height = height;
+}
+window.addEventListener('resize', () => {
+    if (document.body.dataset.gameRunning === 'true') resizeGameCanvas();
+});
 const PLAYER_COLORS = { blue:'#00f', crimson:'#d22', violet:'#a64dff', green:'#19c76b', amber:'#e7a21a', gold:'#e9ca35', sepia:'#800', white:'#f6f6f6' };
 const hatImages = { noahCap: new Image(), cowboyHat: new Image(), luffyHat: new Image(), krustyHat: new Image(), headlightHat: new Image(), calebCrown: new Image() };
 const maskImages = { idiotMask: new Image(), spongeMask: new Image(), jordanMask: new Image(), smileMask: new Image(), stopSignMask: new Image() };
@@ -10,7 +20,7 @@ const skinImages = {
     bronzeSkin: new Image(), silverSkin: new Image(), goldSkin: new Image()
 };
 const bossImages = {
-    caleb: new Image(), leftHand: new Image(), rightHand: new Image(), cal: new Image(), leb: new Image()
+    caleb: new Image(), calebBlack: new Image(), leftHand: new Image(), rightHand: new Image(), cal: new Image(), leb: new Image()
 };
 hatImages.noahCap.src = 'assets/noah-cap.png';
 hatImages.cowboyHat.src = 'assets/cowboy-hat.png';
@@ -30,11 +40,15 @@ skinImages.bronzeSkin.src = 'assets/bronze-skin.png';
 skinImages.silverSkin.src = 'assets/silver-skin.png';
 skinImages.goldSkin.src = 'assets/gold-skin.png';
 bossImages.caleb.src = 'assets/caleb-boss.png';
+bossImages.calebBlack.src = 'assets/caleb-black-eyes.png';
 bossImages.leftHand.src = 'assets/caleb-left-hand.png';
 bossImages.rightHand.src = 'assets/caleb-right-hand.png';
 bossImages.cal.src = 'assets/cal.png';
 bossImages.leb.src = 'assets/leb.png';
+
 const hud = document.getElementById('gameHUD');
+let lastObjectivePanelSignature = null;
+let lastThreatRosterSignature = null;
 const msgBox = document.getElementById('message');
 
 // Audio Context Setup
@@ -99,11 +113,6 @@ function playSound(type) {
         gain.gain.setValueAtTime(vol * 0.18, audioCtx.currentTime);
         gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.45);
         osc.start(); osc.stop(audioCtx.currentTime + 0.45);
-    } else if (type === 'menuHover') {
-        osc.type = 'triangle'; osc.frequency.setValueAtTime(520, audioCtx.currentTime);
-        gain.gain.setValueAtTime(vol * 0.035, audioCtx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.07);
-        osc.start(); osc.stop(audioCtx.currentTime + 0.07);
     } else if (type === 'menuSelect') {
         osc.type = 'sine'; osc.frequency.setValueAtTime(360, audioCtx.currentTime);
         osc.frequency.exponentialRampToValueAtTime(720, audioCtx.currentTime + 0.12);
@@ -162,8 +171,8 @@ for (const audio of [noahScreamAudio, rhysScreamAudio]) {
 
 function syncCalebBossMusicVolume() {
     const master = Math.max(0, Math.min(1, Number(setVolM) / 100));
-    const sfx = Math.max(0, Math.min(1, Number(setVolS) / 100));
-    if (!calebBossMusicFading) calebBossMusic.volume = master * sfx * .38;
+    const gameplay = Math.max(0, Math.min(1, Number(setVolGameplay) / 100));
+    if (!calebBossMusicFading) calebBossMusic.volume = master * gameplay * .38;
 }
 
 function startCalebBossMusic(restart = false) {
@@ -201,8 +210,8 @@ function updateCalebBossMusicFade() {
 
 function specialMusicGain() {
     const master = Math.max(0, Math.min(1, Number(setVolM) / 100));
-    const sfx = Math.max(0, Math.min(1, Number(setVolS) / 100));
-    return master * sfx;
+    const gameplay = Math.max(0, Math.min(1, Number(setVolGameplay) / 100));
+    return master * gameplay;
 }
 
 function playSpecialScream(audio, gain = .58) {
@@ -283,7 +292,7 @@ calebBossMusic.addEventListener('ended', () => {
 });
 
 // Versioned local progress with a backup copy and import/export support.
-const GAME_VERSION = '2.18.20';
+const GAME_VERSION = '2.18.82';
 const SAVE_SCHEMA_VERSION = 10;
 const COSMETIC_REWARD_VERSION = 2;
 const SAVE_KEY = 'br_save_v2';
@@ -308,6 +317,52 @@ const LOADOUT_DEFINITIONS = {
     chase: { name: 'CHASE KIT', description: 'Adrenaline, Flashbangs, and Bear Traps.', items: ['adrenaline', 'flashbang', 'bearTrap'] },
     utility: { name: 'UTILITY KIT', description: 'Signals, repairs, and map-specific gear.', items: ['noiseMaker', 'battery', 'breathFilter', 'signalScrambler', 'neutralizer', 'repairKit', 'flare'] }
 };
+const LOADOUT_PRESET_ICONS = {
+    free: 'assets/ui/icons/loadouts/FreeCarryIcon.svg',
+    chase: 'assets/ui/icons/market/DashIcon.svg',
+    utility: 'assets/ui/icons/loadouts/UtilityKitIcon.svg'
+};
+const LOADOUT_CUSTOM_ICON_OPTIONS = [
+    { id: 'freeCarry', name: 'Free Carry', src: 'assets/ui/icons/loadouts/FreeCarryIcon.svg' },
+    { id: 'utility', name: 'Utility Kit', src: 'assets/ui/icons/loadouts/UtilityKitIcon.svg' },
+    { id: 'dash', name: 'Dash', src: 'assets/ui/icons/market/DashIcon.svg' },
+    { id: 'gameMark', name: "Caleb's Shift", src: 'assets/icon.svg' },
+    { id: 'dailyShift', name: 'Today’s Shift', src: 'assets/ui/icons/daily-shift.svg' },
+    { id: 'campaignMode', name: 'Campaign Mode', src: 'assets/ui/icons/modes/CampaignModeIcon.svg' },
+    { id: 'endlessMode', name: 'Endless Mode', src: 'assets/ui/icons/modes/EndlessModeIcon.svg' },
+    { id: 'challengeMode', name: 'Challenge Mode', src: 'assets/ui/icons/modes/DailyChallengeIcon.svg' },
+    { id: 'survivalMode', name: 'Survival Mode', src: 'assets/ui/icons/modes/SurvivalIcon.svg' },
+    { id: 'infoNotification', name: 'Information', src: 'assets/ui/icons/notifications/InfoNotiIcon.svg' },
+    { id: 'rewardNotification', name: 'Reward', src: 'assets/ui/icons/notifications/RewardNotiIcon.svg' },
+    { id: 'dangerNotification', name: 'Danger', src: 'assets/ui/icons/notifications/DangerNotiIcon.svg' },
+    { id: 'loadouts', name: 'Loadouts', src: 'assets/ui/icons/loadouts.svg' },
+    { id: 'archive', name: 'Archive', src: 'assets/ui/icons/archive.svg' },
+    { id: 'records', name: 'Records', src: 'assets/ui/icons/records.svg' },
+    { id: 'settings', name: 'Settings', src: 'assets/ui/icons/settings.svg' },
+    { id: 'menuStyle', name: 'Menu Style', src: 'assets/ui/icons/menu-style.svg' },
+    { id: 'play', name: 'Play', src: 'assets/ui/icons/audio-controls/play.svg' },
+    { id: 'pause', name: 'Pause', src: 'assets/ui/icons/audio-controls/pause.svg' },
+    { id: 'skipNext', name: 'Skip Next', src: 'assets/ui/icons/audio-controls/skip-next.svg' },
+    { id: 'skipPrevious', name: 'Skip Previous', src: 'assets/ui/icons/audio-controls/skip-previous.svg' },
+    { id: 'adrenaline', name: 'Adrenaline Syringe', src: 'assets/ui/icons/market/AdrenalineSyringeIcon.svg' },
+    { id: 'bearTrap', name: 'Bear Trap', src: 'assets/ui/icons/market/BearTrapIcon.svg' },
+    { id: 'blackMarket', name: 'Black Market', src: 'assets/ui/icons/market/BlackMarketIcon.svg' },
+    { id: 'emergencyBattery', name: 'Emergency Battery', src: 'assets/ui/icons/market/EmergencyBatteryIcon.svg' },
+    { id: 'emergencyFlare', name: 'Emergency Flare', src: 'assets/ui/icons/market/EmergencyFlareIcon.svg' },
+    { id: 'flashbang', name: 'Flashbang', src: 'assets/ui/icons/market/FlashbangIcon.svg' },
+    { id: 'hackerGloves', name: 'Hacker Gloves', src: 'assets/ui/icons/market/HackerGlovesIcon.svg' },
+    { id: 'luckyCoin', name: 'Lucky Coin', src: 'assets/ui/icons/market/LuckyCoinIcon.svg' },
+    { id: 'maps', name: 'Maps', src: 'assets/ui/icons/market/MapsIcon.svg' },
+    { id: 'noiseMaker', name: 'Noise Maker', src: 'assets/ui/icons/market/NoiseMakerIcon.svg' },
+    { id: 'quickHands', name: 'Quick Hands', src: 'assets/ui/icons/market/QuickHandsIcon.svg' },
+    { id: 'runningShoes', name: 'Running Shoes', src: 'assets/ui/icons/market/RunningShoesIcon.svg' },
+    { id: 'shop', name: 'Shop', src: 'assets/ui/icons/market/ShopIcon.svg' },
+    { id: 'signalScrambler', name: 'Signal Scrambler', src: 'assets/ui/icons/market/SignalScramblerIcon.svg' },
+    { id: 'entityContacts', name: 'Entity Contacts', src: 'assets/ui/icons/records/EntityContactsIcon.svg' },
+    { id: 'fieldReport', name: 'Field Report', src: 'assets/ui/icons/records/FieldReportIcon.svg' },
+    { id: 'mapLocation', name: 'Map Location', src: 'assets/ui/icons/records/MapLocationIcon.svg' },
+    { id: 'milestone', name: 'Milestone', src: 'assets/ui/icons/records/MilestoneIcon.svg' }
+];
 
 const DAILY_OBJECTIVE_POOL = [
     { id: 'repair-3', label: 'Repair 3 generators', type: 'generators', target: 3, reward: 12 },
@@ -323,9 +378,28 @@ const DAILY_OBJECTIVE_POOL = [
     { id: 'challenge-run', label: 'Clear 1 Challenge', type: 'challenge', target: 1, reward: 30 }
 ];
 
+const CHALLENGE_TEMPLATES = [
+    { id:'blackout', title:'BLACKOUT CONTRACT', detail:'Safe rooms can fail and the grid needs an extra generator.', reward:48, diff:1 },
+    { id:'pressure', title:'PRESSURE CONTRACT', detail:'The hunter moves faster. Keep a clear route to the exit.', reward:55, diff:2 },
+    { id:'lean', title:'LEAN SHIFT', detail:'Bring only the custom kit you select; field supplies are scarce.', reward:52, diff:1 },
+    { id:'double', title:'TWO HUNTERS', detail:'Two monsters search together and share line-of-sight alerts.', reward:65, diff:2 },
+    { id:'relay', title:'RELAY RUN', detail:'Every generator uses multiple repair stages.', reward:58, diff:2 },
+    { id:'fog', title:'FOG ROLL', detail:'A rolling fog cuts visibility but reveals active generators.', reward:54, diff:1 }
+];
+
 const ITEM_DEFINITIONS = {
     adrenaline:'Adrenaline', flashbang:'Flashbang', noiseMaker:'Noise Maker', bearTrap:'Bear Trap', battery:'Battery', breathFilter:'Breath Filter', signalScrambler:'Signal Scrambler', neutralizer:'Goop Neutralizer', repairKit:'Repair Kit', flare:'Emergency Flare'
 };
+const LOADOUT_ITEM_ICONS = {
+    adrenaline: 'assets/ui/icons/market/AdrenalineSyringeIcon.svg',
+    flashbang: 'assets/ui/icons/market/FlashbangIcon.svg',
+    noiseMaker: 'assets/ui/icons/market/NoiseMakerIcon.svg',
+    bearTrap: 'assets/ui/icons/market/BearTrapIcon.svg',
+    battery: 'assets/ui/icons/market/EmergencyBatteryIcon.svg',
+    signalScrambler: 'assets/ui/icons/market/SignalScramblerIcon.svg',
+    flare: 'assets/ui/icons/market/EmergencyFlareIcon.svg'
+};
+const LOADOUT_ITEM_MARKS = { breathFilter: '◌', neutralizer: '◉', repairKit: '✚' };
 
 function safeStorageGet(key) {
     try { return localStorage.getItem(key); } catch (error) { return null; }
@@ -340,16 +414,39 @@ function boundedInt(value, min, max, fallback = min) {
     return Number.isFinite(number) ? Math.max(min, Math.min(max, Math.floor(number))) : fallback;
 }
 
+function escapeHtml(value) {
+    return String(value).replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
+}
+
+function cleanCustomLoadoutName(value, fallback = '') {
+    return String(value || '').replace(/[\u0000-\u001f\u007f]/g, '').replace(/\s+/g, ' ').trim().slice(0, 32) || fallback;
+}
+
+function getCustomLoadoutName(kit, index) {
+    return cleanCustomLoadoutName(kit?.name, `CUSTOM KIT ${index + 1}`);
+}
+
+function getCustomLoadoutIcon(kit) {
+    return LOADOUT_CUSTOM_ICON_OPTIONS.find(option => option.id === kit?.icon) || LOADOUT_CUSTOM_ICON_OPTIONS[0];
+}
+
 function normalizeCustomLoadout(value) {
     // v9 stored an array of names. Keep every old kit by converting each name
     // into one carried copy; v10 stores quantities by item id.
-    if (Array.isArray(value)) return value.filter(id => ITEM_DEFINITIONS[id]).reduce((kit, id) => ({ ...kit, [id]: 1 }), {});
+    if (Array.isArray(value)) {
+        const legacyKit = value.filter(id => ITEM_DEFINITIONS[id]).reduce((kit, id) => ({ ...kit, [id]: 1 }), {});
+        legacyKit.icon = LOADOUT_CUSTOM_ICON_OPTIONS[0].id;
+        return legacyKit;
+    }
     if (!value || typeof value !== 'object') return {};
     const kit = {};
     for (const id of Object.keys(ITEM_DEFINITIONS)) {
         const amount = boundedInt(value[id], 0, 8, 0);
         if (amount) kit[id] = amount;
     }
+    const name = cleanCustomLoadoutName(value.name);
+    if (name) kit.name = name;
+    kit.icon = LOADOUT_CUSTOM_ICON_OPTIONS.some(option => option.id === value.icon) ? value.icon : LOADOUT_CUSTOM_ICON_OPTIONS[0].id;
     return kit;
 }
 
@@ -410,8 +507,6 @@ function normalizeProgress(raw) {
     const source = raw.progress && typeof raw.progress === 'object' ? raw.progress : raw;
     if (raw.schemaVersion !== undefined && raw.schemaVersion > SAVE_SCHEMA_VERSION) return null;
     if (source.tokens === undefined && source.upgShoe === undefined) return null;
-    const unlockedMaps = Array.isArray(source.unlockedMaps) ? source.unlockedMaps.filter(id => MAP_DEFINITIONS[id]) : ['level0'];
-    if (unlockedMaps.includes('subway')) unlockedMaps.push('lucas');
     const dailySource = source.daily && typeof source.daily === 'object' ? source.daily : {};
     const dailyObjectives = Array.isArray(dailySource.objectives) ? dailySource.objectives.map(item => ({
         id: String(item.id || ''), label: String(item.label || 'Daily objective'), type: String(item.type || ''),
@@ -420,6 +515,33 @@ function normalizeProgress(raw) {
     })).slice(0, 3) : [];
     const savedMapMastery = source.mapMastery && typeof source.mapMastery === 'object' ? source.mapMastery : {};
     const savedCampaignCleared = Array.isArray(source.campaignCleared) ? source.campaignCleared.filter(id => MAP_DEFINITIONS[id]) : [];
+    const unlockedMapSet = new Set(Array.isArray(source.unlockedMaps) ? source.unlockedMaps.filter(id => MAP_DEFINITIONS[id]) : ['level0']);
+    unlockedMapSet.add('level0');
+    // Older campaign saves may track clears without a complete unlockedMaps list.
+    // Rebuild the already-reached route additively so the Market and map selector agree.
+    savedCampaignCleared.forEach(mapId => {
+        const clearedOrder = MAP_DEFINITIONS[mapId].campaignOrder;
+        Object.values(MAP_DEFINITIONS).forEach(mapDef => {
+            if (mapDef.campaignOrder <= clearedOrder + 1) unlockedMapSet.add(mapDef.id);
+        });
+    });
+    // A few earlier saves recorded map clears in mastery before the unlock list
+    // was fully populated. Keep those already-played sites visible in Map Intel.
+    Object.entries(savedMapMastery).forEach(([mapId, mastery]) => {
+        if (MAP_DEFINITIONS[mapId] && Array.isArray(mastery) && mastery.some(Boolean)) unlockedMapSet.add(mapId);
+    });
+    if (unlockedMapSet.has('subway')) unlockedMapSet.add('lucas');
+    const unlockedMaps = Array.from(unlockedMapSet);
+    const challengeTemplateIds = new Set(CHALLENGE_TEMPLATES.map(challenge => challenge.id));
+    const dailyChallengeCards = Array.isArray(dailySource.challengeCards)
+        ? dailySource.challengeCards.slice(0, 3).flatMap(card => {
+            const template = CHALLENGE_TEMPLATES.find(challenge => challenge.id === card?.id);
+            return template && unlockedMapSet.has(card.mapId) ? [{ ...template, mapId: card.mapId }] : [];
+        })
+        : [];
+    const dailyCompletedChallenges = Array.isArray(dailySource.completedChallenges)
+        ? Array.from(new Set(dailySource.completedChallenges.filter(id => challengeTemplateIds.has(id) && dailyChallengeCards.some(card => card.id === id))))
+        : [];
     const lucasMasteryCleared = Array.isArray(savedMapMastery.lucas) && savedMapMastery.lucas.some(Boolean);
     // Older saves can have a completed Lucas run in map mastery without the
     // campaign-clear marker. Repair that record so the boss replay choice is
@@ -454,7 +576,13 @@ function normalizeProgress(raw) {
         mapMastery: savedMapMastery,
         mapIntel: Array.isArray(source.mapIntel) ? source.mapIntel.filter(id => MAP_DEFINITIONS[id]) : [],
         cosmeticRewardVersion: boundedInt(source.cosmeticRewardVersion, 0, COSMETIC_REWARD_VERSION, 0),
-        daily: { date: String(dailySource.date || ''), objectives: dailyObjectives, bonusClaimed: Boolean(dailySource.bonusClaimed) }
+        daily: {
+            date: String(dailySource.date || ''),
+            objectives: dailyObjectives,
+            bonusClaimed: Boolean(dailySource.bonusClaimed),
+            challengeCards: dailyChallengeCards,
+            completedChallenges: dailyCompletedChallenges
+        }
     };
 }
 
@@ -506,11 +634,12 @@ let campaignCleared = loadedProgress.campaignCleared || [];
 let lucasBossUnlocked = Boolean(loadedProgress.lucasBossUnlocked);
 let selectedLoadout = loadedProgress.selectedLoadout || 'free';
 let customLoadouts = loadedProgress.customLoadouts || [{}, {}, {}];
+let customLoadoutIconPickerOpen = false;
 let runLoadoutRemaining = null;
 let mapMastery = loadedProgress.mapMastery || {};
 let mapIntel = loadedProgress.mapIntel || [];
 let cosmeticRewardVersion = loadedProgress.cosmeticRewardVersion || 0;
-let daily = loadedProgress.daily || { date: '', objectives: [], bonusClaimed: false };
+let daily = loadedProgress.daily || { date: '', objectives: [], bonusClaimed: false, challengeCards: [], completedChallenges: [] };
 if (stats.generators >= 1000 && !cosmetics.unlocked.includes('generator')) cosmetics.unlocked.push('generator');
 if ((mapMastery.lucas || []).some(Boolean) || campaignCleared.includes('lucas')) {
     if (!cosmetics.unlocked.includes('calebCrown')) cosmetics.unlocked.push('calebCrown');
@@ -519,9 +648,12 @@ if ((mapMastery.lucas || []).some(Boolean) || campaignCleared.includes('lucas'))
 // Settings Data
 let setFPS = localStorage.getItem('br_fps') === 'true';
 let setCRT = localStorage.getItem('br_crt') === 'true';
-let setOptimization = localStorage.getItem('br_optimization') === 'true';
+let setVHS = localStorage.getItem('br_vhs') === 'true';
+let setSpeedrunTimer = localStorage.getItem('br_speedrun_timer') === 'true';
+let setReduceShake = localStorage.getItem('br_reduce_shake') === 'true';
 let setVolM = localStorage.getItem('br_volM') || 100;
 let setVolS = localStorage.getItem('br_volS') || 100;
+let setVolGameplay = localStorage.getItem('br_volGameplay') || localStorage.getItem('br_volS') || 100;
 
 function currentProgress() {
     return { tokens, upgShoe, upgHack, upgQuick, upgCoin, upgDash, invAdrenaline, invFlashbang, invNoiseMaker, invBearTrap, invBattery, invBreathFilter, invSignalScrambler, invNeutralizer, invRepairKit, invFlare, cosmetics, stats, unlockedMaps, campaignCleared, lucasBossUnlocked, selectedLoadout, customLoadouts, mapMastery, mapIntel, cosmeticRewardVersion, daily };
@@ -586,10 +718,124 @@ function ensureDailyObjectives() {
         objectives: [0, 1, 2].map(offset => {
             const item = DAILY_OBJECTIVE_POOL[(seed + offset * 3) % DAILY_OBJECTIVE_POOL.length];
             return { ...item, progress: 0, claimed: false };
-        }), bonusClaimed: false
+        }),
+        bonusClaimed: false,
+        challengeCards: [],
+        completedChallenges: []
     };
     saveData();
 }
+
+function ensureDailyChallengeBoard() {
+    ensureDailyObjectives();
+    if (Array.isArray(daily.challengeCards) && daily.challengeCards.length === 3) return daily.challengeCards;
+
+    const availableMaps = Object.keys(MAP_DEFINITIONS).filter(mapId => unlockedMaps.includes(mapId));
+    // Fog Roll has no active gameplay modifier yet, so keep it out of the
+    // daily draw until its rules are implemented.
+    const shuffled = CHALLENGE_TEMPLATES.filter(challenge => challenge.id !== 'fog');
+    for (let index = shuffled.length - 1; index > 0; index--) {
+        const swapIndex = Math.floor(Math.random() * (index + 1));
+        [shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]];
+    }
+    daily.challengeCards = shuffled.slice(0, 3).map(challenge => ({
+        ...challenge,
+        mapId: availableMaps[Math.floor(Math.random() * availableMaps.length)] || 'level0'
+    }));
+    daily.completedChallenges = [];
+    saveData();
+    return daily.challengeCards;
+}
+
+function getDailyChallengeSnapshot() {
+    const cards = ensureDailyChallengeBoard();
+    return {
+        date: daily.date,
+        completedIds: [...(daily.completedChallenges || [])],
+        cards: cards.map((challenge, index) => ({
+            ...challenge,
+            index,
+            mapName: MAP_DEFINITIONS[challenge.mapId]?.name || 'UNKNOWN SITE',
+            difficultyName: ['EASY', 'NORMAL', 'HARD'][challenge.diff] || 'NORMAL'
+        }))
+    };
+}
+
+function getPlayMenuSnapshot() {
+    const maps = Object.values(MAP_DEFINITIONS).sort((left, right) => left.campaignOrder - right.campaignOrder);
+    const unlocked = maps.filter(map => unlockedMaps.includes(map.id));
+    const nextCampaignMap = unlocked.find(map => !campaignCleared.includes(map.id)) || null;
+    const challengeState = getDailyChallengeSnapshot();
+    return {
+        campaignCleared: campaignCleared.length,
+        campaignTotal: maps.length,
+        nextCampaignMap: nextCampaignMap ? nextCampaignMap.name : 'ALL ROUTES CLEARED',
+        nextCampaignDescription: nextCampaignMap ? nextCampaignMap.description : 'Every recorded campaign route has been cleared. Choose any unlocked site to replay.',
+        unlockedMapCount: unlockedMaps.length,
+        endlessBest: stats.bestEndless || 0,
+        challengeCompleteCount: challengeState.completedIds.length
+    };
+}
+
+function getEquippedLoadoutSnapshot() {
+    const customMatch = selectedLoadout.match(/^custom([123])$/);
+    const customIndex = customMatch ? Number(customMatch[1]) - 1 : -1;
+    const customKit = customIndex >= 0 ? (customLoadouts[customIndex] || {}) : null;
+    const profile = LOADOUT_DEFINITIONS[selectedLoadout] || LOADOUT_DEFINITIONS.free;
+    const name = customKit ? getCustomLoadoutName(customKit, customIndex) : profile.name;
+    const icon = customKit ? getCustomLoadoutIcon(customKit).src : (LOADOUT_PRESET_ICONS[selectedLoadout] || LOADOUT_PRESET_ICONS.free);
+    const items = Object.entries(ITEM_DEFINITIONS).flatMap(([id, itemName]) => {
+        const owned = getOwnedItemCount(id);
+        const permitted = customKit ? Number(customKit[id]) || 0 : (!profile.items || profile.items.includes(id) ? owned : 0);
+        const count = Math.min(owned, Math.max(0, Math.floor(permitted)));
+        return count > 0 ? [{ id, name: itemName, count, icon: LOADOUT_ITEM_ICONS[id] || '', mark: LOADOUT_ITEM_MARKS[id] || itemName.slice(0, 1) }] : [];
+    });
+    return {
+        id: selectedLoadout,
+        name,
+        icon,
+        description: customKit ? 'Saved custom kit' : profile.description,
+        items,
+        totalItems: items.reduce((total, item) => total + item.count, 0),
+        custom: Boolean(customKit)
+    };
+}
+
+function getRunFlowSnapshot() {
+    const maps = Object.values(MAP_DEFINITIONS)
+        .sort((left, right) => left.campaignOrder - right.campaignOrder)
+        .map(mapDef => {
+            const unlocked = unlockedMaps.includes(mapDef.id);
+            const campaignRouteLocked = gameMode === 'campaign' && mapDef.campaignOrder > campaignCleared.length;
+            const cleared = campaignCleared.includes(mapDef.id);
+            const selectable = unlocked && !campaignRouteLocked;
+            return {
+                id: mapDef.id,
+                name: mapDef.name,
+                description: selectable ? mapDef.description : '',
+                order: mapDef.campaignOrder,
+                unlocked,
+                cleared,
+                selectable,
+                campaignRouteLocked,
+                masteryCount: (mapMastery[mapDef.id] || []).filter(Boolean).length,
+                endlessBest: Number(stats.endlessMapBest?.[mapDef.id]) || 0,
+                status: !unlocked ? 'SEALED' : campaignRouteLocked ? 'ROUTE SEALED' : cleared ? 'CLEARED' : 'AVAILABLE'
+            };
+        });
+    return {
+        mode: gameMode,
+        selectedMapId: currentMapId,
+        maps,
+        loadout: getEquippedLoadoutSnapshot(),
+        campaignStartAtBoss,
+        lucasBossChoiceAvailable: gameMode === 'campaign' && currentMapId === 'lucas' && hasLucasCampaignClear()
+    };
+}
+
+window.getDailyChallengeSnapshot = getDailyChallengeSnapshot;
+window.getPlayMenuSnapshot = getPlayMenuSnapshot;
+window.getRunFlowSnapshot = getRunFlowSnapshot;
 
 function advanceDailyObjective(type, amount = 1) {
     ensureDailyObjectives();
@@ -636,96 +882,293 @@ function consumeLoadoutItem(type) {
 }
 
 function customKitSummary(kit) {
-    const entries = Object.entries(kit).filter(([, amount]) => amount > 0);
-    return entries.length ? entries.map(([id, amount]) => `${ITEM_DEFINITIONS[id]} ×${amount}`).join(', ') : 'Choose items and quantities (8 total).';
+    const entries = Object.entries(ITEM_DEFINITIONS)
+        .filter(([id]) => getOwnedItemCount(id) > 0 && Number(kit?.[id]) > 0)
+        .map(([id]) => `${ITEM_DEFINITIONS[id]} ×${Math.min(getOwnedItemCount(id), boundedInt(kit[id], 0, 8, 0))}`);
+    return entries.length ? entries.join(' · ') : 'No owned supplies packed';
+}
+
+function customKitPackedCount(kit) {
+    return Object.keys(ITEM_DEFINITIONS).reduce((total, id) => total + Math.min(getOwnedItemCount(id), boundedInt(kit?.[id], 0, 8, 0)), 0);
 }
 
 function renderDailyObjectives() {
     ensureDailyObjectives();
     const content = document.getElementById('dailyObjectivesContent');
     if (!content) return;
-    content.innerHTML = daily.objectives.map((objective, index) => {
-        const complete = objective.progress >= objective.target;
-        const action = complete && !objective.claimed ? ` <button onclick="claimDailyObjective(${index})">CLAIM ${objective.reward} T</button>` : '';
-        return `<div class="objective-row"><div><b>${objective.label}</b><br><span>${Math.min(objective.progress, objective.target)}/${objective.target}${objective.claimed ? ' · CLAIMED' : ''}</span></div>${action}</div>`;
-    }).join('') + `<div class="objective-row"><div><b>SHIFT BONUS</b><br><span>Claim after all three tasks · 35 Tokens</span></div>${daily.objectives.every(objective => objective.claimed) && !daily.bonusClaimed ? '<button onclick="claimDailyBonus()">CLAIM 35 T</button>' : `<span>${daily.bonusClaimed ? 'CLAIMED' : 'LOCKED'}</span>`}</div>`;
+    const focusedControl = content.contains(document.activeElement)
+        ? document.activeElement.getAttribute('data-shift-focus')
+        : null;
+    const taskCount = daily.objectives.length;
+    const completedCount = daily.objectives.filter(objective => objective.progress >= objective.target).length;
+    const claimedCount = daily.objectives.filter(objective => objective.claimed).length;
+    const bonusReady = claimedCount === taskCount && !daily.bonusClaimed;
+    const dateParts = String(daily.date || '').split('-').map(Number);
+    const rotationDate = dateParts.length === 3 && dateParts.every(Number.isFinite)
+        ? new Date(dateParts[0], dateParts[1] - 1, dateParts[2]).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }).toUpperCase()
+        : 'LOCAL ROTATION';
+    const dateTarget = document.getElementById('dailyShiftDate');
+    const progressTarget = document.getElementById('dailyShiftProgress');
+    const progressFill = document.getElementById('dailyShiftProgressFill');
+    const progressBar = progressFill?.parentElement;
+    const bonusStatus = document.getElementById('dailyShiftBonusStatus');
+    if (dateTarget) dateTarget.textContent = `ROTATION · ${rotationDate}`;
+    if (progressTarget) progressTarget.textContent = `${String(completedCount).padStart(2, '0')} / ${String(taskCount).padStart(2, '0')}`;
+    if (progressFill) progressFill.style.width = `${taskCount ? (completedCount / taskCount) * 100 : 0}%`;
+    if (progressBar) progressBar.setAttribute('aria-valuenow', String(completedCount));
+    if (bonusStatus) bonusStatus.textContent = daily.bonusClaimed ? 'CLAIMED · SHIFT COMPLETE' : bonusReady ? 'READY · ALL REWARDS CLAIMED' : `${claimedCount} / ${taskCount} REWARDS CLAIMED`;
+
+    const tasks = daily.objectives.map((objective, index) => {
+        const progress = Math.min(objective.progress, objective.target);
+        const complete = progress >= objective.target;
+        const status = objective.claimed ? 'REWARD SECURED' : complete ? 'READY TO CLAIM' : 'IN PROGRESS';
+        const state = objective.claimed ? 'claimed' : complete ? 'ready' : 'active';
+        const fill = objective.target ? (progress / objective.target) * 100 : 0;
+        const action = complete && !objective.claimed
+            ? `<button class="lobby-shift-claim" data-shift-focus="task-${index}" type="button" onclick="claimDailyObjective(${index})" aria-label="Claim ${objective.reward} tokens for ${objective.label}">CLAIM <strong>+${objective.reward} T</strong><span aria-hidden="true">↗</span></button>`
+            : `<span class="lobby-shift-task-state ${objective.claimed ? 'is-claimed' : ''}" data-shift-focus="task-${index}" tabindex="-1"><i aria-hidden="true">${objective.claimed ? '✓' : complete ? '!' : '·'}</i>${status}</span>`;
+        return `<article class="lobby-shift-assignment" data-task-index="${index}" data-shift-state="${state}">
+            <div class="lobby-shift-assignment-number">${String(index + 1).padStart(2, '0')}<span>/ 03</span></div>
+            <div class="lobby-shift-assignment-content"><div class="lobby-shift-assignment-topline"><span>WORK ORDER ${String(index + 1).padStart(2, '0')}</span><span class="lobby-shift-assignment-reward">+${objective.reward} T</span></div><h3>${objective.label}</h3><div class="lobby-shift-task-track" role="progressbar" aria-label="${objective.label}" aria-valuemin="0" aria-valuemax="${objective.target}" aria-valuenow="${progress}"><i style="width:${fill}%"></i></div><div class="lobby-shift-assignment-bottomline"><span>PROGRESS <strong>${progress} / ${objective.target}</strong></span>${action}</div></div>
+        </article>`;
+    }).join('');
+    const bonusAction = bonusReady
+        ? '<button class="lobby-shift-bonus-claim" data-shift-focus="bonus" type="button" onclick="claimDailyBonus()">CLAIM SHIFT BONUS <strong>+35 T</strong><span aria-hidden="true">↗</span></button>'
+        : `<span class="lobby-shift-task-state ${daily.bonusClaimed ? 'is-claimed' : ''}" data-shift-focus="bonus" tabindex="-1"><i aria-hidden="true">${daily.bonusClaimed ? '✓' : '·'}</i>${daily.bonusClaimed ? 'SHIFT BONUS CLAIMED' : 'CLAIM ALL 3 TASK REWARDS'}</span>`;
+    content.innerHTML = `${tasks}<article class="lobby-shift-bonus ${daily.bonusClaimed ? 'is-claimed' : bonusReady ? 'is-ready' : ''}"><div class="lobby-shift-bonus-mark" aria-hidden="true">✳</div><div class="lobby-shift-bonus-copy"><span>FINAL DISPATCH</span><h3>Complete the shift</h3><p>Claim all three work order rewards to release the full-shift bonus.</p></div>${bonusAction}</article>`;
+    if (focusedControl) content.querySelector(`[data-shift-focus="${focusedControl}"]`)?.focus({ preventScroll: true });
 }
 
-function renderLoadouts() {
-    const content = document.getElementById('loadoutsContent');
-    if (!content) return;
-    const presets = Object.entries(LOADOUT_DEFINITIONS).map(([id, loadout]) => `<button class="loadout-option" ${selectedLoadout === id ? 'style="border-color:#0f0;color:#0f0"' : ''} onclick="selectLoadout('${id}')"><b>${loadout.name}</b><br><span>${loadout.description}</span></button>`).join('');
-    const custom = customLoadouts.map((kit, index) => { const total = Object.values(kit).reduce((sum, amount) => sum + amount, 0); return `<div class="loadout-editor"><button class="loadout-option" ${selectedLoadout === `custom${index + 1}` ? 'style="border-color:#0f0;color:#0f0"' : ''} onclick="selectLoadout('custom${index + 1}')"><b>CUSTOM KIT ${index + 1} · ${total}/8</b><br><span>${customKitSummary(kit)}</span></button><div class="loadout-picks">${Object.entries(ITEM_DEFINITIONS).map(([id, name]) => `<span class="loadout-quantity"><b>${name}</b><small>OWNED ${getOwnedItemCount(id)} · BRING ${kit[id] || 0}</small><button onclick="changeCustomLoadout(${index},'${id}',-1)">−</button><button ${total >= 8 || (kit[id] || 0) >= getOwnedItemCount(id) ? 'disabled' : ''} onclick="changeCustomLoadout(${index},'${id}',1)">+</button></span>`).join('')}</div></div>`; }).join('');
-    content.innerHTML = `${presets}<h3>CUSTOM KITS</h3>${custom}`;
+function renderLoadouts(focusId = '') {
+    const picker = document.getElementById('loadoutsContent');
+    const itemGrid = document.getElementById('loadoutItemGrid');
+    const detailTitle = document.getElementById('loadoutDetailTitle');
+    const detailKicker = document.getElementById('loadoutDetailKicker');
+    const detailDescription = document.getElementById('loadoutDetailDescription');
+    const selectedName = document.getElementById('loadoutSelectedName');
+    const capacity = document.getElementById('loadoutCapacity');
+    if (!picker || !itemGrid || !detailTitle || !detailDescription || !selectedName || !capacity) return;
+
+    const customSelected = /^custom[123]$/.test(selectedLoadout);
+    const customIndex = customSelected ? Number(selectedLoadout.at(-1)) - 1 : -1;
+    const kit = customSelected ? (customLoadouts[customIndex] || {}) : null;
+    const customName = customSelected ? getCustomLoadoutName(kit, customIndex) : '';
+    const customIcon = customSelected ? getCustomLoadoutIcon(kit) : null;
+    const selectedProfile = LOADOUT_DEFINITIONS[selectedLoadout] || LOADOUT_DEFINITIONS.free;
+    const choice = (id, label, description, mark, index, custom = false, kitIndex = index) => {
+        const active = selectedLoadout === id;
+        const packed = custom ? customKitPackedCount(customLoadouts[kitIndex] || {}) : 0;
+        const rightText = custom ? `${packed}/8` : (id === 'free' ? 'OPEN' : 'PROFILE');
+        const icon = String(mark).startsWith('assets/') ? `<img class="lobby-loadout-icon-glyph" src="${mark}" alt="" aria-hidden="true">` : mark;
+        return `<button id="loadoutChoice-${id}" class="lobby-loadout-choice ${active ? 'is-active' : ''}" type="button" aria-pressed="${active}" onclick="selectLoadout('${id}')">
+            <span class="lobby-loadout-choice-index">${String(index + 1).padStart(2, '0')}</span><span class="lobby-loadout-choice-mark" aria-hidden="true">${icon}</span>
+            <span class="lobby-loadout-choice-copy"><strong>${escapeHtml(label)}</strong><small>${escapeHtml(description)}</small></span><span class="lobby-loadout-choice-count">${rightText}</span>${active ? '<span class="lobby-loadout-choice-check" aria-hidden="true">✓</span>' : ''}
+        </button>`;
+    };
+    const presetOptions = Object.entries(LOADOUT_DEFINITIONS).map(([id, profile], index) => choice(id, profile.name, profile.description, LOADOUT_PRESET_ICONS[id], index)).join('');
+    const customOptions = customLoadouts.map((savedKit, index) => choice(`custom${index + 1}`, getCustomLoadoutName(savedKit, index), customKitSummary(savedKit), getCustomLoadoutIcon(savedKit).src, index + 3, true, index)).join('');
+    picker.innerHTML = `<div class="lobby-loadout-kit-group"><span>STANDARD PROFILES</span><div class="lobby-loadout-kit-options">${presetOptions}</div></div><div class="lobby-loadout-kit-group"><span>SAVED CUSTOM KITS</span><div class="lobby-loadout-kit-options">${customOptions}</div></div>`;
+
+    const name = customSelected ? customName : selectedProfile.name;
+    selectedName.textContent = name;
+    detailTitle.textContent = customSelected ? customName : selectedProfile.name.replace(/\b\w/g, character => character.toUpperCase()).toLowerCase().replace(/^./, character => character.toUpperCase());
+    if (detailKicker) detailKicker.textContent = customSelected ? 'PACK YOUR OWN KIT' : 'AVAILABLE SUPPLIES';
+    detailDescription.textContent = customSelected
+        ? 'Choose from supplies you own. Each kit holds up to eight items.'
+        : selectedProfile.description;
+
+    const customTools = document.getElementById('loadoutCustomTools');
+    if (customTools) {
+        customTools.hidden = !customSelected;
+        if (customSelected) {
+            const iconChoices = LOADOUT_CUSTOM_ICON_OPTIONS.map(option => `<button class="lobby-loadout-icon-option ${option.id === customIcon.id ? 'is-selected' : ''}" type="button" aria-pressed="${option.id === customIcon.id}" title="${escapeHtml(option.name)}" aria-label="Use ${escapeHtml(option.name)} icon" onclick="setCustomLoadoutIcon(${customIndex},'${option.id}')"><img src="${option.src}" alt="" aria-hidden="true"><small>${escapeHtml(option.name)}</small></button>`).join('');
+            customTools.innerHTML = `<div class="lobby-loadout-custom-tools-row"><label class="lobby-loadout-name-field"><span>KIT NAME</span><input id="customLoadoutName" type="text" maxlength="32" value="${escapeHtml(customName)}" aria-label="Custom kit name" onchange="saveCustomLoadoutName(${customIndex})" onkeydown="if(event.key==='Enter'){event.preventDefault();saveCustomLoadoutName(${customIndex},true)}"></label><button class="lobby-loadout-name-save" type="button" onclick="saveCustomLoadoutName(${customIndex},true)">SAVE NAME</button><span class="lobby-loadout-current-icon"><img src="${customIcon.src}" alt="" aria-hidden="true"></span><button id="customLoadoutIconToggle" class="lobby-loadout-icon-toggle" type="button" aria-expanded="${customLoadoutIconPickerOpen}" onclick="toggleCustomLoadoutIconPicker()">${customLoadoutIconPickerOpen ? 'HIDE ICONS' : 'CHANGE ICON'}</button></div><div id="customLoadoutIconPicker" class="lobby-loadout-icon-picker" aria-label="Choose a custom kit icon" ${customLoadoutIconPickerOpen ? '' : 'hidden'}>${iconChoices}</div>`;
+        }
+    }
+
+    const ownedItems = Object.entries(ITEM_DEFINITIONS).filter(([id]) => {
+        const owned = getOwnedItemCount(id) > 0;
+        const allowed = customSelected || !selectedProfile.items || selectedProfile.items.includes(id);
+        return owned && allowed;
+    });
+    if (customSelected) {
+        const total = customKitPackedCount(kit);
+        capacity.hidden = false;
+        capacity.innerHTML = `<div class="lobby-loadout-capacity-top"><span>PACKED</span><strong>${total} <i>/ 8</i></strong></div><div class="lobby-loadout-capacity-track" role="progressbar" aria-label="Packed supplies" aria-valuemin="0" aria-valuemax="8" aria-valuenow="${total}"><i style="width:${(total / 8) * 100}%"></i></div>`;
+    } else {
+        capacity.hidden = true;
+        capacity.replaceChildren();
+    }
+
+    if (!ownedItems.length) {
+        const message = customSelected
+            ? 'Your locker is empty. Supplies appear here after you own them.'
+            : 'You do not own any supplies allowed by this profile yet.';
+        itemGrid.innerHTML = `<div class="lobby-loadout-empty"><span aria-hidden="true">∅</span><strong>No supplies available</strong><p>${message}</p><button type="button" onclick="openShop(); setShopTab('supplies')">OPEN MARKET SUPPLIES <span aria-hidden="true">↗</span></button></div>`;
+    } else {
+        itemGrid.innerHTML = ownedItems.map(([id, itemName]) => {
+            const owned = getOwnedItemCount(id);
+            const icon = LOADOUT_ITEM_ICONS[id]
+                ? `<img src="${LOADOUT_ITEM_ICONS[id]}" alt="">`
+                : `<span aria-hidden="true">${LOADOUT_ITEM_MARKS[id] || '◆'}</span>`;
+            if (!customSelected) {
+                return `<article class="lobby-loadout-item"><span class="lobby-loadout-item-icon" aria-hidden="true">${icon}</span><span class="lobby-loadout-item-copy"><strong>${itemName}</strong><small>OWNED ${owned}</small></span><span class="lobby-loadout-item-count"><strong>READY</strong><span>AVAILABLE</span></span></article>`;
+            }
+            const packed = Math.min(owned, boundedInt(kit[id], 0, 8, 0));
+            const total = customKitPackedCount(kit);
+            return `<article class="lobby-loadout-item"><span class="lobby-loadout-item-icon" aria-hidden="true">${icon}</span><span class="lobby-loadout-item-copy"><strong>${itemName}</strong><small>OWNED ${owned}</small></span><span class="lobby-loadout-quantity"><button id="loadoutAmount-${customIndex}-${id}--1" type="button" aria-label="Remove one ${itemName} from Custom Kit ${customIndex + 1}" ${packed <= 0 ? 'disabled' : ''} onclick="changeCustomLoadout(${customIndex},'${id}',-1)">−</button><span><strong>${packed}</strong><small>PACKED</small></span><button id="loadoutAmount-${customIndex}-${id}-1" type="button" aria-label="Add one ${itemName} to Custom Kit ${customIndex + 1}" ${total >= 8 || packed >= owned ? 'disabled' : ''} onclick="changeCustomLoadout(${customIndex},'${id}',1)">+</button></span></article>`;
+        }).join('');
+    }
+    if (focusId) document.getElementById(focusId)?.focus({ preventScroll: true });
+}
+
+function saveCustomLoadoutName(index, announce = false) {
+    if (!Number.isInteger(index) || index < 0 || index > 2) return;
+    const input = document.getElementById('customLoadoutName');
+    const nextName = cleanCustomLoadoutName(input?.value);
+    if (!nextName) {
+        if (input) input.value = getCustomLoadoutName(customLoadouts[index], index);
+        return;
+    }
+    const kit = customLoadouts[index] ||= {};
+    kit.name = nextName;
+    if (input) input.value = nextName;
+    const label = document.querySelector(`#loadoutChoice-custom${index + 1} .lobby-loadout-choice-copy strong`);
+    if (label) label.textContent = nextName;
+    if (selectedLoadout === `custom${index + 1}`) {
+        const title = document.getElementById('loadoutDetailTitle');
+        const selected = document.getElementById('loadoutSelectedName');
+        if (title) title.textContent = nextName;
+        if (selected) selected.textContent = nextName;
+    }
+    saveData();
+    renderRunSetup();
+    if (announce) setSaveStatus(`Saved ${nextName}`);
+}
+
+function toggleCustomLoadoutIconPicker() {
+    if (!/^custom[123]$/.test(selectedLoadout)) return;
+    customLoadoutIconPickerOpen = !customLoadoutIconPickerOpen;
+    renderLoadouts('customLoadoutIconToggle');
+}
+
+function setCustomLoadoutIcon(index, iconId) {
+    if (!Number.isInteger(index) || index < 0 || index > 2) return;
+    if (!LOADOUT_CUSTOM_ICON_OPTIONS.some(option => option.id === iconId)) return;
+    const kit = customLoadouts[index] ||= {};
+    kit.icon = iconId;
+    customLoadoutIconPickerOpen = false;
+    saveData();
+    renderLoadouts(`loadoutChoice-custom${index + 1}`);
+    renderRunSetup();
 }
 
 function changeCustomLoadout(index, item, amount) {
     const kit = customLoadouts[index] ||= {};
-    const total = Object.values(kit).reduce((sum, value) => sum + value, 0);
-    const next = Math.max(0, Math.min(getOwnedItemCount(item), (kit[item] || 0) + amount));
+    const total = customKitPackedCount(kit);
+    const current = Math.min(getOwnedItemCount(item), boundedInt(kit[item], 0, 8, 0));
+    const next = Math.max(0, Math.min(getOwnedItemCount(item), current + amount));
     if (amount > 0 && total >= 8) { notify('CUSTOM KITS HOLD EIGHT SUPPLIES', 'warning'); return; }
     if (next) kit[item] = next; else delete kit[item];
-    saveData(); renderLoadouts(); renderRunSetup();
-}
-
-function mountSurvivalSetup() {
-    const source = document.querySelector('#survivalMenu > div');
-    const target = document.getElementById('runSetupOptions');
-    if (!source || !target || source.dataset.mounted === 'true') return;
-    source.dataset.mounted = 'true';
-    source.id = 'embeddedSurvivalFields';
-    target.insertBefore(source, target.firstChild);
+    saveData(); renderLoadouts(`loadoutAmount-${index}-${item}-${amount}`); renderRunSetup();
 }
 
 function updateSurvivalSummary() {
     const summary = document.getElementById('survivalSummary');
     if (!summary) return;
     const selected = ['Caleb','Malakai','Jordan','Aeson','Bassam','Rhys','Noah','Amine','Nizar'].filter(name => document.getElementById(`survival${name}`)?.checked);
-    const map = document.getElementById('survivalMap')?.selectedOptions?.[0]?.textContent || 'a map';
+    const map = MAP_DEFINITIONS[currentMapId]?.name || 'a map';
     const count = document.getElementById('survivalCount')?.value || '1';
-    const difficulty = document.getElementById('survivalDiff')?.selectedOptions?.[0]?.textContent || 'Normal';
-    summary.textContent = `${map} · ${difficulty} · ${count} active hunter${count === '1' ? '' : 's'} · Pool: ${selected.join(', ') || 'none'}`;
+    const difficulty = ['Easy', 'Normal', 'Hard'][Number(document.getElementById('survivalDiff')?.value) || 0];
+    summary.textContent = `${map} · ${difficulty} · ${count} active hunter${count === '1' ? '' : 's'} · ${selected.length} hunter${selected.length === 1 ? '' : 's'} in the pool`;
 }
 
 function renderRunSetup() {
-    mountSurvivalSetup();
-    const standard = document.getElementById('standardDifficultyOptions');
-    const runOptions = document.getElementById('runSetupOptions');
-    const survivalFields = document.querySelector('#embeddedSurvivalFields');
-    const survivalStart = document.getElementById('startSurvivalButton');
-    const isSurvival = gameMode === 'survival';
-    if (standard) standard.style.display = isSurvival ? 'none' : 'block';
-    if (runOptions) runOptions.style.display = 'block';
-    if (survivalFields) survivalFields.style.display = isSurvival ? 'block' : 'none';
-    if (survivalStart) survivalStart.style.display = isSurvival ? 'block' : 'none';
     updateSurvivalSummary();
-    const heading = document.querySelector('#diffMenu h2');
-    if (heading) heading.textContent = isSurvival ? 'RUN SETUP' : 'SELECT DIFFICULTY';
-    const loadoutTarget = document.getElementById('runLoadoutOptions');
-    if (loadoutTarget) {
-        const presets = Object.entries(LOADOUT_DEFINITIONS).map(([id, loadout]) => `<button class="loadout-option" ${selectedLoadout === id ? 'style="border-color:#0f0;color:#0f0"' : ''} onclick="selectLoadout('${id}')"><b>${loadout.name}</b><br><span>${loadout.description}</span></button>`).join('');
-        const customs = customLoadouts.map((kit, index) => `<button class="loadout-option" ${selectedLoadout === `custom${index + 1}` ? 'style="border-color:#0f0;color:#0f0"' : ''} onclick="selectLoadout('custom${index + 1}')"><b>CUSTOM KIT ${index + 1}</b><br><span>${customKitSummary(kit)}</span></button>`).join('');
-        loadoutTarget.innerHTML = `${presets}<h3>CUSTOM KITS</h3>${customs}`;
-    }
+    window.renderRunFlowScreens?.();
 }
 
 function renderRecords() {
-    ensureDailyObjectives();
     const content = document.getElementById('recordsContent');
     if (!content) return;
-    const fastest = stats.fastestWin ? `${(stats.fastestWin / 1000).toFixed(1)}s` : '—';
-    content.innerHTML = `<details class="record-section" open><summary>RUN STATISTICS</summary><div>Games: <b>${stats.games}</b><br>Wins / Losses: <b>${stats.wins} / ${stats.losses}</b><br>Generators repaired: <b>${stats.generators}</b><br>Monsters caught: <b>${stats.caught}</b><br>Best Endless round: <b>${stats.bestEndless}</b><br>Survival runs: <b>${stats.survivalRuns}</b><br>Challenges cleared: <b>${stats.challengesCleared}</b><br>Fastest win: <b>${fastest}</b><br>Items used: <b>${stats.itemsUsed}</b><br>Favorite monster: <b>${stats.favoriteMonster}</b></div></details>`;
+    const count = value => Number.isFinite(value) ? Math.max(0, Math.floor(value)).toLocaleString() : '0';
+    const formatDuration = value => {
+        if (!value) return '—';
+        const totalSeconds = value / 1000;
+        const minutes = Math.floor(totalSeconds / 60);
+        const seconds = (totalSeconds % 60).toFixed(1).padStart(4, '0');
+        return `${String(minutes).padStart(2, '0')}:${seconds}`;
+    };
+    const metric = (label, value, note = '') => `<article class="lobby-records-metric"><span>${label}</span><strong>${value}</strong>${note ? `<small>${note}</small>` : ''}</article>`;
+    const line = (label, value) => `<div class="lobby-records-data-row"><span>${label}</span><strong>${value}</strong></div>`;
+    const maps = Object.values(MAP_DEFINITIONS);
+    const entities = Object.entries(stats.encounters || {}).filter(([, sightings]) => sightings > 0).sort((left, right) => right[1] - left[1]);
+    const hasRecords = stats.games > 0;
+    const winRate = stats.games ? `${Math.round((stats.wins / stats.games) * 100)}%` : '—';
+    const bestMapRound = Math.max(0, ...maps.map(map => stats.endlessMapBest?.[map.id] || 0));
+
+    content.innerHTML = `
+        <section id="recordsOverview" class="lobby-records-section" aria-labelledby="recordsOverviewTitle">
+            <header class="lobby-records-section-heading"><span>01 <i>/ SHIFT ACTIVITY</i></span><h2 id="recordsOverviewTitle">SHIFT LEDGER</h2><p>A cumulative account of recorded activity on this device. Individual run reports are not stored.</p></header>
+            <div class="lobby-records-document-stamp"><span class="lobby-records-stamp-mark"><img src="assets/ui/icons/records/FieldReportIcon.svg" alt="" aria-hidden="true"></span><div><strong>${hasRecords ? 'FIELD ACTIVITY ON FILE' : 'NO FIELD ACTIVITY ON FILE'}</strong><small>LOCAL ARCHIVE · LIFETIME TOTALS</small></div><span class="lobby-records-stamp-index">FILE 01</span></div>
+            <div class="lobby-records-metrics">${metric('SHIFTS ENTERED', count(stats.games), 'All recorded attempts')}${metric('CLEARED', count(stats.wins), 'Successful extractions')}${metric('LOST', count(stats.losses), 'Unsuccessful shifts')}${metric('CLEAR RATE', winRate, 'Of all shifts entered')}</div>
+            <div class="lobby-records-ledger"><div class="lobby-records-ledger-heading"><span>FIELD TOTALS</span><i>AGGREGATE</i></div><div class="lobby-records-data-grid">${line('Generators repaired', count(stats.generators))}${line('Entities caught', count(stats.caught))}${line('Times caught', count(stats.timesCaught))}${line('Supplies used', count(stats.itemsUsed))}${line('Item-free clears', count(stats.itemFreeWins))}${line('Most encountered', stats.favoriteMonster || 'None')}</div></div>
+        </section>
+        <section id="recordsMaps" class="lobby-records-section" aria-labelledby="recordsMapsTitle">
+            <header class="lobby-records-section-heading"><span>02 <i>/ LOCATION FILES</i></span><h2 id="recordsMapsTitle">MAP REPORTS</h2><p>Highest Endless round recorded at each location. A dash means no Endless result has been logged.</p></header>
+            <div class="lobby-records-document-stamp"><span class="lobby-records-stamp-mark"><img src="assets/ui/icons/records/MapLocationIcon.svg" alt="" aria-hidden="true"></span><div><strong>LOCATION INDEX</strong><small>${maps.length} KNOWN SITES · PERSONAL BESTS</small></div><span class="lobby-records-stamp-index">FILE 02</span></div>
+            <div class="lobby-records-map-list">${maps.map((map, index) => {
+                const best = stats.endlessMapBest?.[map.id] || 0;
+                const width = bestMapRound ? Math.max(4, Math.round((best / bestMapRound) * 100)) : 0;
+                return `<article class="lobby-records-map-row"><span class="lobby-records-map-index">${String(index + 1).padStart(2, '0')}</span><div class="lobby-records-map-copy"><strong>${map.name}</strong><div class="lobby-records-map-track" aria-hidden="true"><i style="width:${width}%"></i></div></div><span class="lobby-records-map-best">${best ? `ROUND ${count(best)}` : '—'}</span></article>`;
+            }).join('')}</div>
+        </section>
+        <section id="recordsEntities" class="lobby-records-section" aria-labelledby="recordsEntitiesTitle">
+            <header class="lobby-records-section-heading"><span>03 <i>/ ENCOUNTER FILES</i></span><h2 id="recordsEntitiesTitle">ENTITY CONTACTS</h2><p>Only sightings recorded by the facility are listed here. The ledger identifies no source for these reports.</p></header>
+            <div class="lobby-records-document-stamp"><span class="lobby-records-stamp-mark"><img src="assets/ui/icons/records/EntityContactsIcon.svg" alt="" aria-hidden="true"></span><div><strong>${entities.length ? 'CONTACTS CONFIRMED' : 'NO CONTACTS LOGGED'}</strong><small>SIGHTINGS · ORDERED BY FREQUENCY</small></div><span class="lobby-records-stamp-index">FILE 03</span></div>
+            ${entities.length ? `<div class="lobby-records-entity-list">${entities.map(([name, sightings], index) => {
+                const width = entities[0][1] ? Math.max(5, Math.round((sightings / entities[0][1]) * 100)) : 0;
+                return `<article class="lobby-records-entity-row"><span class="lobby-records-entity-index">${String(index + 1).padStart(2, '0')}</span><strong>${name}</strong><div class="lobby-records-entity-track" aria-hidden="true"><i style="width:${width}%"></i></div><span class="lobby-records-entity-count">${count(sightings)} ${sightings === 1 ? 'SIGHTING' : 'SIGHTINGS'}</span></article>`;
+            }).join('')}</div>` : '<div class="lobby-records-empty"><span aria-hidden="true">∅</span><p>No entity sightings have been recorded yet.</p></div>'}
+        </section>
+        <section id="recordsMilestones" class="lobby-records-section" aria-labelledby="recordsMilestonesTitle">
+            <header class="lobby-records-section-heading"><span>04 <i>/ PERFORMANCE FILES</i></span><h2 id="recordsMilestonesTitle">FIELD MILESTONES</h2><p>Personal bests and special clear records collected across completed shifts.</p></header>
+            <div class="lobby-records-document-stamp"><span class="lobby-records-stamp-mark"><img src="assets/ui/icons/records/MilestoneIcon.svg" alt="" aria-hidden="true"></span><div><strong>PERFORMANCE SUMMARY</strong><small>BESTS & SPECIAL COMPLETIONS</small></div><span class="lobby-records-stamp-index">FILE 04</span></div>
+            <div class="lobby-records-milestone-grid">${metric('FASTEST CLEAR', formatDuration(stats.fastestWin), 'Best recorded completion time')}${metric('BEST ENDLESS RUN', stats.bestEndless ? `ROUND ${count(stats.bestEndless)}` : '—', 'Highest round reached')}${metric('GENERATORS / ONE SHIFT', count(stats.mostGenerators), 'Personal best in one run')}${metric('ENDLESS MAP RECORD', bestMapRound ? `ROUND ${count(bestMapRound)}` : '—', 'Best location result')}${metric('SURVIVAL RUNS', count(stats.survivalRuns), 'Custom hunter challenges')}${metric('CHALLENGES CLEARED', count(stats.challengesCleared), 'Contract completions')}${metric('BOILERWORKS STREAK', `${count(stats.boilerworksHardStreak)} / 3`, 'Hard clears in a row')}${metric('ITEM-FREE CLEARS', count(stats.itemFreeWins), 'Completed without supplies')}</div>
+        </section>`;
+    window.initializeRecordsScreen?.();
 }
 
 function selectLoadout(id) {
     if (!LOADOUT_DEFINITIONS[id] && !/^custom[123]$/.test(id)) return;
     selectedLoadout = id;
+    customLoadoutIconPickerOpen = false;
     saveData();
-    renderLoadouts();
+    renderLoadouts(document.body.dataset.activeMenu === 'loadoutsMenu' ? `loadoutChoice-${id}` : '');
     renderRunSetup();
 }
 
-function setSaveStatus(text, color = '#8f8') {
+function openLoadouts() {
+    showMenu('loadoutsMenu');
+    requestAnimationFrame(() => document.getElementById(`loadoutChoice-${selectedLoadout}`)?.focus({ preventScroll: true }));
+}
+
+function returnToLoadoutsLobby() {
+    showMenu('mainMenu');
+    document.getElementById('lobbyLoadoutsButton')?.focus({ preventScroll: true });
+}
+
+window.openLoadouts = openLoadouts;
+window.returnToLoadoutsLobby = returnToLoadoutsLobby;
+
+document.addEventListener('keydown', event => {
+    if (document.body.dataset.activeMenu !== 'loadoutsMenu' || event.key !== 'Escape') return;
+    event.preventDefault();
+    event.stopPropagation();
+    returnToLoadoutsLobby();
+}, true);
+
+function setSaveStatus(text, color = '#d9df92') {
     const status = document.getElementById('saveStatus');
     if (status) {
         status.textContent = text;
@@ -736,32 +1179,50 @@ function setSaveStatus(text, color = '#8f8') {
 function saveSettings() {
     localStorage.setItem('br_fps', setFPS);
     localStorage.setItem('br_crt', setCRT);
-    localStorage.setItem('br_optimization', setOptimization);
+    localStorage.setItem('br_vhs', setVHS);
+    localStorage.setItem('br_speedrun_timer', setSpeedrunTimer);
+    localStorage.setItem('br_reduce_shake', setReduceShake);
     setVolM = document.getElementById('volMaster').value;
     setVolS = document.getElementById('volSFX').value;
+    setVolGameplay = document.getElementById('volGameplay').value;
     localStorage.setItem('br_volM', setVolM);
     localStorage.setItem('br_volS', setVolS);
+    localStorage.setItem('br_volGameplay', setVolGameplay);
     applySettings();
+}
+
+function setSettingsSwitch(id, enabled) {
+    const button = document.getElementById(id);
+    if (!button) return;
+    button.setAttribute('aria-checked', String(enabled));
+    button.classList.toggle('is-on', enabled);
+    const label = button.querySelector('span');
+    if (label) label.textContent = enabled ? 'ON' : 'OFF';
 }
 
 function applySettings() {
     document.getElementById('fpsCounter').style.display = setFPS ? 'block' : 'none';
     document.getElementById('crtFilter').style.display = setCRT ? 'block' : 'none';
-    document.getElementById('btnFPS').innerText = setFPS ? 'ON' : 'OFF';
-    document.getElementById('btnFPS').style.color = setFPS ? '#0f0' : '#fff';
-    document.getElementById('btnCRT').innerText = setCRT ? 'ON' : 'OFF';
-    document.getElementById('btnCRT').style.color = setCRT ? '#0f0' : '#fff';
-    document.getElementById('btnOptimization').innerText = setOptimization ? 'ON' : 'OFF';
-    document.getElementById('btnOptimization').style.color = setOptimization ? '#0f0' : '#fff';
+    document.getElementById('vhsFilter').style.display = setVHS ? 'block' : 'none';
+    document.body.dataset.reduceShake = setReduceShake ? 'true' : 'false';
+    setSettingsSwitch('btnFPS', setFPS);
+    setSettingsSwitch('btnCRT', setCRT);
+    setSettingsSwitch('btnVHS', setVHS);
+    setSettingsSwitch('btnSpeedrunTimer', setSpeedrunTimer);
+    setSettingsSwitch('btnReduceShake', setReduceShake);
     document.getElementById('volMaster').value = setVolM;
     document.getElementById('volSFX').value = setVolS;
+    document.getElementById('volGameplay').value = setVolGameplay;
     syncCalebBossMusicVolume();
+    window.updateMenuMusicMasterVolume?.(setVolM);
 }
 
 function toggleSetting(type) {
     if(type === 'fps') setFPS = !setFPS;
     if(type === 'crt') setCRT = !setCRT;
-    if(type === 'optimization') setOptimization = !setOptimization;
+    if(type === 'vhs') setVHS = !setVHS;
+    if(type === 'speedrunTimer') setSpeedrunTimer = !setSpeedrunTimer;
+    if(type === 'reduceShake') setReduceShake = !setReduceShake;
     saveSettings();
 }
 
@@ -843,6 +1304,18 @@ function importSave(event) {
             invFlare = imported.invFlare;
             cosmetics = normalizeCosmetics(imported.cosmetics);
             stats = normalizeStats(imported.stats);
+            // Import the full progression record alongside stats and inventory.
+            // Omitting these fields left the previous device's map state active,
+            // so imported campaign clears never reached Archive or Map Intel.
+            unlockedMaps = imported.unlockedMaps;
+            campaignCleared = imported.campaignCleared;
+            lucasBossUnlocked = imported.lucasBossUnlocked;
+            selectedLoadout = imported.selectedLoadout;
+            customLoadouts = imported.customLoadouts;
+            mapMastery = imported.mapMastery;
+            mapIntel = imported.mapIntel;
+            daily = imported.daily;
+            runLoadoutRemaining = null;
             cosmeticRewardVersion = imported.cosmeticRewardVersion || 0;
             migrateSubwayCosmeticRewards();
             saveData();
@@ -856,17 +1329,25 @@ function importSave(event) {
     reader.readAsText(file);
 }
 
-function resetProgress() {
-    if (!confirm('Reset all tokens, upgrades, and items? Your previous save will remain in the backup slot.')) return;
-    tokens = 0; upgShoe = 0; upgHack = 0; upgQuick = 0; upgCoin = 0; upgDash = 0; invAdrenaline = 0; invFlashbang = 0; invNoiseMaker = 0; invBearTrap = 0; invBattery = 0; invBreathFilter = 0; invSignalScrambler = 0; invNeutralizer = 0; invRepairKit = 0; invFlare = 0;
+function resetProgress(confirmedBySettings = false) {
+    if (!confirmedBySettings && !confirm('Reset all map unlocks, tokens, upgrades, cosmetics, loadouts, records, campaign progress, and daily progress? Only Level 0 will stay unlocked. Your previous save will remain in the local backup slot.')) return;
+    // Materialize legacy local saves first so saveData can keep the current state as the backup.
     saveData();
-    setSaveStatus('Progress reset; previous save kept as backup');
+    const defaults = normalizeProgress({ tokens: 0, upgShoe: 0 });
+    ({ tokens, upgShoe, upgHack, upgQuick, upgCoin, upgDash, invAdrenaline, invFlashbang, invNoiseMaker, invBearTrap, invBattery, invBreathFilter, invSignalScrambler, invNeutralizer, invRepairKit, invFlare, cosmetics, stats, unlockedMaps, campaignCleared, lucasBossUnlocked, selectedLoadout, customLoadouts, mapMastery, mapIntel, daily } = defaults);
+    cosmeticRewardVersion = COSMETIC_REWARD_VERSION;
+    runLoadoutRemaining = null;
+    ensureDailyObjectives();
+    setSaveStatus('All progress reset · previous save kept in backup');
 }
 
 function updateMenuData() {
     ensureDailyObjectives();
     document.getElementById('tokenDisplayMain').innerText = `Tokens: ${tokens}`;
     document.getElementById('tokenDisplayShop').innerText = `Tokens: ${tokens}`;
+    document.getElementById('tokenDisplayMarket').innerText = `${tokens} T`;
+    document.getElementById('tokenDisplayMaps').innerText = `${tokens} T`;
+    document.getElementById('tokenDisplayBlackMarket').innerText = `${tokens} T`;
     document.getElementById('shoeTier').innerText = upgShoe;
     document.getElementById('hackTier').innerText = upgHack;
     document.getElementById('quickTier').innerText = upgQuick;
@@ -881,22 +1362,23 @@ function updateMenuData() {
     if (dailyBadge) dailyBadge.textContent = daily.objectives.every(objective => objective.claimed) ? '✓' : `${daily.objectives.filter(objective => objective.progress >= objective.target && !objective.claimed).length}/3`;
     
     let btnShoe = document.getElementById('btnShoe');
-    if (upgShoe >= 3) { btnShoe.innerText = "MAX"; btnShoe.disabled = true; }
-    else { btnShoe.innerText = `${50 + (upgShoe*50)} T`; btnShoe.disabled = false; }
+    if (upgShoe >= 3) { btnShoe.innerText = "MAX TIER"; btnShoe.disabled = true; }
+    else { btnShoe.innerText = `${50 + (upgShoe*50)} T`; btnShoe.disabled = tokens < 50 + (upgShoe * 50); }
     
     let btnHack = document.getElementById('btnHack');
-    if (upgHack >= 2) { btnHack.innerText = "MAX"; btnHack.disabled = true; }
-    else { btnHack.innerText = `${75 + (upgHack*75)} T`; btnHack.disabled = false; }
+    if (upgHack >= 2) { btnHack.innerText = "MAX TIER"; btnHack.disabled = true; }
+    else { btnHack.innerText = `${75 + (upgHack*75)} T`; btnHack.disabled = tokens < 75 + (upgHack * 75); }
     
     let btnQuick = document.getElementById('btnQuick');
-    if (upgQuick >= 3) { btnQuick.innerText = "MAX"; btnQuick.disabled = true; }
-    else { btnQuick.innerText = `${40 + (upgQuick*40)} T`; btnQuick.disabled = false; }
+    if (upgQuick >= 3) { btnQuick.innerText = "MAX TIER"; btnQuick.disabled = true; }
+    else { btnQuick.innerText = `${40 + (upgQuick*40)} T`; btnQuick.disabled = tokens < 40 + (upgQuick * 40); }
     
     let btnCoin = document.getElementById('btnCoin');
-    if (upgCoin >= 1) { btnCoin.innerText = "MAX"; btnCoin.disabled = true; }
-    else { btnCoin.innerText = `150 T`; btnCoin.disabled = false; }
+    if (upgCoin >= 1) { btnCoin.innerText = "OWNED"; btnCoin.disabled = true; }
+    else { btnCoin.innerText = `150 T`; btnCoin.disabled = tokens < 150; }
     const btnDash = document.getElementById('btnDash');
-    if (btnDash) { btnDash.innerText = upgDash ? 'OWNED' : '300 T'; btnDash.disabled = Boolean(upgDash); btnDash.style.color = upgDash ? '#0f0' : ''; }
+    if (btnDash) { btnDash.innerText = upgDash ? 'OWNED' : '300 T'; btnDash.disabled = Boolean(upgDash) || tokens < 300; }
+    window.refreshMarketUI?.();
 }
 
 function renderStats() {
@@ -911,7 +1393,13 @@ function selectCosmetic(type, value) {
     saveData(); renderCosmetics();
 }
 
-function setCosmeticTab(tab) { cosmeticTab = tab; renderCosmetics(); }
+function setCosmeticTab(tab) {
+    if (!['colors', 'trails', 'hats', 'masks', 'skins', 'menuThemes'].includes(tab)) return;
+    cosmeticTab = tab;
+    renderCosmetics();
+}
+window.selectCosmetic = selectCosmetic;
+window.setCosmeticTab = setCosmeticTab;
 
 function cosmeticProgress(id) {
     const unlocked = cosmetics.unlocked.includes(id);
@@ -982,8 +1470,23 @@ function renderCosmetics() {
             { id:'goldSkin', label:'Gold Skin', desc:'A final-round finish earned at the end of the line.', how:'Clear Endless Round 9.', preview:'#e5c34e', image:'gold-skin.png' }
         ]}
     };
-    const content = document.getElementById('cosmeticsContent'); if (!content) return;
-    const group = groups[cosmeticTab] || groups.colors;
+    const content = document.getElementById('cosmeticsContent');
+    if (!content) return;
+    const group = groups[cosmeticTab] || null;
+    const tokenCount = document.getElementById('wardrobeTokenCount');
+    if (tokenCount) tokenCount.textContent = Number(tokens).toLocaleString();
+    if (window.renderWardrobeScreen) {
+        window.renderWardrobeScreen({
+            category: cosmeticTab,
+            group,
+            catalog: groups,
+            cosmetics: { ...cosmetics, unlocked: [...cosmetics.unlocked] },
+            tokenCount: tokens,
+            progressFor: cosmeticProgress
+        });
+        return;
+    }
+    if (!group) return;
     content.innerHTML = `<div class="cosmetic-book"><div class="cosmetic-grid">${group.items.map(item => { const unlocked = cosmetics.unlocked.includes(item.id); const equipped = cosmetics[group.type] === item.id; const preview = item.image ? `<img src="assets/${item.image}" alt="${item.label} preview">` : `<span style="color:${item.preview}; text-shadow:0 0 14px ${item.preview};">● ${item.label.toUpperCase()}</span>`; return `<div class="cosmetic-card"><div class="cosmetic-preview">${preview}</div><b>${item.label}</b><small>${item.desc}<br><span style="color:#d4c09a">How: ${item.how}</span><br><span class="cosmetic-progress">Progress: ${cosmeticProgress(item.id)}</span></small><button ${unlocked ? '' : 'disabled'} onclick="selectCosmetic('${group.type}','${item.id}')">${equipped ? 'EQUIPPED' : unlocked ? 'EQUIP' : 'LOCKED'}</button></div>`; }).join('')}</div></div>`;
 }
 
@@ -1310,16 +1813,30 @@ function showMenu(menuId) {
     document.querySelectorAll('.menu-panel').forEach(p => p.style.display = 'none');
     hud.style.display = 'none';
     document.getElementById(menuId).style.display = 'flex';
+    const menuSupportsVerticalScroll = ['modeMenu', 'challengeMenu', 'mapSelectScreen', 'runSetupScreen'].includes(menuId);
+    document.documentElement.style.touchAction = menuSupportsVerticalScroll ? 'pan-y' : '';
+    document.body.style.touchAction = menuSupportsVerticalScroll ? 'pan-y' : '';
+    document.body.dataset.activeMenu = menuId;
+    document.body.dataset.gameRunning = 'false';
+    resizeGameCanvas();
+    if (menuId === 'mainMenu') window.resumeMenuMusic?.();
     updateMenuData();
+    if (menuId === 'modeMenu') window.renderPlayModeScreen?.();
+    if (menuId === 'challengeMenu') window.renderChallengeScreen?.();
+    if (menuId === 'mapSelectScreen' || menuId === 'runSetupScreen') window.renderRunFlowScreens?.();
     if (menuId === 'statsMenu') renderStats();
     if (menuId === 'cosmeticsMenu') renderCosmetics();
     if (menuId === 'objectivesMenu') renderDailyObjectives();
     if (menuId === 'loadoutsMenu') renderLoadouts();
     if (menuId === 'collectionMenu') renderCollection();
     if (menuId === 'recordsMenu') renderRecords();
-    if (menuId === 'infoMenu') setInfoTab(infoTab);
-    if (menuId === 'diffMenu') renderRunSetup();
-    if (menuId === 'mapMenu') renderMapMenu();
+    if (menuId === 'infoMenu') {
+        renderArchive();
+        window.openArchiveView?.();
+    }
+    if (menuId === 'shopMenu') setShopTab(shopTab);
+    if (menuId === 'mapIntelMenu') renderMapIntelShop();
+    if (menuId === 'blackMarketMenu') window.refreshBlackMarket?.();
     refreshDeveloperAccess();
 }
 
@@ -1680,74 +2197,79 @@ function setupDeveloperStudio() {
 function showInstallHelp() { showMenu('installMenu'); }
 
 let challengeBoard = [];
-function getChallengeBoard() {
-    const maps = unlockedMaps.length ? unlockedMaps : ['level0'];
-    const templates = [
-        { id:'blackout', title:'BLACKOUT CONTRACT', detail:'Safe rooms can fail and the grid needs an extra generator.', reward:48, diff:1 },
-        { id:'pressure', title:'PRESSURE CONTRACT', detail:'Events recover faster; every repair makes a disturbance.', reward:55, diff:2 },
-        { id:'lean', title:'LEAN SHIFT', detail:'Bring only the custom kit you select; field supplies are scarce.', reward:52, diff:1 },
-        { id:'double', title:'TWO HUNTERS', detail:'Two monsters search together and share line-of-sight alerts.', reward:65, diff:2 },
-        { id:'relay', title:'RELAY RUN', detail:'Every generator uses multiple repair stages.', reward:58, diff:2 },
-        { id:'fog', title:'FOG ROLL', detail:'A rolling fog cuts visibility but reveals active generators.', reward:54, diff:1 }
-    ];
-    const shuffledTemplates = [...templates].sort(() => Math.random() - .5);
-    return [0, 1, 2].map(index => ({ ...shuffledTemplates[index], mapId:maps[Math.floor(Math.random() * maps.length)] }));
+let challengeBoardDate = '';
+function openChallengeMode() {
+    gameMode = 'challenge';
+    challengeConfig = null;
+    challengeBoard = ensureDailyChallengeBoard();
+    challengeBoardDate = daily.date;
+    showMenu('challengeMenu');
 }
-function openChallengeMode() { gameMode = 'challenge'; challengeConfig = null; challengeBoard = getChallengeBoard(); showMenu('challengeMenu'); renderChallenges(); }
-function renderChallenges() { const content = document.getElementById('challengeContent'); if (content) content.innerHTML = challengeBoard.map((challenge, index) => `<button class="loadout-option" onclick="startChallenge(${index})"><b>${challenge.title}</b><br><span>${MAP_DEFINITIONS[challenge.mapId].name} · ${challenge.detail}</span><br><span style="color:#ffe06b">REWARD: ${challenge.reward} TOKENS</span></button>`).join(''); }
-function startChallenge(index) { const challenge = challengeBoard[index]; if (!challenge) return; gameMode = 'challenge'; challengeConfig = challenge; currentMapId = challenge.mapId; if (challenge.id === 'lean' && !Object.keys(customLoadouts[0] || {}).length) { notify('BUILD CUSTOM KIT 1 BEFORE STARTING LEAN SHIFT', 'warning'); return; } if (challenge.id === 'lean') selectedLoadout = 'custom1'; startGame(challenge.diff); }
+function renderChallenges() { window.renderChallengeScreen?.(); }
+function startChallenge(index) {
+    ensureDailyObjectives();
+    if (challengeBoardDate !== daily.date) {
+        openChallengeMode();
+        notify('TODAY’S CONTRACTS HAVE ARRIVED', 'unlock');
+        return;
+    }
+    const challenge = challengeBoard[index];
+    if (!challenge) return;
+    if (daily.completedChallenges?.includes(challenge.id)) { notify('CONTRACT ALREADY CLEARED TODAY', 'warning'); return; }
+    gameMode = 'challenge';
+    challengeConfig = { ...challenge, rotationDate: daily.date };
+    currentMapId = challenge.mapId;
+    if (challenge.id === 'lean' && customKitPackedCount(customLoadouts[0] || {}) < 1) { notify('BUILD CUSTOM KIT 1 BEFORE STARTING LEAN SHIFT', 'warning'); return; }
+    if (challenge.id === 'lean') selectedLoadout = 'custom1';
+    startGame(challenge.diff);
+}
 
 function chooseMode(mode) {
+    if (!['campaign', 'endless', 'survival'].includes(mode)) return;
     gameMode = mode;
     survivalConfig = null;
     challengeConfig = null;
     endlessRound = 1;
-    showMenu('mapMenu');
+    campaignStartAtBoss = false;
+    const orderedMaps = Object.values(MAP_DEFINITIONS).sort((left, right) => left.campaignOrder - right.campaignOrder);
+    const unlocked = orderedMaps.filter(mapDef => unlockedMaps.includes(mapDef.id));
+    const preferred = mode === 'campaign'
+        ? (unlocked.find(mapDef => mapDef.campaignOrder === campaignCleared.length) || unlocked.find(mapDef => !campaignCleared.includes(mapDef.id)) || unlocked[0])
+        : (unlocked.find(mapDef => mapDef.id === currentMapId) || unlocked[0]);
+    currentMapId = preferred?.id || 'level0';
+    showMenu('mapSelectScreen');
 }
 
-function renderMapMenu() {
-    const content = document.getElementById('mapOptions');
-    if (!content) return;
-    content.innerHTML = Object.values(MAP_DEFINITIONS).map(mapDef => {
-        const unlocked = unlockedMaps.includes(mapDef.id);
-        const campaignLocked = gameMode === 'campaign' && mapDef.campaignOrder > campaignCleared.length;
-        const disabled = !unlocked || campaignLocked;
-        const label = disabled ? 'LOCKED' : 'SELECT';
-            const highScore = gameMode === 'endless' ? `<br><span style="font-size:12px;color:#ffe06b">ROUND HIGH SCORE: ${stats.endlessMapBest?.[mapDef.id] || 0}</span>` : '';
-            return `<button ${disabled ? 'disabled' : ''} onclick="selectMap('${mapDef.id}')"><b>${mapDef.name}</b><br><span style="font-size:12px;color:#aaa">${disabled ? 'Complete the previous campaign map first.' : mapDef.description}</span><br><span style="font-size:12px;color:${disabled ? '#777' : '#0f0'}">${label}</span>${highScore}</button>`;
-    }).join('');
-}
-
-function selectMap(mapId) {
-    if (!MAP_DEFINITIONS[mapId] || !unlockedMaps.includes(mapId)) return;
-    if (gameMode === 'campaign' && MAP_DEFINITIONS[mapId].campaignOrder > campaignCleared.length) return;
+function previewRunMap(mapId) {
+    const mapDef = MAP_DEFINITIONS[mapId];
+    if (!mapDef || !unlockedMaps.includes(mapId)) return false;
+    if (gameMode === 'campaign' && mapDef.campaignOrder > campaignCleared.length) return false;
     currentMapId = mapId;
     campaignStartAtBoss = false;
-    if (gameMode === 'campaign' && mapId === 'lucas' && hasLucasCampaignClear()) {
-        showMenu('lucasCampaignChoice');
-        return;
-    }
-    if (gameMode === 'survival') {
-        const survivalMap = document.getElementById('survivalMap');
-        if (survivalMap) survivalMap.value = mapId;
-    }
-    showMenu('diffMenu');
+    window.renderRunFlowScreens?.();
+    return true;
+}
+
+function selectMap(mapId = currentMapId) {
+    if (!previewRunMap(mapId)) return;
+    showMenu('runSetupScreen');
 }
 
 function chooseLucasCampaignStart(startAtBoss) {
     if (gameMode !== 'campaign' || currentMapId !== 'lucas' || !hasLucasCampaignClear()) {
-        showMenu('mapMenu');
+        showMenu('mapSelectScreen');
         return;
     }
     campaignStartAtBoss = Boolean(startAtBoss);
-    showMenu('diffMenu');
+    window.renderRunFlowScreens?.();
 }
 
-function startSelectedGame(diffLevel) {
+function startSelectedGame(diffLevel = Number(document.getElementById('runDifficultyValue')?.value ?? 1)) {
     if (gameMode === 'survival') { startSurvival(); return; }
+    if (!unlockedMaps.includes(currentMapId)) return;
     const startAtBoss = campaignStartAtBoss;
     campaignStartAtBoss = false;
-    startGame(diffLevel, startAtBoss);
+    startGame(Math.max(0, Math.min(2, Number(diffLevel) || 0)), startAtBoss);
 }
 
 function startSurvival() {
@@ -1764,7 +2286,6 @@ function startSurvival() {
     if (names.length === 0) { showMsg('SELECT AT LEAST ONE MONSTER', 1600); return; }
     gameMode = 'survival';
     endlessRound = 1;
-    currentMapId = document.getElementById('survivalMap').value;
     if (!unlockedMaps.includes(currentMapId)) { showMsg('UNLOCK THIS MAP IN CAMPAIGN FIRST', 1400); return; }
     survivalConfig = {
         names,
@@ -1773,7 +2294,7 @@ function startSurvival() {
         mutations: Number(document.getElementById('survivalMuts').value),
         events: document.getElementById('survivalEvents').checked
     };
-    startGame(Number(document.getElementById('survivalDiff').value));
+    startGame(Math.max(0, Math.min(2, Number(document.getElementById('survivalDiff').value) || 0)));
 }
 
 async function testSound() {
@@ -1782,71 +2303,89 @@ async function testSound() {
     playSound('success');
 }
 
-let infoTab = 'start', shopTab = 'upgrades';
-function setInfoTab(tab) {
-    infoTab = tab;
-    document.querySelectorAll('[data-info-tab]').forEach(section => section.style.display = section.dataset.infoTab === tab ? '' : 'none');
-    document.querySelectorAll('.info-tabs button').forEach(button => button.classList.toggle('active-tab', button.textContent.toLowerCase() === tab));
+let shopTab = 'upgrades';
+function renderArchive() {
+    const availableMaps = new Set(unlockedMaps);
+    document.querySelectorAll('#infoMenu [data-archive-map]').forEach(file => {
+        const locked = !availableMaps.has(file.dataset.archiveMap);
+        file.dataset.archiveLocked = locked ? 'true' : 'false';
+        file.hidden = locked;
+    });
+    window.refreshArchiveUI?.();
 }
 function setShopTab(tab) {
+    if (!['upgrades', 'supplies'].includes(tab)) return;
     shopTab = tab;
-    document.querySelectorAll('#shopMenu .shop-item').forEach(item => {
-        const text = item.textContent;
-        const upgrade = /Running Shoes|Hacker Gloves|Quick Hands|Lucky Coin|Dash Module/.test(text);
-        item.style.display = tab === 'maps' ? 'none' : ((tab === 'upgrades') === upgrade ? 'flex' : 'none');
-    });
-    renderMapIntelShop(tab);
+    const upgrades = document.getElementById('shopUpgradeShelf');
+    const supplies = document.getElementById('shopSupplyShelf');
+    if (upgrades) upgrades.hidden = tab !== 'upgrades';
+    if (supplies) supplies.hidden = tab !== 'supplies';
     const carried = invAdrenaline + invFlashbang + invNoiseMaker + invBearTrap + invBattery + invBreathFilter + invSignalScrambler + invNeutralizer + invRepairKit + invFlare;
-    const status = document.getElementById('shopCarryStatus'); if (status) status.textContent = `CARRIED SUPPLIES: ${carried}/8`;
-    document.querySelectorAll('.shop-tabs button').forEach(button => button.classList.toggle('active-tab', button.textContent.toLowerCase() === tab));
+    const status = document.getElementById('shopCarryStatus'); if (status) status.textContent = `${carried} / 8`;
+    document.querySelectorAll('[data-market-shop-tab]').forEach(button => button.setAttribute('aria-selected', String(button.dataset.marketShopTab === tab)));
+    window.refreshMarketInventory?.();
 }
-function renderMapIntelShop(tab) {
-    const content = document.getElementById('mapIntelShop'); if (!content) return;
-    if (tab !== 'maps') { content.innerHTML = ''; return; }
-    content.innerHTML = Object.values(MAP_DEFINITIONS).map((mapDef, index) => {
-        const mastered = (mapMastery[mapDef.id] || []).filter(Boolean).length === 3;
-        const owned = mapIntel.includes(mapDef.id), cost = 35 + index * 15;
-        return `<div class="shop-item"><div><div>${mapDef.name} MAP INTEL</div><div class="shop-desc">${owned ? 'Press M / tap MAP during a run to view the full live layout.' : mastered ? 'All three difficulties cleared. Unlock the live map viewer.' : 'Clear Easy, Normal, and Hard on this map first.'}</div></div><button ${owned || !mastered ? 'disabled' : ''} onclick="buyMapIntel('${mapDef.id}',${cost})">${owned ? 'OWNED' : `${cost} T`}</button></div>`;
-    }).join('');
+function renderMapIntelShop() {
+    window.renderMarketMapIntel?.();
 }
-function buyMapIntel(mapId, cost) { if (mapIntel.includes(mapId) || !(mapMastery[mapId] || []).every(Boolean) || tokens < cost) return; tokens -= cost; mapIntel.push(mapId); saveData(); setShopTab('maps'); }
-function openShop() { showMenu('shopMenu'); setShopTab(shopTab); }
+function buyMapIntel(mapId) {
+    const mapIndex = Object.keys(MAP_DEFINITIONS).indexOf(mapId);
+    const mastery = mapMastery[mapId] || [];
+    const cost = mapIndex < 0 ? 0 : 35 + mapIndex * 15;
+    if (mapIndex < 0 || !unlockedMaps.includes(mapId) || mastery.length !== 3 || !mastery.every(Boolean) || mapIntel.includes(mapId)) return false;
+    if (tokens < cost) { window.marketSetNotice?.('marketMapNotice', 'Not enough tokens for this survey.'); return false; }
+    tokens -= cost;
+    window.playUiSound?.('purchase');
+    mapIntel.push(mapId);
+    saveData();
+    updateMenuData();
+    renderMapIntelShop();
+    window.marketSetNotice?.('marketMapNotice', 'Live minimap intel added to your field record.');
+    window.focusMarketMenu?.('mapIntelMenu');
+    return true;
+}
 
 function buyUpgrade(type, baseCost) {
-    if (type === 'dash' && upgDash) return;
+    if (type === 'dash' && upgDash) return false;
     let cost = baseCost;
     if (type === 'shoe') cost += (upgShoe * 50);
     if (type === 'hack') cost += (upgHack * 75);
     if (type === 'quick') cost += (upgQuick * 40);
 
-    if (tokens >= cost) {
-        tokens -= cost;
-        if (type === 'shoe' && upgShoe < 3) upgShoe++;
-        if (type === 'hack' && upgHack < 2) upgHack++;
-        if (type === 'quick' && upgQuick < 3) upgQuick++;
-        if (type === 'coin' && upgCoin < 1) upgCoin++;
-        if (type === 'dash' && upgDash < 1) upgDash = 1;
-        saveData();
-    }
+    const valid = (type === 'shoe' && upgShoe < 3) || (type === 'hack' && upgHack < 2) || (type === 'quick' && upgQuick < 3) || (type === 'coin' && upgCoin < 1) || (type === 'dash' && upgDash < 1);
+    if (!valid) return false;
+    if (tokens < cost) { window.marketSetNotice?.('marketShopNotice', 'Not enough tokens for this upgrade.'); return false; }
+    tokens -= cost;
+    window.playUiSound?.('purchase');
+    if (type === 'shoe') upgShoe++;
+    if (type === 'hack') upgHack++;
+    if (type === 'quick') upgQuick++;
+    if (type === 'coin') upgCoin++;
+    if (type === 'dash') upgDash = 1;
+    saveData();
+    updateMenuData();
+    return true;
 }
 function buyConsumable(type, cost) {
     const carried = invAdrenaline + invFlashbang + invNoiseMaker + invBearTrap + invBattery + invBreathFilter + invSignalScrambler + invNeutralizer + invRepairKit + invFlare;
-    if (carried >= 8) { setSaveStatus('Inventory full — carry at most 8 consumables', '#ffcc66'); return; }
-    if (tokens >= cost) {
-        tokens -= cost;
-        if (type === 'adrenaline') invAdrenaline++;
-        if (type === 'flashbang') invFlashbang++;
-        if (type === 'noiseMaker') invNoiseMaker++;
-        if (type === 'bearTrap') invBearTrap++;
-        if (type === 'battery') invBattery++;
-        if (type === 'breathFilter') invBreathFilter++;
-        if (type === 'signalScrambler') invSignalScrambler++;
-        if (type === 'neutralizer') invNeutralizer++;
-        if (type === 'repairKit') invRepairKit++;
-        if (type === 'flare') invFlare++;
-        saveData();
-        updateMenuData(); setShopTab(shopTab);
-    }
+    if (!ITEM_DEFINITIONS[type]) return false;
+    if (carried >= 8) { setSaveStatus('Inventory full — carry at most 8 consumables', '#ffcc66'); window.marketSetNotice?.('marketShopNotice', 'Your carry inventory is full. Discard an item first.'); return false; }
+    if (tokens < cost) { window.marketSetNotice?.('marketShopNotice', 'Not enough tokens for this supply.'); return false; }
+    tokens -= cost;
+    window.playUiSound?.('purchase');
+    if (type === 'adrenaline') invAdrenaline++;
+    if (type === 'flashbang') invFlashbang++;
+    if (type === 'noiseMaker') invNoiseMaker++;
+    if (type === 'bearTrap') invBearTrap++;
+    if (type === 'battery') invBattery++;
+    if (type === 'breathFilter') invBreathFilter++;
+    if (type === 'signalScrambler') invSignalScrambler++;
+    if (type === 'neutralizer') invNeutralizer++;
+    if (type === 'repairKit') invRepairKit++;
+    if (type === 'flare') invFlare++;
+    saveData();
+    updateMenuData(); setShopTab(shopTab);
+    return true;
 }
 function getInventoryCount(type) {
     return ({ adrenaline:invAdrenaline, flashbang:invFlashbang, noiseMaker:invNoiseMaker, bearTrap:invBearTrap, battery:invBattery, breathFilter:invBreathFilter, signalScrambler:invSignalScrambler, neutralizer:invNeutralizer, repairKit:invRepairKit, flare:invFlare })[type] || 0;
@@ -1863,21 +2402,30 @@ function discardConsumable(type) {
     if (type === 'neutralizer') invNeutralizer--;
     if (type === 'repairKit') invRepairKit--;
     if (type === 'flare') invFlare--;
+    tokens += 5;
+    window.playUiSound?.('discard');
     saveData(); updateMenuData(); setShopTab(shopTab);
+    window.marketSetNotice?.('marketShopNotice', 'Supply discarded. 5 tokens returned.');
 }
 
 // Game Core Settings
 const TS = 40;
+const LEVEL0_WALL_COLOR = '#bfb574';
+const LEVEL0_FLOOR_COLOR = '#aa9674';
 // The maze sits inside a larger canvas grid. The spare border is used for real
 // side rooms, so they are physically connected to the maze rather than painted on it.
-let COLS = 41, ROWS = 33;
-const MAZE_LEFT = 5, MAZE_TOP = 5, MAZE_COLS = 31, MAZE_ROWS = 23;
+let COLS = 53, ROWS = 41;
+const MAZE_LEFT = 5, MAZE_TOP = 5, MAZE_COLS = 43, MAZE_ROWS = 31;
 let state = 0; let currentDiff = 0; let rewardTokens = 0;
 let gameMode = 'challenge', endlessRound = 1, survivalConfig = null, challengeConfig = null, eventsEnabled = true, safeRoomsReliable = true;
 let currentMapId = 'level0';
 let campaignStartAtBoss = false;
 
 let map = [], floors = [], rooms = [], fuses = [], hidingSpots = [], coolingValves = [], employees = [];
+let level0LightSources = [];
+let level0Pillars = [];
+let level0StaticLayer = null;
+let level0StaticScale = 1;
 let reservedObjectTiles = new Set(), hotelDoorTiles = [], hotelBlockedDoor = null, hotelCorridorSections = [];
 let centralBoiler = null, boilerShutdown = false, boilerReadyShown = false;
 let hotelElevator = null, hotelLockdownTimer = 0, hotelEventCooldown = 0, hotelLockdownActive = false;
@@ -1905,7 +2453,7 @@ let camera = { x: 0, y: 0, targetZoom: 1.0, zoom: 1.0 };
 let nearGen = null; 
 
 let generators = [], activeGens = 0, totalGens = 0;
-let puzzleSequence = [], circuitSequence = [], circuitStage = 0, circuitRequired = 3, currentGen = null;
+let puzzleSequence = [], puzzleSequenceTotal = 0, circuitSequence = [], circuitSequenceTotal = 0, circuitStage = 0, circuitRequired = 3, currentGen = null;
 let lastSingleMutation = null; 
 
 // AI & Item Variables
@@ -1919,6 +2467,10 @@ let groundLoot = [];
 let heatOverlay = null;
 let ambienceClock = 0;
 let runStartedAt = 0, runItemsUsed = 0, hallucinationHudTimer = 0;
+let runCaughtMonsters = [], runInitialMonsterCount = 0;
+let winRoamActive = false, winRoamEndsAt = 0, winRoamLastSecond = -1;
+let winReportSourceMonster = null, winReportCapturedAt = 0, winReportRound = 0;
+let lastDeathReportLine = '';
 let mobileMenuPaused = false;
 
 // Skill Check Variables
@@ -1929,7 +2481,6 @@ let simonSequence = [], simonInput = 0, simonShowIndex = 0, simonTimer = 0, simo
 
 let lastTime = 0, frames = 0;
 let lastFrameTime = 0, gameAccumulator = 0;
-let lastDrawTime = 0;
 const keys = { w: false, a: false, s: false, d: false };
 
 function clearMovementKeys() {
@@ -2036,7 +2587,7 @@ function openLuckyBlock(block) {
     if (!block || block.opened) return; block.opened=true; noiseTarget={x:block.x,y:block.y}; noiseTimer=300;
     const roll=Math.random();
     if (roll<.42) { const types=Object.keys(ITEM_DEFINITIONS); const type=types[Math.floor(Math.random()*types.length)]; if (addSupply(type)) notify(`SHIFT CACHE · ${ITEM_DEFINITIONS[type].toUpperCase()}`, 'unlock'); else notify('SHIFT CACHE · INVENTORY FULL','warning'); }
-    else if (roll<.67) { const gen=generators.find(g=>!g.active&&!g.isFalse); if (gen) { gen.active=true; gen.repairFlash=45; activeGens++; stats.generators++; if (stats.generators >= 1000) unlockCosmetic('generator'); notify('SHIFT CACHE · GENERATOR COMPLETED','unlock'); checkPhase(); } }
+    else if (roll<.67) { const gen=generators.find(g=>!g.active&&!g.isFalse); if (gen) { gen.active=true; gen.repairFlash=45; addLevel0GeneratorLight(gen); activeGens++; stats.generators++; if (stats.generators >= 1000) unlockCosmetic('generator'); notify('SHIFT CACHE · GENERATOR COMPLETED','unlock'); checkPhase(); } }
     else if (roll<.84) { const tile=floors.find(t=>!isRhysEarlyLockedTile(t)&&!amineHoles.some(h=>h.c===t.c&&h.r===t.r)&&!amineFireZones.some(z=>Math.hypot(z.x-(t.c*TS+TS/2),z.y-(t.r*TS+TS/2))<z.radius+20)&&isOpenObjectSpot(t.c*TS+TS/2,t.r*TS+TS/2,TS*4)); if (tile) { generators.push({x:tile.c*TS+TS/2,y:tile.r*TS+TS/2,r:12,active:false,type:'normal',isFalse:false,repairFlash:0,stage:0,requiredStages:3,requiredFuses:2,collectedFuses:0}); totalGens++; notify('SHIFT CACHE · NEW GENERATOR DETECTED','danger'); updateHUD(); } }
     else { player.boostTimer=Math.max(player.boostTimer,300); notify('SHIFT CACHE · SURGE BOOST','unlock'); }
 }
@@ -2120,6 +2671,7 @@ function beginCircuitPuzzle() {
     const options = ['w', 'a', 's', 'd'];
     const length = Math.max(2, 3 + circuitStage - (repairAssist > 0 ? 1 : 0));
     for (let i = 0; i < length; i++) circuitSequence.push(options[Math.floor(Math.random() * options.length)]);
+    circuitSequenceTotal = circuitSequence.length;
     updateHUD();
 }
 
@@ -2134,8 +2686,10 @@ function beginTuningPuzzle() {
 }
 
 function spawnRapidTarget() {
-    const horizontalMargin = 92, topMargin = 138, bottomMargin = 76;
-    rapidTarget = { x:horizontalMargin + Math.random()*(canvas.width - horizontalMargin*2), y:topMargin + Math.random()*(canvas.height - topMargin - bottomMargin), r:62 + (repairAssist > 0 ? 10 : 0) };
+    const previousSlot = rapidTarget?.slot;
+    let slot = Math.floor(Math.random() * 9);
+    while (slot === previousSlot) slot = Math.floor(Math.random() * 9);
+    rapidTarget = { slot };
     rapidTimer = rapidLimit;
 }
 function beginRapidPuzzle() {
@@ -2144,6 +2698,92 @@ function beginRapidPuzzle() {
 function beginSimonPuzzle() {
     state = 10; const length = 4;
     simonSequence = []; for(let i=0;i<length;i++){let next=Math.floor(Math.random()*4);while(i&&next===simonSequence[i-1])next=Math.floor(Math.random()*4);simonSequence.push(next);} simonRound = 1; simonInput = 0; simonShowIndex = 0; simonTimer = 38; simonPhase = 'show'; simonFlashChoice = -1; simonFlashTimer = 0;
+}
+
+function tapRapidRelay(slot) {
+    if (state !== 9 || !rapidTarget || Number(slot) !== rapidTarget.slot) return;
+    rapidHits++;
+    playSound('tick');
+    if (rapidHits >= rapidRequired) finishGeneratorInteraction();
+    else spawnRapidTarget();
+}
+
+function submitSimonPad(choice) {
+    if (state !== 10 || simonPhase !== 'input' || !Number.isInteger(choice) || choice < 0 || choice > 3) return;
+    simonFlashChoice = choice;
+    simonFlashTimer = 14;
+    if (choice !== simonSequence[simonInput]) { failGeneratorTask('COLOR MEMORY'); return; }
+    simonInput++;
+    playSound('tick');
+    if (simonInput >= simonRound) {
+        if (simonRound >= simonSequence.length) finishGeneratorInteraction();
+        else { simonRound++; simonInput = 0; simonShowIndex = 0; simonTimer = 38; simonPhase = 'show'; }
+    }
+}
+
+function submitGeneratorDirection(key) {
+    if (!['w', 'a', 's', 'd'].includes(key)) return;
+    if (state === 2) {
+        if (key === puzzleSequence[0]) {
+            puzzleSequence.shift();
+            playSound('tick');
+            if (puzzleSequence.length === 0) finishGeneratorInteraction();
+        } else {
+            triggerBloodHunt();
+            state = 1; player.stunTimer = 120; playSound('fail');
+            showMsg('<span style="color:#ff4444">WRONG CONNECTION</span>', 900);
+        }
+    } else if (state === 6) {
+        if (key === circuitSequence[0]) {
+            circuitSequence.shift(); playSound('tick');
+            if (circuitSequence.length === 0) finishGeneratorInteraction();
+        } else {
+            triggerBloodHunt();
+            state = 1; player.stunTimer = 120; playSound('fail');
+            showMsg('<span style="color:#ff4444">CIRCUIT FAILED</span>', 900);
+        }
+    }
+}
+
+function submitSkillCheck() {
+    if (state !== 5 || scDelay > 0) return;
+    if (scNeedle >= scZoneStart && scNeedle <= scZoneEnd) {
+        scHits++;
+        playSound('success');
+        if (scHits >= scRequired) {
+            finishGeneratorInteraction();
+        } else {
+            scZoneStart = Math.random() * (Math.PI * 2 - (scZoneEnd - scZoneStart));
+            let nextZoneWidth = currentDiff === 0 ? Math.PI / 2 : currentDiff === 1 ? Math.PI / 3 : Math.PI / 5;
+            if (repairAssist > 0) nextZoneWidth = Math.min(Math.PI * 0.78, nextZoneWidth * 1.7);
+            if (monsters.some(enemy => enemy.hasPanic && Math.hypot(enemy.x - player.x, enemy.y - player.y) < 260)) nextZoneWidth *= 0.72;
+            scZoneEnd = scZoneStart + nextZoneWidth;
+            scNeedle = 0;
+        }
+    } else {
+        triggerBloodHunt();
+        state = 1; player.stunTimer = 120;
+        playSound('fail'); showMsg('<span style="color:#ff4444">WIRING FAILED</span>', 900);
+        keys.w = false; keys.a = false; keys.s = false; keys.d = false;
+    }
+}
+
+function submitFrequencyTune() {
+    if (state !== 7 || scDelay > 0) return;
+    if (tuneNeedle >= tuneZoneStart && tuneNeedle <= tuneZoneEnd) {
+        tuneHits++; tuneMisses = 0; playSound('success');
+        if (tuneHits >= tuneRequired) finishGeneratorInteraction();
+        else {
+            const width = tuneZoneEnd - tuneZoneStart;
+            tuneZoneStart = .12 + Math.random() * (.76 - width);
+            tuneZoneEnd = tuneZoneStart + width;
+            tuneNeedle = 0;
+        }
+    } else {
+        tuneMisses++;
+        if (tuneMisses >= 3) failGeneratorTask('FREQUENCY TUNE');
+        else { tuneNeedle = 0; scDelay = 24; playSound('fail'); notify(`FREQUENCY MISS ${tuneMisses}/3`, 'warning'); }
+    }
 }
 
 function setLucasOverlay(visible) {
@@ -3403,6 +4043,35 @@ function drawCalebBossPlayer(boss) {
     if (cosmetics.hat !== 'none' && hat?.complete && hat.naturalWidth) ctx.drawImage(hat, x - player.r * 2, y - player.r * 2.15, player.r * 4, player.r * 4);
 }
 
+function getCalebBodyImage(boss) {
+    return boss?.phase === 'eyesOn' && bossImages.calebBlack?.complete && bossImages.calebBlack.naturalWidth
+        ? bossImages.calebBlack
+        : bossImages.caleb;
+}
+
+function drawSpeedrunTimer() {
+    if (!setSpeedrunTimer || !runStartedAt || state === 0 || state === 4) return;
+    const elapsed = Math.max(0, performance.now() - runStartedAt);
+    const totalHundredths = Math.floor(elapsed / 10);
+    const hundredths = String(totalHundredths % 100).padStart(2, '0');
+    const totalSeconds = Math.floor(totalHundredths / 100);
+    const seconds = String(totalSeconds % 60).padStart(2, '0');
+    const minutes = Math.floor(totalSeconds / 60);
+    const label = `${minutes}:${seconds}.${hundredths}`;
+    ctx.save();
+    ctx.fillStyle = 'rgba(5,3,10,.78)';
+    ctx.strokeStyle = 'rgba(235,205,255,.55)';
+    ctx.lineWidth = 1;
+    ctx.fillRect(canvas.width - 170, 10, 154, 34);
+    ctx.strokeRect(canvas.width - 170, 10, 154, 34);
+    ctx.textAlign = 'right';
+    ctx.fillStyle = '#cba9e8'; ctx.font = 'bold 10px Arial';
+    ctx.fillText('SPEEDRUN', canvas.width - 26, 22);
+    ctx.fillStyle = '#fff1ff'; ctx.font = 'bold 16px monospace';
+    ctx.fillText(label, canvas.width - 26, 38);
+    ctx.restore();
+}
+
 function drawCalebBossIntro() {
     const scene = calebBoss; if (!scene) return;
     const t = scene.introTime, progress = Math.min(1, t / scene.introDuration), cx = canvas.width / 2;
@@ -3417,13 +4086,13 @@ function drawCalebBossIntro() {
     drawCalebBossPlayer(scene);
     const size = Math.min(310, canvas.width * .5), y = gateY - 24 - progress * 32;
     calebBossImage(bossImages.caleb, cx, y, size, size, Math.sin(t * .025) * .015, Math.min(1, Math.max(0, (progress - .34) * 2.3)));
-    if (progress > .35) { ctx.strokeStyle = `rgba(255,30,75,${(progress - .35) * 1.35})`; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(cx - size * .18, y - size * .14); ctx.lineTo(cx + size * .18, y - size * .14); ctx.stroke(); }
     // Keep the intro copy in a foreground title band so the large Caleb
     // sprite cannot swallow it on short/mobile canvases.
     ctx.fillStyle = 'rgba(2,1,3,.78)'; ctx.fillRect(0, 0, canvas.width, 94);
     ctx.fillStyle = '#ffcad6'; ctx.font = 'bold 23px Arial'; ctx.textAlign = 'center'; ctx.fillText('THE OTHER SIDE OF THE GATE', cx, 36);
     ctx.fillStyle = '#b98595'; ctx.font = '14px Arial'; ctx.fillText('THE FRAGMENTS WERE NEVER A KEY', cx, 63);
     if (t > 125) { ctx.fillStyle = `rgba(255,255,255,${Math.min(.75, (t - 125) / 80)})`; ctx.fillRect(0, 0, canvas.width, canvas.height); }
+    drawSpeedrunTimer();
 }
 
 function drawCalebBossDefeat() {
@@ -3467,7 +4136,7 @@ function drawCalebBossDefeat() {
 
     if (!boss.splitVisible && t < 86) {
         const bodyPulse = 1 + Math.sin(t * .22) * .025 + crackProgress * .035;
-        calebBossImage(bossImages.caleb, cx, bodyY, size * bodyPulse, size * bodyPulse, Math.sin(t * .08) * .012);
+        calebBossImage(getCalebBodyImage(boss), cx, bodyY, size * bodyPulse, size * bodyPulse, Math.sin(t * .08) * .012);
     } else {
         const maxGap = Math.min(190, width * .3);
         const gap = splitEase * maxGap;
@@ -3525,6 +4194,7 @@ function drawCalebBossDefeat() {
         const flash = Math.max(0, Math.min(.92, (t - 116) / 10)) * Math.max(0, Math.min(1, 1 - (t - 130) / 42));
         if (flash > 0) { ctx.fillStyle = `rgba(255,255,255,${flash})`; ctx.fillRect(0, 0, width, height); }
     }
+    drawSpeedrunTimer();
 }
 
 function drawCalebEndingShadowHand(cx, gateY, targetX, targetY, reach, alpha = 1) {
@@ -3740,18 +4410,18 @@ function drawCalebBossEncounter() {
         ctx.fillStyle = bodyGlow; ctx.beginPath(); ctx.arc(body.x, body.y, body.size * .8, 0, Math.PI * 2); ctx.fill();
         if (activeHand !== 'left') { const hand = getCalebHandPose(boss, 'left'); calebBossImage(bossImages.leftHand, hand.x, hand.y, 132, 132, hand.angle); }
         if (activeHand !== 'right') { const hand = getCalebHandPose(boss, 'right'); calebBossImage(bossImages.rightHand, hand.x, hand.y, 132, 132, hand.angle); }
-        calebBossImage(bossImages.caleb, body.x, body.y, body.size * bodyPulse, body.size * bodyPulse, Math.sin(boss.time * .03) * .012, boss.flash > 0 ? .62 : 1);
+        calebBossImage(getCalebBodyImage(boss), body.x, body.y, body.size * bodyPulse, body.size * bodyPulse, Math.sin(boss.time * .03) * .012, boss.flash > 0 ? .62 : 1);
         if (activeHand) { const hand = getCalebHandPose(boss, activeHand); calebBossImage(activeHand === 'left' ? bossImages.leftHand : bossImages.rightHand, hand.x, hand.y, 142, 142, hand.angle); }
-        if (boss.phase === 'eyesOn') eyes.forEach(eye => { ctx.fillStyle = 'rgba(7,0,9,.96)'; ctx.shadowColor = '#ff436e'; ctx.shadowBlur = 18; ctx.beginPath(); ctx.arc(eye.x, eye.y, body.size * .092, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0; ctx.strokeStyle = '#ff99aa'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(eye.x, eye.y, body.size * .115, 0, Math.PI * 2); ctx.stroke(); }); else eyes.forEach(eye => { ctx.strokeStyle = '#fff7fb'; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(eye.x, eye.y, body.size * .09, 0, Math.PI * 2); ctx.stroke(); });
     }
     else if (boss.mode === 'split') { drawCalLebHalf(boss, boss.cal, bossImages.cal, '#ff637f'); drawCalLebHalf(boss, boss.leb, bossImages.leb, '#c39bff'); }
     drawCalebBossPlayer(boss);
-    ctx.fillStyle = '#ffe1e8'; ctx.font = 'bold 20px Arial'; ctx.textAlign = 'center'; ctx.fillText(boss.mode === 'split' ? 'THE BROKEN BODY' : 'CALEB', width / 2, 32);
+    ctx.fillStyle = '#ffe1e8'; ctx.font = 'bold 20px Arial'; ctx.textAlign = 'center'; ctx.fillText(boss.mode === 'split' ? 'THE BROKEN BODY' : 'SHADOW GATE', width / 2, 32);
     if (boss.mode === 'split') { drawBossBar(28, 48, Math.min(260, width * .32), 15, boss.healthCal, boss.maxHealthCal, '#cf4d73', 'CAL'); drawBossBar(width - 28 - Math.min(260, width * .32), 48, Math.min(260, width * .32), 15, boss.healthLeb, boss.maxHealthLeb, '#9c64cf', 'LEB'); }
     else { drawBossBar(width * .2, 48, width * .6, 17, boss.health, boss.maxHealth, '#bd3157', boss.stage >= 2 ? 'CALEB · COLLAPSING ARENA' : boss.phase === 'eyesOff' ? 'CALEB · EYES DISABLED' : 'CALEB'); }
     drawBossBar(width * .25, height - 30, width * .5, 12, boss.playerHealth, boss.maxPlayerHealth, '#64d6ff', 'PLAYER HEALTH');
     ctx.fillStyle = '#eacbd4'; ctx.font = '12px Arial'; ctx.textAlign = 'center'; ctx.fillText(boss.mode === 'split' ? 'ARM SWITCHES TO REFLECT CAL’S FIRE · SEAL LEB’S NESTS BEFORE HE EATS THEM' : boss.phase === 'eyesOff' ? 'RARE EYE CORES CAN BE SEALED · SURVIVE UNTIL CALEB’S EYES RETURN' : 'ARM A SWITCH, THEN BAIT CALEB’S DARK ORB THROUGH IT', width / 2, height - 48);
     if (boss.playerHitFlash > 0) { ctx.fillStyle = `rgba(255,255,255,${boss.playerHitFlash / 30})`; ctx.fillRect(0, 0, width, height); }
+    drawSpeedrunTimer();
 }
 
 function failGeneratorTask(label) {
@@ -3769,7 +4439,7 @@ function launchCurrentGeneratorTask() {
     if (isSkillCheck) {
         state = 5; scNeedle = 0; scHits = 0; scRequired = Math.max(1, 3-upgHack+(monsters.some(enemy=>enemy.isReinforced)?1:0)); scSpeed = [0.0195,0.0325,0.0455][currentDiff]*(1-upgQuick*.10);
         let width = [Math.PI/2,Math.PI/3,Math.PI/5][currentDiff]; if (repairAssist>0) width=Math.min(Math.PI*.78,width*1.7); scZoneStart=Math.random()*(Math.PI*2-width); scZoneEnd=scZoneStart+width; scDelay=60;
-    } else { state=2; const opts=['w','a','s','d'], length=Math.max(1,3-upgHack+(monsters.some(enemy=>enemy.isReinforced)?1:0)); puzzleSequence=Array.from({length},()=>opts[Math.floor(Math.random()*4)]); }
+    } else { state=2; const opts=['w','a','s','d'], length=Math.max(1,3-upgHack+(monsters.some(enemy=>enemy.isReinforced)?1:0)); puzzleSequence=Array.from({length},()=>opts[Math.floor(Math.random()*4)]); puzzleSequenceTotal = length; }
     updateHUD();
 }
 
@@ -3835,6 +4505,7 @@ function finishGeneratorInteraction() {
     currentGen.repairFlash = 45;
     noiseTarget = { x: currentGen.x, y: currentGen.y };
     noiseTimer = 300;
+    addLevel0GeneratorLight(currentGen);
     activeGens++;
     stats.generators++;
     if (stats.generators >= 1000) unlockCosmetic('generator');
@@ -3850,7 +4521,16 @@ function finishGeneratorInteraction() {
 
 window.addEventListener('keydown', (e) => {
     let k = e.key.toLowerCase();
+    if ((state === 5 || state === 7) && k === ' ') e.preventDefault();
     if (developerUnlockDialogOpen || document.getElementById('developerRoomDialog')?.style.display === 'flex') return;
+    if (winRoamActive) {
+        if (k === 'arrowleft') k = 'a';
+        if (k === 'arrowright') k = 'd';
+        if (k === 'arrowup') k = 'w';
+        if (k === 'arrowdown') k = 's';
+        if (k in keys) { keys[k] = true; e.preventDefault(); }
+        return;
+    }
     if (developerStudioOpen) {
         if (['INPUT','TEXTAREA','SELECT'].includes(e.target?.tagName)) return;
         if (developerState.playtesting) {
@@ -4084,66 +4764,23 @@ window.addEventListener('keydown', (e) => {
         return;
     }
 
-    // Skill Check Input
-    if (state === 5 && k === ' ' && scDelay <= 0) {
-        if (scNeedle >= scZoneStart && scNeedle <= scZoneEnd) {
-            scHits++;
-            playSound('success');
-            if (scHits >= scRequired) {
-                finishGeneratorInteraction();
-            } else {
-                scZoneStart = Math.random() * (Math.PI*2 - (scZoneEnd - scZoneStart));
-                let nextZoneWidth = currentDiff === 0 ? Math.PI/2 : currentDiff === 1 ? Math.PI/3 : Math.PI/5;
-                if (repairAssist > 0) nextZoneWidth = Math.min(Math.PI * 0.78, nextZoneWidth * 1.7);
-                if (monsters.some(enemy => enemy.hasPanic && Math.hypot(enemy.x - player.x, enemy.y - player.y) < 260)) nextZoneWidth *= 0.72;
-                scZoneEnd = scZoneStart + nextZoneWidth;
-                scNeedle = 0;
-            }
-        } else {
-            triggerBloodHunt();
-            state = 1; player.stunTimer = 120;
-            playSound('fail'); showMsg('<span style="color:#ff4444">WIRING FAILED</span>', 900);
-            keys.w = false; keys.a = false; keys.s = false; keys.d = false;
-        }
+    // Keep Space as a game action, not a focused button's default activation.
+    if (state === 5 && k === ' ') {
+        if (!e.repeat) submitSkillCheck();
         return;
     }
-    if (state === 7 && k === ' ' && scDelay <= 0) {
-        if (tuneNeedle >= tuneZoneStart && tuneNeedle <= tuneZoneEnd) {
-            tuneHits++; tuneMisses = 0; playSound('success');
-            if (tuneHits >= tuneRequired) finishGeneratorInteraction();
-            else { const width = tuneZoneEnd - tuneZoneStart; tuneZoneStart = .12 + Math.random() * (.76 - width); tuneZoneEnd = tuneZoneStart + width; tuneNeedle = 0; }
-        } else {
-            tuneMisses++;
-            if (tuneMisses >= 3) failGeneratorTask('FREQUENCY TUNE');
-            else { tuneNeedle = 0; scDelay = 24; playSound('fail'); notify(`FREQUENCY MISS ${tuneMisses}/3`, 'warning'); }
-        }
+    if (state === 7 && k === ' ') {
+        if (!e.repeat) submitFrequencyTune();
         return;
     }
     
     // Typing Input
     if (state === 2) {
-        if (k === puzzleSequence[0]) {
-            puzzleSequence.shift();
-            playSound('tick');
-            if (puzzleSequence.length === 0) {
-                finishGeneratorInteraction();
-            }
-        } else if (['w','a','s','d'].includes(k)) {
-            triggerBloodHunt();
-            state = 1; player.stunTimer = 120; playSound('fail');
-            showMsg('<span style="color:#ff4444">WRONG CONNECTION</span>', 900);
-        }
+        if (['w','a','s','d'].includes(k)) { e.preventDefault(); if (!e.repeat) submitGeneratorDirection(k); }
         return;
     }
     if (state === 6 && ['w','a','s','d'].includes(k)) {
-        if (k === circuitSequence[0]) {
-            circuitSequence.shift(); playSound('tick');
-            if (circuitSequence.length === 0) finishGeneratorInteraction();
-        } else {
-            triggerBloodHunt();
-            state = 1; player.stunTimer = 120; playSound('fail');
-            showMsg('<span style="color:#ff4444">CIRCUIT FAILED</span>', 900);
-        }
+        e.preventDefault(); if (!e.repeat) submitGeneratorDirection(k);
         return;
     }
     if (k in keys) {
@@ -4211,8 +4848,6 @@ function handleCanvasPress(clientX, clientY) {
         }
         return;
     }
-    if(state===9){if(rapidTarget&&Math.hypot(x-rapidTarget.x,y-rapidTarget.y)<=rapidTarget.r){rapidHits++;playSound('tick');if(rapidHits>=rapidRequired)finishGeneratorInteraction();else spawnRapidTarget();}return;}
-    if(state===10&&simonPhase==='input'){const size=100,gap=14,left=canvas.width/2-size-gap/2,top=canvas.height/2-size-gap/2;const boxes=[[left,top],[left+size+gap,top],[left,top+size+gap],[left+size+gap,top+size+gap]];const choice=boxes.findIndex(([bx,by])=>x>=bx&&x<=bx+size&&y>=by&&y<=by+size);if(choice<0)return;simonFlashChoice=choice;simonFlashTimer=14;if(choice!==simonSequence[simonInput]){failGeneratorTask('COLOR MEMORY');return;}simonInput++;playSound('tick');if(simonInput>=simonRound){if(simonRound>=simonSequence.length)finishGeneratorInteraction();else{simonRound++;simonInput=0;simonShowIndex=0;simonTimer=38;simonPhase='show';}}return;}
     if (state === 11 && amineRoad) { fireAmineRoadWeapon(x); }
 }
 canvas.addEventListener('pointerdown', event => {
@@ -4258,9 +4893,220 @@ function rebuildFloors() {
     }
 }
 
+function rebuildLevel0LightSources() {
+    level0LightSources = [];
+    if (currentMapId !== 'level0' || !floors.length) return;
+    const lightCount = 5 + Math.floor(Math.random() * 3);
+    const minimumSpacing = TS * 4.2;
+    for (let attempt = 0; attempt < lightCount * 18 && level0LightSources.length < lightCount; attempt++) {
+        const tile = floors[Math.floor(Math.random() * floors.length)];
+        const x = tile.c * TS + TS / 2, y = tile.r * TS + TS / 2;
+        if (level0LightSources.some(light => Math.hypot(light.x - x, light.y - y) < minimumSpacing)) continue;
+        level0LightSources.push({
+            x, y,
+            radius: TS * (4.2 + Math.random() * 0.9),
+            strength: 0.105 + Math.random() * 0.035
+        });
+    }
+    // Small layouts may not provide enough separated floor anchors. Fill the
+    // remaining slots without blocking the procedural layout from rendering.
+    while (level0LightSources.length < Math.min(4, floors.length)) {
+        const tile = floors[Math.floor(Math.random() * floors.length)];
+        level0LightSources.push({
+            x: tile.c * TS + TS / 2,
+            y: tile.r * TS + TS / 2,
+            radius: TS * 4.4,
+            strength: 0.11
+        });
+    }
+}
+
+function buildLevel0StaticLayer() {
+    level0StaticLayer = null;
+    if (currentMapId !== 'level0' || !map.length) return;
+    const layer = document.createElement('canvas');
+    level0StaticScale = Math.min(1, 1800 / (COLS * TS), 1500 / (ROWS * TS));
+    layer.width = Math.round(COLS * TS * level0StaticScale);
+    layer.height = Math.round(ROWS * TS * level0StaticScale);
+    const layerCtx = layer.getContext('2d');
+    if (!layerCtx) return;
+    layerCtx.scale(level0StaticScale, level0StaticScale);
+
+    layerCtx.fillStyle = LEVEL0_WALL_COLOR;
+    layerCtx.fillRect(0, 0, layer.width, layer.height);
+    const pillarTiles = new Map(level0Pillars.map(pillar => [`${pillar.c},${pillar.r}`, pillar]));
+    const edgeDepth = Math.max(2, TS * 0.14);
+    for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+            const x = c * TS, y = r * TS;
+            if (map[r][c] === 1) {
+                layerCtx.fillStyle = LEVEL0_WALL_COLOR;
+                layerCtx.fillRect(x, y, TS, TS);
+                if (map[r + 1]?.[c] === 0) {
+                    const shade = layerCtx.createLinearGradient(0, y + TS - edgeDepth, 0, y + TS);
+                    shade.addColorStop(0, 'rgba(72, 60, 30, 0)');
+                    shade.addColorStop(1, 'rgba(72, 60, 30, .22)');
+                    layerCtx.fillStyle = shade;
+                    layerCtx.fillRect(x, y + TS - edgeDepth, TS, edgeDepth);
+                }
+                if (map[r]?.[c + 1] === 0) {
+                    const shade = layerCtx.createLinearGradient(x + TS - edgeDepth, 0, x + TS, 0);
+                    shade.addColorStop(0, 'rgba(72, 60, 30, 0)');
+                    shade.addColorStop(1, 'rgba(72, 60, 30, .22)');
+                    layerCtx.fillStyle = shade;
+                    layerCtx.fillRect(x + TS - edgeDepth, y, edgeDepth, TS);
+                }
+                const pillar = pillarTiles.get(`${c},${r}`);
+                if (pillar) {
+                    const shadowX = x + TS / 2 + 6, shadowY = y + TS / 2 + 10;
+                    layerCtx.fillStyle = 'rgba(48, 41, 26, .16)';
+                    layerCtx.beginPath();
+                    layerCtx.ellipse(shadowX, shadowY, TS * .43, TS * .27, 0, 0, Math.PI * 2);
+                    layerCtx.fill();
+
+                    const pillarSize = pillar.size || 28;
+                    const pillarX = x + (TS - pillarSize) / 2, pillarY = y + (TS - pillarSize) / 2 - 1;
+                    layerCtx.fillStyle = '#93885f';
+                    layerCtx.fillRect(pillarX + 3, pillarY + 3, pillarSize, pillarSize);
+                    const pillarFace = layerCtx.createLinearGradient(pillarX, pillarY, pillarX + pillarSize, pillarY + pillarSize);
+                    pillarFace.addColorStop(0, '#c2b77c');
+                    pillarFace.addColorStop(.55, '#b1a672');
+                    pillarFace.addColorStop(1, '#a39765');
+                    layerCtx.fillStyle = pillarFace;
+                    layerCtx.fillRect(pillarX, pillarY, pillarSize, pillarSize);
+                    layerCtx.fillStyle = 'rgba(244, 232, 181, .24)';
+                    layerCtx.fillRect(pillarX + 2, pillarY + 2, pillarSize - 4, 2);
+                    layerCtx.fillStyle = 'rgba(73, 61, 34, .12)';
+                    layerCtx.fillRect(pillarX + pillarSize - 3, pillarY + 2, 2, pillarSize - 4);
+                }
+            } else {
+                layerCtx.fillStyle = LEVEL0_FLOOR_COLOR;
+                layerCtx.fillRect(x, y, TS, TS);
+            }
+        }
+    }
+
+    layerCtx.globalCompositeOperation = 'screen';
+    for (const light of level0LightSources) {
+        const glow = layerCtx.createRadialGradient(light.x, light.y, 0, light.x, light.y, light.radius);
+        glow.addColorStop(0, `rgba(255, 249, 207, ${light.strength})`);
+        glow.addColorStop(0.42, `rgba(255, 246, 194, ${light.strength * 0.58})`);
+        glow.addColorStop(1, 'rgba(255, 246, 194, 0)');
+        layerCtx.fillStyle = glow;
+        layerCtx.fillRect(light.x - light.radius, light.y - light.radius, light.radius * 2, light.radius * 2);
+    }
+    layerCtx.globalCompositeOperation = 'source-over';
+    level0StaticLayer = layer;
+}
+
+function addLevel0GeneratorLight(generator) {
+    if (currentMapId !== 'level0' || !level0StaticLayer || !generator || generator.isFalse || generator.level0LightAdded) return;
+    const layerCtx = level0StaticLayer.getContext('2d');
+    if (!layerCtx) return;
+    const radius = TS * 3.6;
+    const glow = layerCtx.createRadialGradient(generator.x, generator.y, TS * .2, generator.x, generator.y, radius);
+    glow.addColorStop(0, 'rgba(255, 248, 194, .23)');
+    glow.addColorStop(.38, 'rgba(255, 245, 184, .12)');
+    glow.addColorStop(1, 'rgba(255, 242, 176, 0)');
+    layerCtx.save();
+    layerCtx.globalCompositeOperation = 'screen';
+    layerCtx.fillStyle = glow;
+    layerCtx.fillRect(generator.x - radius, generator.y - radius, radius * 2, radius * 2);
+    layerCtx.restore();
+    generator.level0LightAdded = true;
+}
+
+function randomLevel0Int(min, max) {
+    return min + Math.floor(Math.random() * (max - min + 1));
+}
+
+function rollLevel0Architecture() {
+    return {
+        loopMin:.10, loopMax:.18,
+        rooms:[1,2], roomW:[7,9], roomH:[7,9], largeRoomW:[9,12], largeRoomH:[8,10],
+        halls:[2,3], hallW:[3,5], hallL:[11,18],
+        pillars:[1,2], crossPillars:true,
+        roomWallMin:.2, hallWallMin:.12
+    };
+}
+
+function carveLevel0RoomsAndHalls(profile) {
+    const architecture = [];
+    const minC = MAZE_LEFT + 1, minR = MAZE_TOP + 1;
+    const maxC = MAZE_LEFT + MAZE_COLS - 1, maxR = MAZE_TOP + MAZE_ROWS - 1;
+    const carveArea = (kind, width, height, minimumOpenSides = 2) => {
+        for (let attempt = 0; attempt < 360; attempt++) {
+            const c = randomLevel0Int(minC, maxC - width);
+            const r = randomLevel0Int(minR, maxR - height);
+            let existingWalls = 0;
+            for (let y = r; y < r + height; y++) {
+                for (let x = c; x < c + width; x++) if (map[y][x] === 1) existingWalls++;
+            }
+            if (existingWalls / (width * height) < (kind === 'room' ? profile.roomWallMin : profile.hallWallMin)) continue;
+            const openSides = new Set();
+            for (let x = c; x < c + width; x++) {
+                if (map[r - 1]?.[x] === 0) openSides.add('north');
+                if (map[r + height]?.[x] === 0) openSides.add('south');
+            }
+            for (let y = r; y < r + height; y++) {
+                if (map[y]?.[c - 1] === 0) openSides.add('west');
+                if (map[y]?.[c + width] === 0) openSides.add('east');
+            }
+            if (openSides.size < minimumOpenSides) continue;
+            for (let y = r; y < r + height; y++) for (let x = c; x < c + width; x++) map[y][x] = 0;
+            architecture.push({ c, r, width, height, kind, openings: openSides.size });
+            return true;
+        }
+        return false;
+    };
+
+    const roomCount = randomLevel0Int(...profile.rooms);
+    for (let index = 0; index < roomCount; index++) {
+        const largeRoom = index === 0 && Math.random() < .28;
+        const width = randomLevel0Int(...(largeRoom ? profile.largeRoomW : profile.roomW));
+        const height = randomLevel0Int(...(largeRoom ? profile.largeRoomH : profile.roomH));
+        carveArea('room', width, height);
+    }
+    const hallCount = randomLevel0Int(...profile.halls);
+    const branchingHallCount = randomLevel0Int(1, Math.min(2, hallCount));
+    for (let index = 0; index < hallCount; index++) {
+        const length = randomLevel0Int(...profile.hallL), width = randomLevel0Int(...profile.hallW);
+        const horizontal = Math.random() < .5;
+        carveArea('hall', horizontal ? length : width, horizontal ? width : length, index < branchingHallCount ? 3 : 2);
+    }
+    return architecture;
+}
+
+function addLevel0PillarLines(profile, architecture) {
+    level0Pillars = [];
+    const pillarGroups = randomLevel0Int(...profile.pillars);
+    const candidates = architecture.filter(area => Math.min(area.width, area.height) >= 5)
+        .sort(() => Math.random() - .5);
+    const crossRoom = architecture.find(area => area.kind === 'room' && area.width >= 7 && area.height >= 7);
+    const addPillar = (c, r) => {
+        if (map[r]?.[c] !== 0 || level0Pillars.some(pillar => pillar.c === c && pillar.r === r)) return;
+        map[r][c] = 1;
+        level0Pillars.push({ c, r, size: 26 + Math.floor(Math.random() * 6) });
+    };
+    for (let group = 0; group < pillarGroups && candidates.length; group++) {
+        const area = group === 0 && crossRoom ? crossRoom : candidates[group % candidates.length];
+        const cross = profile.crossPillars && area.width >= 7 && area.height >= 7 && (group === 0 || Math.random() < .7);
+        if (cross || area.width >= area.height) {
+            const row = area.r + Math.floor(area.height / 2);
+            for (let col = area.c + 2; col <= area.c + area.width - 3; col += 3) addPillar(col, row);
+        }
+        if (cross || area.height > area.width) {
+            const col = area.c + Math.floor(area.width / 2);
+            for (let row = area.r + 2; row <= area.r + area.height - 3; row += 3) addPillar(col, row);
+        }
+    }
+}
+
 function generateMaze() {
     map = Array.from({length: ROWS}, () => Array(COLS).fill(1));
     reservedObjectTiles = new Set(); hotelDoorTiles = []; employees = [];
+    level0Pillars = [];
+    const level0Profile = currentMapId === 'level0' ? rollLevel0Architecture() : null;
     function carve(r, c) {
         map[r][c] = 0;
         let dirs = [[0, -2], [0, 2], [-2, 0], [2, 0]];
@@ -4274,14 +5120,21 @@ function generateMaze() {
         }
     }
     carve(MAZE_TOP + 1, MAZE_LEFT + 1);
+    const loopChance = level0Profile
+        ? level0Profile.loopMin + Math.random() * (level0Profile.loopMax - level0Profile.loopMin)
+        : 0.09 + Math.random() * 0.1;
     for (let r = MAZE_TOP + 1; r < MAZE_TOP + MAZE_ROWS - 1; r++) {
         for (let c = MAZE_LEFT + 1; c < MAZE_LEFT + MAZE_COLS - 1; c++) {
             if (map[r][c] === 1) {
                 let vert = map[r-1][c] === 0 && map[r+1][c] === 0;
                 let horz = map[r][c-1] === 0 && map[r][c+1] === 0;
-                if ((vert || horz) && Math.random() < 0.15) map[r][c] = 0;
+                if ((vert || horz) && Math.random() < loopChance) map[r][c] = 0;
             }
         }
+    }
+    if (level0Profile) {
+        const architecture = carveLevel0RoomsAndHalls(level0Profile);
+        addLevel0PillarLines(level0Profile, architecture);
     }
     rebuildFloors();
 }
@@ -5469,7 +6322,8 @@ function updateNoah() {
     const pursue = map[leadR]?.[leadC] === 0 ? { x:leadC * TS + TS / 2, y:leadR * TS + TS / 2 } : player;
     if (noahState === 'hidden') {
         monster.invisible = true;
-        const target = !isSafeRoom(player.x, player.y) && Math.hypot(player.x - monster.x, player.y - monster.y) < 680 ? pursue : (noiseTarget && noiseTimer > 0 && !isSafeRoom(player.x, player.y) ? noiseTarget : null);
+        const withinStalkingRange = !isSafeRoom(player.x, player.y) && Math.hypot(player.x - monster.x, player.y - monster.y) < 680;
+        const target = withinStalkingRange ? pursue : (!isSafeRoom(player.x, player.y) ? (monster.level0TrackingTarget || (noiseTarget && noiseTimer > 0 ? noiseTarget : null)) : null);
         if (target && (noahPathTimer <= 0 || !monster.path.length)) { monster.path = findPath(Math.floor(monster.x / TS), Math.floor(monster.y / TS), Math.floor(target.x / TS), Math.floor(target.y / TS)); noahPathTimer = 18; }
         else if (!monster.path.length) { const tile = pickMonsterWanderTile(monster); monster.path = findPath(Math.floor(monster.x / TS), Math.floor(monster.y / TS), tile.c, tile.r); }
         const oldX = monster.x, oldY = monster.y; moveMonsterAlongPath(getMonsterSpeed(monster) * 1.18, monster);
@@ -5626,8 +6480,15 @@ function updateAmine() {
         const candidates=floors.filter(t=>Math.hypot(t.c*TS+TS/2-(player.x-Math.cos(angle)*TS*4),t.r*TS+TS/2-(player.y-Math.sin(angle)*TS*4))<TS*3&&!amineHoles.some(h=>h.c===t.c&&h.r===t.r));
         const tile=candidates[Math.floor(Math.random()*Math.max(1,candidates.length))]; if(tile){monster.x=tile.c*TS+TS/2;monster.y=tile.r*TS+TS/2;monster.path=[];flashAlpha=.9;amineVisibleTimer=90;} amineTeleportCooldown=[420,540,720][currentDiff];
     }
-    const tc=Math.floor(player.x/TS),tr=Math.floor(player.y/TS);
-    if (!isSafeRoom(player.x, player.y) && dist < 430) { if(!monster.path.length||monster.lastTargetC!==tc||monster.lastTargetR!==tr){monster.path=findPath(Math.floor(monster.x/TS),Math.floor(monster.y/TS),tc,tr);monster.lastTargetC=tc;monster.lastTargetR=tr;} }
+    const level0TrackingTarget = currentMapId === 'level0' ? monster.level0TrackingTarget : null;
+    const amineTarget = dist < 430 ? player : level0TrackingTarget;
+    if (!isSafeRoom(player.x, player.y) && amineTarget) {
+        const tc = Math.floor(amineTarget.x / TS), tr = Math.floor(amineTarget.y / TS);
+        if (!monster.path.length || monster.lastTargetC !== tc || monster.lastTargetR !== tr) {
+            monster.path = findPath(Math.floor(monster.x / TS), Math.floor(monster.y / TS), tc, tr);
+            monster.lastTargetC = tc; monster.lastTargetR = tr;
+        }
+    }
     else if (!monster.path.length) { const tile=pickMonsterWanderTile(monster); monster.path=findPath(Math.floor(monster.x/TS),Math.floor(monster.y/TS),tile.c,tile.r); }
     moveMonsterAlongPath(getMonsterSpeed(monster)*.90,monster);
     if (!player.hidden && Math.hypot(player.x-monster.x,player.y-monster.y)<player.r+monster.r+3) { state=8; amineVisibleTimer=120; showStoryLine('“May death do us part.”',1500); setTimeout(()=>{if(state===8)endGame(false,monster);},1500); }
@@ -5943,7 +6804,7 @@ function updateHeat() {
     player.heat = Math.max(0, Math.min(300, player.heat + (hot ? 3.8 : -2.2)));
     if (heatOverlay) {
         const intensity = Math.min(0.78, (player.heat / 300) * 0.68 + (hot ? 0.18 : 0));
-        const blur = setOptimization ? (hot ? 1.5 : 0) : (hot ? 4 : Math.min(3, player.heat / 100));
+        const blur = hot ? 4 : Math.min(3, player.heat / 100);
         heatOverlay.style.opacity = intensity.toFixed(2);
         heatOverlay.style.backdropFilter = `blur(${blur.toFixed(1)}px)`;
     }
@@ -6376,10 +7237,24 @@ function createExtraMonster(name, diffData, index) {
 }
 
 function startGame(diffLevel, startAtBoss = false) {
+    window.pauseMenuMusicForGameplay?.();
+    document.documentElement.style.touchAction = '';
+    document.body.style.touchAction = '';
+    document.body.dataset.activeMenu = 'game';
+    document.body.dataset.gameRunning = 'true';
+    resizeGameCanvas();
     initAudio();
     stopCalebBossMusic();
     currentDiff = diffLevel;
     runStartedAt = performance.now(); runItemsUsed = 0;
+    runCaughtMonsters = []; runInitialMonsterCount = 0;
+    winRoamActive = false; winRoamEndsAt = 0; winRoamLastSecond = -1;
+    winReportSourceMonster = null; winReportCapturedAt = 0;
+    winReportRound = 0;
+    document.getElementById('winSequenceBanner').hidden = true;
+    document.getElementById('endMenu').style.display = 'none';
+    document.getElementById('touchControls').style.display = '';
+    document.querySelector('.touch-actions')?.style.removeProperty('visibility');
     stats.games++;
     if (gameMode === 'survival') stats.survivalRuns++;
     if (currentMapId === 'boilerworks') advanceDailyObjective('boilerworks');
@@ -6395,6 +7270,7 @@ function startGame(diffLevel, startAtBoss = false) {
     else if (currentMapId === 'amine') { COLS = 61; ROWS = 45; }
     else if (currentMapId === 'subway') { COLS = 122; ROWS = 72; }
     else if (currentMapId === 'lucas') { COLS = 125; ROWS = 79; }
+    else if (currentMapId === 'level0') { COLS = 53; ROWS = 41; }
     else { COLS = 41; ROWS = 33; }
     hotelTaskSerial = 0;
     if (currentMapId === 'boilerworks') generateBoilerworks();
@@ -6404,7 +7280,18 @@ function startGame(diffLevel, startAtBoss = false) {
     else if (currentMapId === 'amine') generateAmineGrid();
     else if (currentMapId === 'subway') generateSubway();
     else if (currentMapId === 'lucas') generateLucasArea();
-    else { generateMaze(); generateSpecialRooms(); }
+    else {
+        generateMaze();
+        generateSpecialRooms();
+        if (currentMapId === 'level0') {
+            rebuildFloors();
+        }
+    }
+    level0StaticLayer = null;
+    if (currentMapId === 'level0') {
+        rebuildLevel0LightSources();
+        buildLevel0StaticLayer();
+    }
     if (currentMapId !== 'hotel') hotelElevator = null;
     if (currentMapId !== 'boilerworks') { centralBoiler = null; coolingValves = []; }
     
@@ -6416,12 +7303,12 @@ function startGame(diffLevel, startAtBoss = false) {
     runLoadoutRemaining = null;
     if (/^custom[123]$/.test(selectedLoadout)) {
         const kit = customLoadouts[Number(selectedLoadout.at(-1)) - 1] || {};
-        runLoadoutRemaining = Object.fromEntries(Object.entries(kit).map(([id, amount]) => [id, Math.min(amount, getOwnedItemCount(id))]));
+        runLoadoutRemaining = Object.fromEntries(Object.keys(ITEM_DEFINITIONS).map(id => [id, Math.min(boundedInt(kit[id], 0, 8, 0), getOwnedItemCount(id))]));
     }
     playerTrail = []; trailLastX = player.x; trailLastY = player.y;
     player.boostTimer = 0; player.dashTimer = 0; player.stunTimer = 0; player.crouching = false; player.breathing = false; player.breathTimer = 0; player.breathCooldown = 0; player.heat = 0; player.inHeatZone = false; player.hidden = false; player.hideTimer = 0; player.hideCompromised = false; dashCooldown = 0;
     ambienceClock = 0;
-    camera.targetZoom = 1.0; camera.zoom = 1.0;
+    camera.targetZoom = 1.25; camera.zoom = 1.25;
     nearGen = null; nearValve = null; nearBoiler = false; flashAlpha = 0;
     boilerShutdown = false; boilerReadyShown = false; heatZones = []; heatEventCooldown = 360;
     rhysSealCollected = false; rhysTrapArmed = false; goopZones = []; goopShots = []; rhysSpitCooldown = 180; rhysDashTimer = 0; rhysChargeWindup = 0; rhysDashCooldown = 360; rhysEventCooldown = 900; rhysSweepTimer = 0; rhysSweepRadius = 0; rhysPressureZones = [];
@@ -6618,6 +7505,7 @@ function startGame(diffLevel, startAtBoss = false) {
         if (currentMapId === 'subway' && name === 'JORDAN') name = ['NIZAR', 'CALEB', 'MALAKAI', 'AESON'][i % 4];
         monsters.push(createExtraMonster(name, diffData, i));
     }
+    runInitialMonsterCount = monsters.length;
     
     if (currentMapId === 'subway') {
         // These are signal panels, not generators. Keeping the shared counter
@@ -6725,22 +7613,228 @@ function unlockCosmetic(id) {
     }
 }
 
-function endGame(isWin, sourceMonster = monster) {
+function postRunTimeLabel(milliseconds) {
+    const wholeSeconds = Math.max(0, Math.floor(milliseconds / 1000));
+    const hours = Math.floor(wholeSeconds / 3600);
+    const minutes = Math.floor((wholeSeconds % 3600) / 60);
+    const seconds = wholeSeconds % 60;
+    return hours > 0
+        ? `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+        : `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+}
+
+function getDeathReportLine(sourceMonster) {
+    const name = sourceMonster?.name || monster?.name || 'THE HUNTER';
+    const lines = [
+        `${name} tore your insides out.`,
+        `${name} ruptured your insides.`,
+        `${name} unplugged your bowels.`,
+        `${name} split you open and left the shift unfinished.`,
+        `${name} crushed your ribs until the lights went out.`,
+        `${name} dragged you down and made short work of you.`,
+        `${name} folded you into the floor.`,
+        `${name} crushed the last breath from your chest.`,
+        `${name} pulled you apart before you could scream.`,
+        `${name} split you open and left you where you fell.`,
+        `${name} broke you faster than the report could be filed.`,
+        `${name} made your last heartbeat part of the building.`,
+        `${name} caught you, then made sure nothing got back up.`,
+        `${name} left you in pieces the shift will not account for.`,
+        `${name} made a ruin of you in the dark.`,
+        `${name} left the corridor wearing what was left.`,
+        `${name} turned your final mistake into a very short report.`
+    ];
+    const choices = lines.filter(line => line !== lastDeathReportLine);
+    lastDeathReportLine = choices[Math.floor(Math.random() * choices.length)] || lines[0];
+    return lastDeathReportLine;
+}
+
+function updatePostRunReport(isWin, sourceMonster, earned = 0, endlessMultiplier = 1) {
+    const elapsed = Math.max(0, (isWin && winReportCapturedAt ? winReportCapturedAt : performance.now()) - runStartedAt);
+    const mapDefinition = MAP_DEFINITIONS[currentMapId];
+    const challengeTitle = challengeConfig?.title;
+    const modeLabel = gameMode === 'challenge'
+        ? (challengeTitle || 'DAILY CHALLENGE')
+        : gameMode === 'endless'
+            ? `ENDLESS · ROUND ${winReportRound || endlessRound}`
+            : gameMode.toUpperCase();
+    const objectiveLabel = currentMapId === 'subway' ? 'SIGNALS RESTORED' : currentMapId === 'lucas' ? 'FRAGMENTS RECOVERED' : 'GENERATORS REPAIRED';
+    const objectiveValue = currentMapId === 'lucas'
+        ? `${lucasFragments.filter(fragment => fragment.collected).length} / ${lucasFragments.length || 3}`
+        : `${activeGens} / ${totalGens}`;
+    const caughtCount = runCaughtMonsters.length;
+    const initialCount = Math.max(runInitialMonsterCount, caughtCount, 1);
+    const caughtNames = (runCaughtMonsters.length ? runCaughtMonsters : [sourceMonster]).filter(Boolean).map(entry => entry.name);
+    const narrative = isWin
+        ? currentMapId === 'lucas' && sourceMonster?.name === 'CALEB'
+            ? 'The broken body has been defeated. The facility has recorded the extraction.'
+            : currentMapId === 'lucas'
+                ? 'The shadow dragged Lucas into the gate. The route is sealed.'
+                : gameMode === 'endless'
+                    ? `Round ${winReportRound || endlessRound} was cleared. The next shift is ready when you are.`
+                    : currentMapId === 'forest' && initialCount > 1
+                    ? `${sourceMonster?.name || 'The lead hunter'} was caught. Every other presence in the forest went silent with them.`
+                    : `${caughtNames.length ? `Contained: ${caughtNames.join(', ')}.` : 'The active threat was contained.'} The shift has been filed.`
+        : getDeathReportLine(sourceMonster);
+
+    document.getElementById('endMenu').dataset.outcome = isWin ? 'win' : 'loss';
+    document.getElementById('postRunFileStatus').textContent = isWin ? 'CLEARED · LOCAL COPY' : 'LOST · LOCAL COPY';
+    document.getElementById('postRunEyebrow').textContent = isWin ? 'CLEARANCE REPORT / FILED' : 'INCIDENT REPORT / FILED';
+    document.getElementById('endTitle').textContent = isWin ? gameMode === 'endless' ? 'ROUND CLEARED' : 'SHIFT COMPLETE' : 'SHIFT LOST';
+    document.getElementById('postRunNarrative').textContent = narrative;
+    document.getElementById('postRunMode').textContent = modeLabel;
+    document.getElementById('postRunMap').textContent = mapDefinition?.name || 'UNKNOWN SITE';
+    document.getElementById('postRunDifficulty').textContent = ['EASY', 'NORMAL', 'HARD'][currentDiff] || 'NORMAL';
+    document.getElementById('postRunTime').textContent = postRunTimeLabel(elapsed);
+    document.getElementById('postRunObjectiveLabel').textContent = objectiveLabel;
+    document.getElementById('postRunObjective').textContent = objectiveValue;
+    document.getElementById('postRunEntities').textContent = `${caughtCount} / ${initialCount}`;
+    document.getElementById('postRunSupplies').textContent = String(runItemsUsed);
+    document.getElementById('postRunTokens').textContent = isWin ? `+${earned} T` : gameMode === 'endless' && endlessRound > 1 ? 'BANKED' : '0 T';
+    const ledgerNote = isWin
+        ? `${caughtCount} ${caughtCount === 1 ? 'entity' : 'entities'} contained · ${runItemsUsed} ${runItemsUsed === 1 ? 'supply' : 'supplies'} used${gameMode === 'endless' ? ` · x${endlessMultiplier.toFixed(2)} round bonus` : ''}`
+        : gameMode === 'endless' ? `ENDLESS ROUND ${endlessRound} · ${endlessRound === 1 ? 'No tokens were secured.' : 'Tokens from cleared rounds remain banked.'}` : 'Unsecured rewards were lost with the shift.';
+    document.getElementById('postRunLedgerNote').textContent = ledgerNote;
+    document.getElementById('postRunIndex').textContent = `RUN FILE / ${String(Math.max(1, stats.games)).padStart(2, '0')}`;
+    document.getElementById('postRunPrimaryLabel').textContent = isWin && gameMode === 'endless' ? 'NEXT ROUND' : 'PLAY AGAIN';
+}
+
+function openPostRunMenu() {
+    state = 4;
+    document.querySelectorAll('.menu-panel').forEach(panel => panel.style.display = 'none');
+    hud.style.display = 'none';
+    document.getElementById('mapTaskHUD').style.display = 'none';
+    document.getElementById('mapTaskHUD').style.top = '';
+    hud.classList.remove('rhys-objective-hud');
+    closeHotelDialogue();
+    document.getElementById('hotelTaskHUD').style.display = 'none';
+    document.getElementById('touchControls').style.display = 'none';
+    document.getElementById('endMenu').style.display = 'flex';
+    document.body.dataset.activeMenu = 'post-run';
+}
+
+function showGameplayForRemainingHunters() {
+    document.getElementById('gameHUD').style.display = 'block';
+    document.getElementById('mapTaskHUD').style.display = 'block';
+    document.getElementById('mapTaskHUD').style.top = currentMapId === 'hotel' ? '170px' : '';
+    document.getElementById('hotelTaskHUD').style.display = currentMapId === 'hotel' ? 'block' : 'none';
+    document.getElementById('mapButton').style.display = mapIntel.includes(currentMapId) ? 'block' : 'none';
+    hud.classList.toggle('rhys-objective-hud', currentMapId === 'crimson');
+}
+
+function beginPostCatchRoam(sourceMonster) {
+    winRoamActive = true;
+    winRoamEndsAt = performance.now() + 3000;
+    winRoamLastSecond = -1;
+    winReportSourceMonster = sourceMonster || monster;
+    winReportCapturedAt = performance.now();
+    state = 3;
+    player.hidden = false;
+    player.crouching = false;
+    player.stunTimer = 0;
+    clearMovementKeys();
+    document.getElementById('gameHUD').style.display = 'none';
+    document.getElementById('mapTaskHUD').style.display = 'none';
+    document.getElementById('hotelTaskHUD').style.display = 'none';
+    document.getElementById('mapButton').style.display = 'none';
+    document.getElementById('mapOverlay').style.display = 'none';
+    document.getElementById('amineRoadControls').style.display = 'none';
+    document.getElementById('mobileActionMenu').style.display = 'none';
+    document.querySelector('.touch-actions')?.style.setProperty('visibility', 'hidden');
+    document.getElementById('winSequenceBanner').hidden = false;
+    document.getElementById('winSequenceBanner').querySelector('span').textContent = runCaughtMonsters.length > 1 ? 'THREATS REMOVED' : 'THREAT REMOVED';
+    document.getElementById('winSequenceCountdown').textContent = '03';
+    document.body.dataset.activeMenu = 'game';
+}
+
+function handleMonsterCaught(sourceMonster) {
+    const target = sourceMonster || monster;
+    if (!target || target.caught) return;
+    const caughtNow = currentMapId === 'forest'
+        ? (monsters.length ? [...monsters] : [target])
+        : [target];
+
+    // Keep the capture effect in one place so a future kill animation can be
+    // added here without changing multi-hunter or forest completion rules.
+    for (const enemy of caughtNow) {
+        if (enemy.caught) continue;
+        enemy.caught = true;
+        enemy.invisible = true;
+        enemy.path = [];
+        enemy.stunTimer = 999999;
+        runCaughtMonsters.push(enemy);
+    }
+    monsters = monsters.filter(enemy => !enemy.caught);
+
+    if (monsters.length > 0) {
+        monster = monsters[0];
+        state = 3;
+        for (const enemy of monsters) enemy.speed = Math.max(enemy.speed, 4.0 + (gameMode === 'endless' ? (endlessRound - 1) * 0.18 : 0));
+        player.speed = player.baseSpeed + 1.0;
+        clearMovementKeys();
+        showGameplayForRemainingHunters();
+        updateHUD();
+        showMsg(`<span style="color:#dce393">${runCaughtMonsters.length}/${runInitialMonsterCount} ENTITIES CONTAINED</span><br>GO CATCH THE REST`, 1900);
+        return;
+    }
+
+    monster = target;
+    beginPostCatchRoam(target);
+}
+
+function updatePostCatchRoam() {
+    ambienceClock++;
+    const speed = Math.max(1, player.baseSpeed * (player.crouching ? 0.55 : 1));
+    let dx = (keys.d ? speed : 0) - (keys.a ? speed : 0);
+    let dy = (keys.s ? speed : 0) - (keys.w ? speed : 0);
+    if (dx && dy) { dx *= Math.SQRT1_2; dy *= Math.SQRT1_2; }
+    if (dx || dy) moveEntity(player, dx, dy);
+    if ((dx || dy) && ambienceClock % 2 === 0) {
+        playerTrail.push({ x: player.x, y: player.y });
+        if (playerTrail.length > 24) playerTrail.shift();
+    }
+    trailLastX = player.x; trailLastY = player.y;
+    camera.targetZoom = 1.25;
+    camera.zoom += (camera.targetZoom - camera.zoom) * 0.05;
+    camera.x = player.x - canvas.width / 2;
+    camera.y = player.y - canvas.height / 2;
+
+    const secondsLeft = Math.max(0, Math.ceil((winRoamEndsAt - performance.now()) / 1000));
+    if (secondsLeft !== winRoamLastSecond) {
+        winRoamLastSecond = secondsLeft;
+        document.getElementById('winSequenceCountdown').textContent = String(secondsLeft).padStart(2, '0');
+    }
+    if (performance.now() >= winRoamEndsAt) {
+        winRoamActive = false;
+        document.getElementById('winSequenceBanner').hidden = true;
+        endGame(true, winReportSourceMonster, true);
+    }
+}
+
+function endGame(isWin, sourceMonster = monster, winReportReady = false) {
     if (calebBoss || state === 19 || state === 20 || state === 21 || state === 22) stopCalebBossMusic();
     if (state === 4 || (gameMode === 'endless' && state === 0)) return;
     if (isWin && !crimsonObjectiveComplete()) {
         showMsg('RESTORE ALL GENERATORS, RECOVER THE SEAL, AND ARM THE TRAP', 1400);
         return;
     }
+    if (isWin && !winReportReady) {
+        handleMonsterCaught(sourceMonster);
+        return;
+    }
+    winRoamActive = false;
+    document.getElementById('winSequenceBanner').hidden = true;
+    sourceMonster = winReportSourceMonster || sourceMonster;
     if (isWin && currentMapId === 'forest') advanceDailyObjective('forest');
     if (isWin && currentMapId === 'boilerworks' && currentDiff === 2) stats.boilerworksHardStreak = Math.min(3, stats.boilerworksHardStreak + 1);
     else if (!isWin || currentMapId !== 'boilerworks') stats.boilerworksHardStreak = 0;
     if (stats.boilerworksHardStreak >= 3) unlockCosmetic('spongeMask');
     if (isWin && gameMode === 'endless') {
+        winReportRound = endlessRound;
         const endlessMultiplier = 1 + Math.min(1.5, Math.max(0, endlessRound - 1) * 0.15);
         const earned = Math.floor(rewardTokens * (upgCoin > 0 ? 1.5 : 1) * endlessMultiplier);
         tokens += earned;
-        stats.wins++; stats.caught++; stats.bestEndless = Math.max(stats.bestEndless, endlessRound);
+        stats.wins++; stats.caught += Math.max(1, runCaughtMonsters.length); stats.bestEndless = Math.max(stats.bestEndless, endlessRound);
         stats.endlessMapBest[currentMapId] = Math.max(stats.endlessMapBest[currentMapId] || 0, endlessRound);
         if (runItemsUsed === 0) stats.itemFreeWins++;
         if (endlessRound >= 3) unlockCosmetic('bronzeSkin');
@@ -6748,51 +7842,52 @@ function endGame(isWin, sourceMonster = monster) {
         if (endlessRound >= 9) unlockCosmetic('goldSkin');
         if (endlessRound >= 3) unlockCosmetic('spark');
         if (endlessRound >= 9) unlockCosmetic('smileMask');
-        if (sourceMonster.name === 'BASSAM' && currentMapId === 'hotel' && bassamRelentlessChase) unlockCosmetic('krustyHat');
+        if (runCaughtMonsters.some(enemy => enemy.name === 'BASSAM') && currentMapId === 'hotel' && bassamRelentlessChase) unlockCosmetic('krustyHat');
         saveData();
         playSound('success');
         endlessRound++;
-        state = 0;
-        showMsg(`<span style="color:#0f0">ROUND CLEARED</span><br>ROUND ${endlessRound} STARTING`, 1100);
-        setTimeout(() => startGame(currentDiff), 1200);
+        openPostRunMenu();
+        updatePostRunReport(true, sourceMonster, earned, endlessMultiplier);
+        document.getElementById('endTitle').focus({ preventScroll: true });
         return;
     }
-    state = 4;
-    document.querySelectorAll('.menu-panel').forEach(p => p.style.display = 'none');
-    hud.style.display = 'none';
-    document.getElementById('mapTaskHUD').style.display = 'none';
-    document.getElementById('mapTaskHUD').style.top = '';
-    hud.classList.remove('rhys-objective-hud');
-    document.getElementById('mapTaskHUD').style.display = 'none';
-    closeHotelDialogue(); document.getElementById('hotelTaskHUD').style.display = 'none';
-    document.getElementById('endMenu').style.display = 'flex';
+    openPostRunMenu();
     amineFocus=false;
-    document.getElementById('endTitle').innerText = isWin ? "YOU WIN!" : "CAUGHT!";
-    document.getElementById('endTitle').style.color = isWin ? "#0f0" : "#f00";
+    document.getElementById('endMenu').dataset.outcome = isWin ? 'win' : 'loss';
     
     if (isWin) {
         const endlessMultiplier = gameMode === 'endless' ? 1 + Math.min(1.5, Math.max(0, endlessRound - 1) * 0.15) : 1;
         let earned = Math.floor(rewardTokens * (upgCoin > 0 ? 1.5 : 1) * endlessMultiplier);
         tokens += earned;
-        stats.wins++; stats.caught++;
+        stats.wins++; stats.caught += Math.max(1, runCaughtMonsters.length);
         if (runItemsUsed === 0) stats.itemFreeWins++;
         stats.mostGenerators = Math.max(stats.mostGenerators, totalGens);
-        const elapsed = performance.now() - runStartedAt;
+        const elapsed = Math.max(0, (winReportCapturedAt || performance.now()) - runStartedAt);
         if (!stats.fastestWin || elapsed < stats.fastestWin) stats.fastestWin = elapsed;
         if (elapsed < 120000) unlockCosmetic('amber');
         if (elapsed < 60000) unlockCosmetic('afterimage');
         if (currentDiff === 2) unlockCosmetic('crimson');
-        if (sourceMonster.name === 'MALAKAI') unlockCosmetic('violet');
-        if (sourceMonster.name === 'JORDAN') { unlockCosmetic('green'); if (cosmetics.color === 'green') unlockCosmetic('jordanMask'); }
         if (runItemsUsed === 0) unlockCosmetic('ghost');
         advanceDailyObjective('wins');
-        if (sourceMonster.name === 'AESON') advanceDailyObjective('aeson');
-        if (sourceMonster.name === 'RHYS') { unlockCosmetic('gold'); unlockCosmetic('ember'); }
-        if (sourceMonster.name === 'AMINE') { unlockCosmetic('white'); unlockCosmetic('circle'); }
-        if (sourceMonster.name === 'NOAH') { advanceDailyObjective('noah'); if (currentMapId === 'forest') unlockCosmetic('noahCap'); }
-        if (sourceMonster.name === 'CALEB') { unlockCosmetic('sepia'); unlockCosmetic('static'); if (currentMapId === 'lucas') unlockCosmetic('calebCrown'); }
-        if (sourceMonster.name === 'BASSAM' && currentMapId === 'hotel' && bassamRelentlessChase) unlockCosmetic('krustyHat');
-        if (gameMode === 'challenge') { stats.challengesCleared++; advanceDailyObjective('challenge'); if (runItemsUsed === 0) unlockCosmetic('cowboyHat'); }
+        for (const caughtMonster of (runCaughtMonsters.length ? runCaughtMonsters : [sourceMonster])) {
+            if (caughtMonster.name === 'MALAKAI') unlockCosmetic('violet');
+            if (caughtMonster.name === 'JORDAN') { unlockCosmetic('green'); if (cosmetics.color === 'green') unlockCosmetic('jordanMask'); }
+            if (caughtMonster.name === 'AESON') advanceDailyObjective('aeson');
+            if (caughtMonster.name === 'RHYS') { unlockCosmetic('gold'); unlockCosmetic('ember'); }
+            if (caughtMonster.name === 'AMINE') { unlockCosmetic('white'); unlockCosmetic('circle'); }
+            if (caughtMonster.name === 'NOAH') { advanceDailyObjective('noah'); if (currentMapId === 'forest') unlockCosmetic('noahCap'); }
+            if (caughtMonster.name === 'CALEB') { unlockCosmetic('sepia'); unlockCosmetic('static'); if (currentMapId === 'lucas') unlockCosmetic('calebCrown'); }
+            if (caughtMonster.name === 'BASSAM' && currentMapId === 'hotel' && bassamRelentlessChase) unlockCosmetic('krustyHat');
+        }
+        if (gameMode === 'challenge') {
+            stats.challengesCleared++;
+            advanceDailyObjective('challenge');
+            const challengeId = challengeConfig?.id;
+            if (challengeConfig?.rotationDate === getDateKey() && daily.challengeCards?.some(challenge => challenge.id === challengeId)) {
+                if (!daily.completedChallenges.includes(challengeId)) daily.completedChallenges.push(challengeId);
+            }
+            if (runItemsUsed === 0) unlockCosmetic('cowboyHat');
+        }
         if (!mapMastery[currentMapId]) mapMastery[currentMapId] = [false, false, false];
         mapMastery[currentMapId][currentDiff] = true;
         if (runItemsUsed === 0) advanceDailyObjective('noItems');
@@ -6806,23 +7901,38 @@ function endGame(isWin, sourceMonster = monster) {
         }
         saveData();
         playSound('success');
-        const progressLabel = currentMapId === 'subway' ? `${activeGens}/${totalGens} signal panels` : currentMapId === 'lucas' && sourceMonster.name === 'CALEB' ? 'CALEB, CAL, AND LEB DEFEATED' : currentMapId === 'lucas' ? `${lucasFragments.filter(fragment => fragment.collected).length}/${lucasFragments.length || 3} Caleb fragments` : `${activeGens}/${totalGens} generators`;
-        const victoryText = currentMapId === 'lucas' && sourceMonster.name === 'CALEB' ? 'THE BROKEN BODY HAS BEEN DEFEATED.' : currentMapId === 'lucas' ? 'THE SHADOW DRAGGED LUCAS INTO THE GATE.' : `You caught ${sourceMonster.name}.`;
-        document.getElementById('endDesc').innerHTML = `${victoryText}<br>${(elapsed / 1000).toFixed(1)}s · ${progressLabel} · ${runItemsUsed} items used<br>+${earned} Tokens${gameMode === 'endless' ? ` · x${endlessMultiplier.toFixed(2)} Endless` : ''}`;
+        updatePostRunReport(true, sourceMonster, earned, endlessMultiplier);
     } else {
         stats.losses++; stats.timesCaught++;
         saveData();
         playSound('fail');
-        const endlessResult = gameMode === 'endless' ? `<br>Endless Round ${endlessRound} · ${endlessRound === 1 ? 'No tokens earned.' : 'Tokens from cleared rounds were banked.'}` : '';
-        document.getElementById('endDesc').innerHTML = `${sourceMonster.name} tore you apart.${endlessResult}`;
+        updatePostRunReport(false, sourceMonster);
     }
+    document.getElementById('endTitle').focus({ preventScroll: true });
 }
 
 function playAgainFromEnd() {
     saveData();
+    if (gameMode === 'challenge') {
+        ensureDailyChallengeBoard();
+        if (challengeConfig?.rotationDate !== daily.date || daily.completedChallenges?.includes(challengeConfig?.id)) {
+            openChallengeMode();
+            return;
+        }
+    }
     if (gameMode === 'endless') endlessRound = 1;
     state = 0;
     startGame(currentDiff);
+}
+
+function continuePostRun() {
+    if (gameMode === 'endless' && state === 4) {
+        saveData();
+        state = 0;
+        startGame(currentDiff);
+        return;
+    }
+    playAgainFromEnd();
 }
 
 function returnToMainMenu() {
@@ -6889,26 +7999,392 @@ function showStoryLine(text, duration = 2600) {
 }
 function hideMsg() { msgBox.style.display = 'none'; msgBox.classList.remove('top-alert'); }
 
+const GENERATOR_INTERFACE_STATES = new Set([2, 5, 6, 7, 9, 10]);
+let generatorInterfaceKey = '';
+
+function generatorArrowForKey(key) {
+    return ({ w: '↑', a: '←', s: '↓', d: '→' })[key] || '•';
+}
+
+function setGeneratorText(id, value) {
+    const element = document.getElementById(id);
+    if (element && element.textContent !== value) element.textContent = value;
+}
+
+function getGeneratorInterfaceDescriptor() {
+    return ({
+        2: { task: 'wiring', title: 'WIRING' },
+        5: { task: 'timing', title: 'SKILL CHECK' },
+        6: { task: 'circuit', title: 'CIRCUIT' },
+        7: { task: 'frequency', title: 'FREQUENCY' },
+        9: { task: 'rapid', title: 'RESPONSE ARRAY' },
+        10: { task: 'memory', title: 'COLOR MEMORY' }
+    })[state] || { task: 'wiring', title: 'GENERATOR' };
+}
+
+function renderGeneratorTaskContent(task) {
+    const directions = [
+        { key: 'w', icon: '↑' },
+        { key: 'a', icon: '←' },
+        { key: 's', icon: '↓' },
+        { key: 'd', icon: '→' }
+    ];
+    const directionPad = directions.map(direction => `<button class="generator-pad" type="button" data-generator-action="direction" data-key="${direction.key}" aria-label="${direction.key.toUpperCase()} ${direction.icon}"><span class="generator-pad-icon" aria-hidden="true">${direction.icon}</span><kbd>${direction.key.toUpperCase()}</kbd></button>`).join('');
+
+    if (task === 'wiring') {
+        return `<div class="generator-live-route" aria-hidden="true"><span class="generator-route-node"></span><span class="generator-route-line"></span><span class="generator-route-node is-output"></span></div>
+            <div id="generatorRouteCurrent" class="generator-route-current" data-key="w" aria-label="Next key: W" aria-live="polite"><span id="generatorRouteArrow" class="generator-route-arrow" aria-hidden="true">↑</span><kbd id="generatorRouteKey">W</kbd></div>
+            <div class="generator-task-progress" id="generatorTaskProgress" aria-live="polite">1 / ${puzzleSequenceTotal}</div>
+            <div class="generator-direction-grid">${directionPad}</div>`;
+    }
+
+    if (task === 'circuit') {
+        const sequence = circuitSequence.map(key => `<span class="generator-sequence-node" aria-hidden="true"><span>${generatorArrowForKey(key)}</span><kbd>${key.toUpperCase()}</kbd></span>`).join('');
+        return `<div id="generatorCircuitSequence" class="generator-sequence-track" role="img" aria-label="Circuit sequence">${sequence}</div>
+            <div class="generator-task-progress" id="generatorTaskProgress" aria-live="polite">1 / ${circuitSequenceTotal}</div>
+            <div class="generator-direction-grid">${directionPad}</div>`;
+    }
+
+    if (task === 'timing') {
+        const circumference = 2 * Math.PI * 88;
+        const zoneLength = Math.max(1, ((scZoneEnd - scZoneStart) / (Math.PI * 2)) * circumference);
+        const zoneRotation = (scZoneStart * 180 / Math.PI) - 90;
+        return `<div class="generator-orbit-wrap">
+                <svg class="generator-orbit-svg" viewBox="0 0 220 220" aria-hidden="true">
+                    <circle class="generator-orbit-track" cx="110" cy="110" r="88"></circle>
+                    <circle id="generatorSkillZone" class="generator-orbit-zone" cx="110" cy="110" r="88" stroke-dasharray="${zoneLength} ${circumference}" transform="rotate(${zoneRotation} 110 110)"></circle>
+                    <line id="generatorSkillNeedle" class="generator-orbit-needle" x1="110" y1="110" x2="110" y2="27" transform="rotate(0 110 110)"></line>
+                    <circle class="generator-orbit-hub" cx="110" cy="110" r="5"></circle>
+                </svg>
+                <div class="generator-orbit-label"><strong id="generatorTimingCount">0 / ${scRequired}</strong></div>
+            </div>
+            <button class="generator-primary-action" type="button" data-generator-action="skill" id="generatorSkillAction" ${scDelay > 0 ? 'disabled' : ''}>${scDelay > 0 ? 'WAIT' : 'HIT · SPACE'}</button>`;
+    }
+
+    if (task === 'frequency') {
+        return `<div class="generator-frequency-visual">
+                <div class="generator-frequency-readout"><strong id="generatorFrequencyCount">0 / ${tuneRequired}</strong></div>
+                <div class="generator-frequency-track" role="img" aria-label="Frequency signal meter"><span id="generatorFrequencyBand" class="generator-frequency-band"></span><span id="generatorFrequencyNeedle" class="generator-frequency-needle"></span></div>
+            </div>
+            <button class="generator-primary-action generator-frequency-action" type="button" data-generator-action="tune" id="generatorTuneAction" ${scDelay > 0 ? 'disabled' : ''}>${scDelay > 0 ? 'WAIT' : 'TUNE · SPACE'}</button>`;
+    }
+
+    if (task === 'rapid') {
+        const relays = Array.from({ length: 9 }, (_, index) => `<button class="generator-relay-cell" type="button" data-generator-action="rapid" data-slot="${index}" aria-label="Signal relay ${index + 1}"><span aria-hidden="true">${String(index + 1).padStart(2, '0')}</span></button>`).join('');
+        return `<div class="generator-relay-meta"><strong id="generatorRelayCount">0 / ${rapidRequired}</strong><span id="generatorRelayTime">${(rapidLimit / 60).toFixed(1)}s</span></div>
+            <div class="generator-relay-grid">${relays}</div>
+            <div class="generator-relay-clock" aria-hidden="true"><span id="generatorRelayClock"></span></div>`;
+    }
+
+    const memoryPads = [
+        { symbol: '▲', name: 'red triangle' },
+        { symbol: '●', name: 'blue circle' },
+        { symbol: '■', name: 'green square' },
+        { symbol: '✦', name: 'amber star' }
+    ].map((pad, index) => `<button class="generator-memory-pad" type="button" data-generator-action="memory" data-pad="${index}" data-memory-pad="${index}" aria-label="${pad.name}" disabled><span aria-hidden="true">${pad.symbol}</span></button>`).join('');
+    return `<div class="generator-memory-progress"><span id="generatorMemoryCue" aria-live="polite">WATCH</span><strong id="generatorMemoryCount">1 / ${simonSequence.length}</strong></div>
+        <div class="generator-memory-grid">${memoryPads}</div>`;
+}
+
+function buildGeneratorInterface() {
+    const root = document.getElementById('generatorInterfaceRoot');
+    const title = document.getElementById('generatorUiTitle');
+    const content = document.getElementById('generatorTaskContent');
+    if (!root || !title || !content) return;
+    const descriptor = getGeneratorInterfaceDescriptor();
+    root.dataset.task = descriptor.task;
+    title.textContent = descriptor.title;
+    content.innerHTML = renderGeneratorTaskContent(descriptor.task);
+    generatorInterfaceKey = `${state}:${currentMapId}:${currentGen?.type || 'normal'}:${circuitStage}:${currentGen?.requiredStages || 0}`;
+}
+
+function updateGeneratorInterface() {
+    const root = document.getElementById('generatorInterfaceRoot');
+    if (!root) return;
+    if (!GENERATOR_INTERFACE_STATES.has(state)) {
+        if (!root.hidden) { root.hidden = true; root.setAttribute('aria-hidden', 'true'); }
+        generatorInterfaceKey = '';
+        return;
+    }
+
+    const nextKey = `${state}:${currentMapId}:${currentGen?.type || 'normal'}:${circuitStage}:${currentGen?.requiredStages || 0}`;
+    const opening = root.hidden;
+    if (opening) { root.hidden = false; root.setAttribute('aria-hidden', 'false'); }
+    if (generatorInterfaceKey !== nextKey) buildGeneratorInterface();
+    if (opening) requestAnimationFrame(() => {
+        const backButton = document.getElementById('generatorUiBack');
+        if (!backButton) return;
+        try { backButton.focus({ preventScroll: true }); }
+        catch (_) { backButton.focus(); }
+    });
+
+    if (state === 2) {
+        const current = puzzleSequence[0] || 'w';
+        const arrow = document.getElementById('generatorRouteCurrent');
+        const progress = document.getElementById('generatorTaskProgress');
+        if (arrow && arrow.dataset.key !== current) {
+            arrow.dataset.key = current;
+            arrow.setAttribute('aria-label', `Next key: ${current.toUpperCase()}`);
+            setGeneratorText('generatorRouteArrow', generatorArrowForKey(current));
+            setGeneratorText('generatorRouteKey', current.toUpperCase());
+        }
+        if (progress) setGeneratorText('generatorTaskProgress', `${Math.min(puzzleSequenceTotal, puzzleSequenceTotal - puzzleSequence.length + 1)} / ${puzzleSequenceTotal}`);
+    } else if (state === 5) {
+        const needle = document.getElementById('generatorSkillNeedle');
+        const count = document.getElementById('generatorTimingCount');
+        const action = document.getElementById('generatorSkillAction');
+        if (needle) needle.setAttribute('transform', `rotate(${scNeedle * 180 / Math.PI} 110 110)`);
+        if (count) setGeneratorText('generatorTimingCount', `${scHits} / ${scRequired}`);
+        if (action) { action.disabled = scDelay > 0; action.textContent = scDelay > 0 ? 'WAIT' : 'HIT · SPACE'; }
+    } else if (state === 6) {
+        const sequence = document.getElementById('generatorCircuitSequence');
+        const signature = circuitSequence.join('');
+        if (sequence && sequence.dataset.remaining !== signature) {
+            sequence.dataset.remaining = signature;
+            sequence.innerHTML = circuitSequence.map(key => `<span class="generator-sequence-node" aria-hidden="true"><span>${generatorArrowForKey(key)}</span><kbd>${key.toUpperCase()}</kbd></span>`).join('');
+        }
+        const progress = document.getElementById('generatorTaskProgress');
+        if (progress) setGeneratorText('generatorTaskProgress', `${Math.min(circuitSequenceTotal, circuitSequenceTotal - circuitSequence.length + 1)} / ${circuitSequenceTotal}`);
+    } else if (state === 7) {
+        const band = document.getElementById('generatorFrequencyBand');
+        const needle = document.getElementById('generatorFrequencyNeedle');
+        const count = document.getElementById('generatorFrequencyCount');
+        const action = document.getElementById('generatorTuneAction');
+        if (band) { band.style.left = `${tuneZoneStart * 100}%`; band.style.width = `${(tuneZoneEnd - tuneZoneStart) * 100}%`; }
+        if (needle) needle.style.left = `clamp(1px, ${Math.min(100, Math.max(0, tuneNeedle * 100))}%, calc(100% - 1px))`;
+        if (count) setGeneratorText('generatorFrequencyCount', `${tuneHits} / ${tuneRequired}`);
+        if (action) { action.disabled = scDelay > 0; action.textContent = scDelay > 0 ? 'WAIT' : 'TUNE · SPACE'; }
+    } else if (state === 9) {
+        const count = document.getElementById('generatorRelayCount');
+        const time = document.getElementById('generatorRelayTime');
+        const clock = document.getElementById('generatorRelayClock');
+        if (count) setGeneratorText('generatorRelayCount', `${rapidHits} / ${rapidRequired}`);
+        if (time) setGeneratorText('generatorRelayTime', `${Math.max(0, rapidTimer / 60).toFixed(1)}s`);
+        if (clock) clock.style.transform = `scaleX(${Math.max(0, Math.min(1, rapidTimer / Math.max(1, rapidLimit)))})`;
+        root.querySelectorAll('.generator-relay-cell').forEach((button, index) => button.classList.toggle('is-target', index === rapidTarget?.slot));
+    } else if (state === 10) {
+        const cue = document.getElementById('generatorMemoryCue');
+        const count = document.getElementById('generatorMemoryCount');
+        const activePad = simonPhase === 'show' ? simonSequence[Math.min(simonShowIndex, simonRound - 1)] : -1;
+        if (cue) {
+            const cueText = simonPhase === 'show' ? 'WATCH' : 'REPEAT';
+            if (cue.textContent !== cueText) cue.textContent = cueText;
+        }
+        if (count) setGeneratorText('generatorMemoryCount', simonPhase === 'input'
+            ? `${simonRound} / ${simonSequence.length} · ${simonInput} / ${simonRound}`
+            : `${simonRound} / ${simonSequence.length}`);
+        root.querySelectorAll('.generator-memory-pad').forEach((button, index) => {
+            button.disabled = simonPhase !== 'input';
+            button.classList.toggle('is-showing', index === activePad && simonPhase === 'show');
+            button.classList.toggle('is-flashing', index === simonFlashChoice && simonFlashTimer > 0);
+        });
+    }
+}
+
+function leaveGeneratorInterface() {
+    if (!GENERATOR_INTERFACE_STATES.has(state)) return;
+    state = 1;
+    clearMovementKeys();
+    updateHUD();
+}
+
+function setupGeneratorInterface() {
+    const root = document.getElementById('generatorInterfaceRoot');
+    if (!root || root.dataset.eventsBound === 'true') return;
+    root.dataset.eventsBound = 'true';
+    root.addEventListener('keydown', event => {
+        if (event.key !== 'Tab') return;
+        const focusable = [...root.querySelectorAll('button:not(:disabled), a[href], input:not(:disabled), [tabindex]:not([tabindex="-1"])')];
+        if (!focusable.length) { event.preventDefault(); return; }
+        const first = focusable[0], last = focusable[focusable.length - 1];
+        if (event.shiftKey && (document.activeElement === first || !root.contains(document.activeElement))) {
+            event.preventDefault(); last.focus();
+        } else if (!event.shiftKey && (document.activeElement === last || !root.contains(document.activeElement))) {
+            event.preventDefault(); first.focus();
+        }
+    });
+    document.addEventListener('keydown', event => {
+        if (event.key !== 'Escape' || !GENERATOR_INTERFACE_STATES.has(state)) return;
+        event.preventDefault();
+        leaveGeneratorInterface();
+    });
+    root.addEventListener('click', event => {
+        const button = event.target instanceof Element ? event.target.closest('[data-generator-action]') : null;
+        if (!button) return;
+        event.preventDefault();
+        const action = button.dataset.generatorAction;
+        if (action === 'back') { window.playUiSound?.('switch'); leaveGeneratorInterface(); }
+        else if (action === 'direction') submitGeneratorDirection(button.dataset.key);
+        else if (action === 'skill') submitSkillCheck();
+        else if (action === 'tune') submitFrequencyTune();
+        else if (action === 'rapid') tapRapidRelay(button.dataset.slot);
+        else if (action === 'memory') submitSimonPad(Number(button.dataset.pad));
+    });
+}
+
+const NOTIFICATION_PRESENTATION = {
+    info: { label: 'FIELD UPDATE', icon: 'assets/ui/icons/notifications/InfoNotiIcon.svg', priority: 0 },
+    unlock: { label: 'RECOVERED', icon: 'assets/ui/icons/notifications/RewardNotiIcon.svg', priority: 1 },
+    warning: { label: 'WARNING', icon: 'assets/ui/icons/notifications/DangerNotiIcon.svg', priority: 2 },
+    danger: { label: 'DANGER', icon: 'assets/ui/icons/notifications/DangerNotiIcon.svg', priority: 3 }
+};
+const URGENT_WARNING_PATTERN = /MOVE\b|STEP OFF|CROSSING|IN \d+ SECOND|CHARGES|BRACING|LIGHTNING|5 SECONDS|AVOID|HISS|LOCKDOWN|CORRIDOR SEALED|SIGNAL(?:S)? LOST|POSITION · \d+ SECONDS|FOG ROLL|STAY CLOSE|EMERGENCY LIGHT SWEEP|HEARD YOU/i;
+
+function buildNotificationItem() {
+    const item = document.createElement('div');
+    item.className = 'notification';
+    item.setAttribute('aria-atomic', 'true');
+
+    const iconFrame = document.createElement('span');
+    iconFrame.className = 'notification-icon-frame';
+    iconFrame.setAttribute('aria-hidden', 'true');
+    const icon = document.createElement('img');
+    icon.className = 'notification-icon';
+    icon.alt = '';
+    iconFrame.appendChild(icon);
+
+    const copy = document.createElement('span');
+    copy.className = 'notification-copy';
+    const label = document.createElement('span');
+    label.className = 'notification-label';
+    const message = document.createElement('span');
+    message.className = 'notification-message';
+    const secondary = document.createElement('span');
+    secondary.className = 'notification-secondary';
+    secondary.hidden = true;
+    copy.append(label, message, secondary);
+
+    const count = document.createElement('span');
+    count.className = 'notification-count';
+    count.hidden = true;
+    item.append(iconFrame, copy, count);
+    item._notificationIcon = icon;
+    item._notificationLabel = label;
+    item._notificationMessage = message;
+    item._notificationSecondary = secondary;
+    item._notificationCount = count;
+    item._notificationEntries = [];
+    item._notificationTotal = 0;
+    item._notificationPriority = 0;
+    return item;
+}
+
+function renderNotificationItem(item, mobileBundle = false) {
+    const entries = [...item._notificationEntries].sort((a, b) => b.priority - a.priority || b.updatedAt - a.updatedAt);
+    const primary = entries[0];
+    if (!primary) return;
+    const presentation = NOTIFICATION_PRESENTATION[primary.tone] || NOTIFICATION_PRESENTATION.info;
+    item.className = `notification notification-${primary.tone}${primary.urgent ? ' notification-urgent' : ''}${mobileBundle ? ' notification-bundle' : ''}`;
+    item.dataset.tone = primary.tone;
+    item.dataset.priority = String(primary.priority);
+    item._notificationPriority = primary.priority;
+    item._notificationIcon.src = presentation.icon;
+    item._notificationLabel.textContent = primary.urgent ? 'URGENT WARNING' : presentation.label;
+    item._notificationMessage.textContent = primary.text;
+    item._notificationSecondary.hidden = true;
+    item._notificationSecondary.textContent = '';
+
+    let badgeText = '';
+    if (mobileBundle) {
+        const secondaryEntry = entries.find(entry => entry !== primary);
+        if (secondaryEntry) {
+            item._notificationSecondary.textContent = secondaryEntry.text;
+            item._notificationSecondary.hidden = false;
+        }
+        if (item._notificationTotal > 1) badgeText = `${item._notificationTotal} UPDATES`;
+    } else if (primary.count > 1) {
+        badgeText = `×${primary.count}`;
+    }
+    item._notificationCount.textContent = badgeText;
+    item._notificationCount.hidden = !badgeText;
+}
+
+function scheduleNotificationRemoval(item, duration) {
+    clearTimeout(item._notificationTimer);
+    const remainingUrgentTime = Math.max(0, (item._urgentUntil || 0) - Date.now());
+    item._notificationTimer = setTimeout(() => {
+        if (!item.isConnected) return;
+        item.classList.add('notification-leave');
+        setTimeout(() => item.remove(), 260);
+    }, Math.max(duration, remainingUrgentTime));
+}
+
 function notify(text, tone = 'info', duration = 2600) {
-    // The compact mobile HUD already carries the objective state; the desktop
-    // notification stack otherwise covers the whole play area on phones.
-    if (isMobileClient()) return;
     const stack = document.getElementById('notificationStack');
     if (!stack) return;
-    const item = document.createElement('div');
-    item.className = `notification notification-${tone}`;
-    item.textContent = text;
-    stack.appendChild(item);
+    const messageText = String(text).replace(/<br\s*\/?>/gi, ' · ').replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').trim();
+    if (!messageText) return;
+    const presentation = NOTIFICATION_PRESENTATION[tone] || NOTIFICATION_PRESENTATION.info;
+    if (!NOTIFICATION_PRESENTATION[tone]) tone = 'info';
+    const urgent = tone === 'danger' || (tone === 'warning' && URGENT_WARNING_PATTERN.test(messageText));
+    const now = Date.now();
+    const displayDuration = Math.max(Number(duration) || 2600, urgent ? 4800 : 1800);
+    const mobile = isMobileClient();
+    stack.dataset.mobile = String(mobile);
+    let item;
+
+    if (mobile) {
+        // One live bundle keeps touch screens readable during bursts of events.
+        item = stack.querySelector('.notification-bundle');
+    } else {
+        item = [...stack.children].find(entry => entry._notificationSignature === `${tone}\u241f${messageText}`);
+    }
+
+    if (!item) {
+        item = buildNotificationItem();
+        item._notificationSignature = `${tone}\u241f${messageText}`;
+        item._urgentUntil = 0;
+        stack.appendChild(item);
+    }
+
+    let entry = item._notificationEntries.find(candidate => candidate.tone === tone && candidate.text === messageText);
+    if (entry) {
+        entry.count++;
+        entry.updatedAt = now;
+        entry.priority = Math.max(entry.priority, presentation.priority);
+        entry.urgent = entry.urgent || urgent;
+    } else {
+        entry = { text: messageText, tone, priority: presentation.priority, urgent, count: 1, updatedAt: now };
+        item._notificationEntries.push(entry);
+        if (mobile && item._notificationEntries.length > 12) {
+            item._notificationEntries.sort((a, b) => b.priority - a.priority || b.updatedAt - a.updatedAt);
+            item._notificationEntries.length = 12;
+        }
+    }
+    item._notificationTotal++;
+    item._notificationCreatedAt = item._notificationCreatedAt || now;
+    item._urgentUntil = urgent ? Math.max(item._urgentUntil, now + 4800) : item._urgentUntil;
+    renderNotificationItem(item, mobile);
+    if (!mobile) {
+        while (stack.children.length > 4) {
+            const oldestLowPriority = [...stack.children].sort((a, b) => a._notificationPriority - b._notificationPriority || a._notificationCreatedAt - b._notificationCreatedAt)[0];
+            oldestLowPriority.remove();
+        }
+    }
+    scheduleNotificationRemoval(item, displayDuration);
     if (tone === 'unlock') playSound('unlock');
-    setTimeout(() => {
-        item.classList.add('notification-leave');
-        setTimeout(() => item.remove(), 280);
-    }, duration);
 }
 
 function toggleHUDCollapsed() {
-    hud.classList.toggle('collapsed');
-    document.getElementById('hudCollapse').textContent = hud.classList.contains('collapsed') ? '›' : '‹';
+    const collapsed = hud.classList.toggle('is-collapsed');
+    hud.classList.remove('collapsed');
+    const button = document.getElementById('hudCollapse');
+    button.textContent = collapsed ? '›' : '‹';
+    button.setAttribute('aria-expanded', String(!collapsed));
+    button.setAttribute('aria-label', collapsed ? 'Expand field status' : 'Collapse field status');
+}
+
+function toggleObjectiveCollapsed() {
+    const panel = document.getElementById('mapTaskHUD');
+    const collapsed = panel.classList.toggle('is-collapsed');
+    const button = document.getElementById('objectiveCollapse');
+    button.textContent = collapsed ? '‹' : '›';
+    button.setAttribute('aria-expanded', String(!collapsed));
+    button.setAttribute('aria-label', collapsed ? 'Expand objectives' : 'Collapse objectives');
+    if (!collapsed) {
+        button.removeAttribute('data-update');
+        button.title = 'Collapse objectives';
+    }
 }
 function toggleMapOverlay() {
     if (!mapIntel.includes(currentMapId)) { notify('BUY THIS MAP\'S INTEL AFTER CLEARING ALL THREE DIFFICULTIES', 'warning'); return; }
@@ -6938,7 +8414,8 @@ function drawHotelTaskArrows() {
     const tasks = [...employees.map(employee => ({ employee, task:employee.task })), ...(bassamFakeTask ? [{ employee:null, task:bassamFakeTask }] : [])].filter(entry => entry.task && ['accepted','readyToReport'].includes(entry.task.status));
     tasks.slice(0, 2).forEach(({ employee, task }, index) => {
         const target = task.status === 'readyToReport' && employee ? employee : task;
-        const sx = (target.x - camera.x) * camera.zoom, sy = (target.y - camera.y) * camera.zoom;
+        const sx = canvas.width / 2 + (target.x - camera.x - canvas.width / 2) * camera.zoom;
+        const sy = canvas.height / 2 + (target.y - camera.y - canvas.height / 2) * camera.zoom;
         if (sx > 36 && sx < canvas.width - 36 && sy > 36 && sy < canvas.height - 36) return;
         const angle = Math.atan2(sy - canvas.height / 2, sx - canvas.width / 2), radius = Math.min(canvas.width, canvas.height) * .40 - index * 24;
         const x = canvas.width / 2 + Math.cos(angle) * radius, y = canvas.height / 2 + Math.sin(angle) * radius;
@@ -6951,7 +8428,10 @@ function drawForestGuidanceArrows() {
     const targets = forestGuideMode === 'cabins'
         ? forestBreakers.filter(breaker => !breaker.active).map((breaker, index) => ({ x:breaker.cabin.x, y:breaker.cabin.y, label:`CABIN ${index + 1}` }))
         : forestWatchtower ? [{ x:forestWatchtower.x, y:forestWatchtower.y, label:'WATCHTOWER' }] : [];
-    const worldToScreen = (x, y) => [(x - camera.x) * camera.zoom, (y - camera.y) * camera.zoom];
+    const worldToScreen = (x, y) => [
+        canvas.width / 2 + (x - camera.x - canvas.width / 2) * camera.zoom,
+        canvas.height / 2 + (y - camera.y - canvas.height / 2) * camera.zoom
+    ];
     const centerX = canvas.width / 2, centerY = canvas.height / 2;
     targets.forEach((target, index) => {
         let [sx, sy] = worldToScreen(target.x, target.y);
@@ -6994,93 +8474,223 @@ function drawSubwayGoldGuidanceArrow() {
     ctx.fillStyle = '#fff2ae'; ctx.font = 'bold 10px Arial'; ctx.textAlign = 'center'; ctx.fillText(`FLICKERING SIGNAL · ${subwayGoldPressure.signalTimerPaused ? 'TIMER PAUSED' : `${Math.ceil(subwayGoldPressure.signalTimer / 60)}s`}`, x, y + 24);
 }
 
+function getNextObjectiveSummary() {
+    const containment = monsters.length > 1 ? 'Contain every remaining hunter' : `Contain ${monster.name || 'the hunter'}`;
+    if (winRoamActive) return 'Review the shift report';
+    if (state === 3) return monsters.length > 1 ? 'Then catch the remaining hunters' : 'File the report after containment';
+    if (currentMapId === 'lucas') {
+        return lucasState === 'runningToGate' || lucasState === 'blocking' || lucasState === 'dragging'
+            ? 'Escape Lucas’s blockade'
+            : lucasObjectiveStage === 'fragment1' ? 'Activate the shadow relays'
+                : lucasObjectiveStage === 'levers' ? 'Recover the released service fragment'
+                    : lucasObjectiveStage === 'fragment2' ? 'Find the underpass fragment'
+                        : lucasObjectiveStage === 'fragment3' ? 'Carry the last fragment to the Caleb vessel'
+                            : lucasObjectiveStage === 'place' ? 'Reach the sealed exit'
+                                : 'Escape Lucas’s blockade';
+    }
+    if (currentMapId === 'subway') return subwayObjectiveComplete() ? (subwayTrapArmed ? 'Lure the hunter into the train path' : 'Use Rail Control to intercept the hunter') : 'Then use Rail Control to intercept the hunter';
+    if (currentMapId === 'boilerworks') {
+        if (activeGens < totalGens) return 'Finish the generator repairs';
+        if (!coolingValves.length || !coolingValves.every(valve => valve.active)) return 'Activate the cooling valves';
+        if (!boilerShutdown) return 'Shut down the central boiler';
+        return containment;
+    }
+    if (currentMapId === 'hotel') {
+        if (activeGens < totalGens) return 'Complete and report the hotel assignments';
+        if (reportedHotelEmployees().length < hotelEmployeesRequired) return 'Report the remaining staff assignments';
+        if (evacuatedHotelEmployees().length < hotelEmployeesRequired) return 'Evacuate staff through the elevator';
+        return containment;
+    }
+    if (currentMapId === 'crimson') {
+        if (activeGens < totalGens) return 'Follow the route to the Crimson Seal';
+        if (!rhysSealCollected) return rhysRoute === 'break' && !rhysBreakWall?.broken ? 'Lure Rhys into the cracked wall' : rhysRoute === 'chest' && !rhysChestKey?.collected ? 'Find the chest key' : rhysRoute === 'chest' && !rhysChest?.opened ? 'Open the Crimson Chest' : 'Recover the Crimson Seal';
+        return rhysTrapArmed ? containment : 'Arm the containment trap';
+    }
+    if (currentMapId === 'forest') {
+        if (activeGens < totalGens) return 'Finish the generator repairs';
+        if (!forestBreakers.every(breaker => breaker.active)) return 'Restore the dark cabin breakers';
+        if (!forestBeaconBattery?.collected) return 'Recover the Ranger beacon battery';
+        return forestBeaconActive ? 'File the containment report' : 'Install the battery at the watchtower';
+    }
+    if (currentMapId === 'amine') return activeGens >= totalGens ? 'Reach the exit gate and escape Amine' : 'Reach the exit gate once power is restored';
+    return activeGens >= totalGens ? 'File the containment report' : 'Contain the fleeing threat';
+}
+
 function updateHUD() {
-    const shownGens = hallucinationHudTimer > 0 ? `${Math.max(0, activeGens + (ambienceClock % 2 ? 1 : -1))}/${totalGens}` : `${activeGens}/${totalGens}`;
+    const shownGens = hallucinationHudTimer > 0 ? `${Math.max(0, activeGens + (ambienceClock % 2 ? 1 : -1))} / ${totalGens}` : `${activeGens} / ${totalGens}`;
     const lucasFragmentCount = lucasFragments.filter(fragment => fragment.collected).length;
-    if (currentMapId === 'lucas') document.getElementById('genCount').innerText = `Fragments: ${lucasFragmentCount}/${lucasFragments.length || 3}`;
-    document.getElementById('genCount').innerText = currentMapId === 'subway' ? `Signals: ${activeGens}/${totalGens}` : (monsters.some(enemy => enemy.hasScrambler) ? "?/?" : shownGens);
+    const modeText = gameMode === 'endless' ? `ROUND ${endlessRound}` : gameMode === 'survival' ? 'SURVIVAL' : gameMode.toUpperCase();
+    const mapName = MAP_DEFINITIONS[currentMapId]?.name?.replace(/^LEVEL \d+ — /, '') || 'UNKNOWN SITE';
+    const context = document.getElementById('hudContext');
+    if (context) context.textContent = `${modeText} · ${mapName}`;
+
+    const countLabel = document.getElementById('genCountLabel');
+    const countValue = document.getElementById('genCount');
+    if (countLabel) countLabel.textContent = currentMapId === 'lucas' ? 'FRAGMENTS' : currentMapId === 'subway' ? 'SIGNALS' : 'GENERATORS';
+    if (countValue) {
+        countValue.textContent = currentMapId === 'lucas'
+            ? `${lucasFragmentCount} / ${lucasFragments.length || 3}`
+            : currentMapId === 'subway'
+                ? `${activeGens} / ${totalGens}`
+                : monsters.some(enemy => enemy.hasScrambler) ? '? / ?' : shownGens;
+    }
+
     const objective = document.getElementById('mapObjective');
-    if (currentMapId === 'lucas') document.getElementById('genCount').innerText = `Fragments: ${lucasFragmentCount}/${lucasFragments.length || 3}`;
+    const nextObjective = document.getElementById('mapNextObjective');
+    let objectiveText = '';
     if (objective) {
         const objectiveGens = monsters.some(enemy => enemy.hasScrambler) ? '?/?' : `${activeGens}/${totalGens}`;
         const falseObjective = monster.hasFalseObjective && Math.floor(ambienceClock / 180) % 2 === 1;
-        objective.textContent = falseObjective
+        objectiveText = falseObjective
             ? 'Objective signal corrupted · CHECK THE LANDMARKS'
             : currentMapId === 'subway'
                 ? (subwayGoldStatusText() || `Last Line: ${activeGens}/${totalGens} signal panels · ${!subwayObjectiveComplete() ? 'RESTORE THE ROUTE' : 'USE RAIL CONTROL TO INTERCEPT THE HUNTER'}`)
-            : currentMapId === 'boilerworks'
-                ? `Cooling valves: ${coolingValves.filter(valve => valve.active).length}/${coolingValves.length || 3}${boilerReadyShown ? ' · FIND THE BOILER' : ''}`
-                : currentMapId === 'hotel'
-                    ? `Hotel: ${objectiveGens} generators · Staff ${evacuatedHotelEmployees().length}/${hotelEmployeesRequired} evacuated${hotelObjectiveComplete() ? ' · CATCH BASSAM' : ''}`
-                    : currentMapId === 'crimson'
-                        ? `Containment: ${objectiveGens} generators · ${monster.name !== 'RHYS' ? (activeGens >= totalGens ? `CATCH ${monster.name}` : 'Restore facility power') : activeGens < totalGens ? 'Restore facility power' : !rhysSealCollected ? rhysRoute === 'break' && !rhysBreakWall?.broken ? 'Bait Rhys into the cracked wall' : rhysRoute === 'chest' && !rhysChestKey?.collected ? 'Find the chest key' : rhysRoute === 'chest' && !rhysChest?.opened ? 'Open the Crimson Chest' : 'Recover the Crimson Seal' : !rhysTrapArmed ? 'Arm the containment trap' : 'Lure Rhys into containment'}`
-                    : currentMapId === 'forest'
-                        ? `Forest: ${objectiveGens} generators · ${forestBreakers.filter(breaker => breaker.active).length}/${forestBreakers.length} cabin breakers${forestObjectiveComplete() ? ` · CATCH ${monster.name}` : activeGens < totalGens ? ' · REPAIR GENERATORS FIRST' : !forestBreakers.every(breaker => breaker.active) ? ' · RESTORE DARK CABINS' : !forestBeaconBattery?.collected ? ' · RECOVER RANGER BATTERY' : ' · INSTALL AT WATCHTOWER'}`
-            : currentMapId === 'amine'
-                        ? `Parted Grid: ${objectiveGens} generators · ${activeGens>=totalGens?'FIND EXIT GATE':'RESTORE POWER'} · HOLD V / FOCUS TO SEE AMINE`
-                    : 'Find and repair every generator';
+                : currentMapId === 'boilerworks'
+                    ? `Cooling valves: ${coolingValves.filter(valve => valve.active).length}/${coolingValves.length || 3}${boilerReadyShown ? ' · FIND THE BOILER' : ''}`
+                    : currentMapId === 'hotel'
+                        ? `Hotel: ${objectiveGens} generators · Staff ${evacuatedHotelEmployees().length}/${hotelEmployeesRequired} evacuated${hotelObjectiveComplete() ? ' · CATCH BASSAM' : ''}`
+                        : currentMapId === 'crimson'
+                            ? `Containment: ${objectiveGens} generators · ${monster.name !== 'RHYS' ? (activeGens >= totalGens ? `CATCH ${monster.name}` : 'Restore facility power') : activeGens < totalGens ? 'Restore facility power' : !rhysSealCollected ? rhysRoute === 'break' && !rhysBreakWall?.broken ? 'Bait Rhys into the cracked wall' : rhysRoute === 'chest' && !rhysChestKey?.collected ? 'Find the chest key' : rhysRoute === 'chest' && !rhysChest?.opened ? 'Open the Crimson Chest' : 'Recover the Crimson Seal' : !rhysTrapArmed ? 'Arm the containment trap' : 'Lure Rhys into containment'}`
+                            : currentMapId === 'forest'
+                                ? `Forest: ${objectiveGens} generators · ${forestBreakers.filter(breaker => breaker.active).length}/${forestBreakers.length} cabin breakers${forestObjectiveComplete() ? ` · CATCH ${monster.name}` : activeGens < totalGens ? ' · REPAIR GENERATORS FIRST' : !forestBreakers.every(breaker => breaker.active) ? ' · RESTORE DARK CABINS' : !forestBeaconBattery?.collected ? ' · RECOVER RANGER BATTERY' : ' · INSTALL AT WATCHTOWER'}`
+                                : currentMapId === 'amine'
+                                    ? `Parted Grid: ${objectiveGens} generators · ${activeGens >= totalGens ? 'FIND EXIT GATE' : 'RESTORE POWER'} · HOLD V / FOCUS TO SEE AMINE`
+                                    : 'Find and repair every generator';
         if (currentMapId === 'lucas') {
             const leverCount = lucasLevers.filter(lever => lever.active).length;
-            objective.textContent = lucasState === 'runningToGate' || lucasState === 'blocking' || lucasState === 'dragging'
+            objectiveText = lucasState === 'runningToGate' || lucasState === 'blocking' || lucasState === 'dragging'
                 ? 'Shadow Gate: LUCAS IS BLOCKING THE EXIT'
-                : lucasObjectiveStage === 'fragment1'
-                    ? 'Shadow Gate: FIND THE FIRST CALEB FRAGMENT'
-                    : lucasObjectiveStage === 'levers'
-                        ? `Shadow Gate: ACTIVATE SHADOW RELAYS · ${leverCount}/${lucasLevers.length}`
-                        : lucasObjectiveStage === 'fragment2'
-                            ? 'Shadow Gate: RECOVER THE RELEASED SERVICE FRAGMENT'
-                            : lucasObjectiveStage === 'fragment3'
-                                ? 'Shadow Gate: FIND THE UNDERPASS FRAGMENT'
-                                : lucasObjectiveStage === 'place'
-                                    ? 'Shadow Gate: CARRY THE LAST FRAGMENT TO THE CALEB VESSEL'
+                : lucasObjectiveStage === 'fragment1' ? 'Shadow Gate: FIND THE FIRST CALEB FRAGMENT'
+                    : lucasObjectiveStage === 'levers' ? `Shadow Gate: ACTIVATE SHADOW RELAYS · ${leverCount}/${lucasLevers.length}`
+                        : lucasObjectiveStage === 'fragment2' ? 'Shadow Gate: RECOVER THE RELEASED SERVICE FRAGMENT'
+                            : lucasObjectiveStage === 'fragment3' ? 'Shadow Gate: FIND THE UNDERPASS FRAGMENT'
+                                : lucasObjectiveStage === 'place' ? 'Shadow Gate: CARRY THE LAST FRAGMENT TO THE CALEB VESSEL'
                                     : 'Shadow Gate: REACH THE SEALED EXIT';
         }
+        if (state === 3 && !winRoamActive) objectiveText = monsters.length > 1
+            ? `Catch each remaining hunter · ${monsters.length} left`
+            : `Catch ${monster.name || 'the hunter'}`;
+        if (winRoamActive) objectiveText = 'All threats contained · The shift is secure';
+        if (objective.textContent !== objectiveText) objective.textContent = objectiveText;
     }
-    
-    let invText = [];
-    const carriedCount = runLoadoutRemaining ? Object.values(runLoadoutRemaining).reduce((sum, amount) => sum + amount, 0) : invAdrenaline + invFlashbang + invNoiseMaker + invBearTrap + invBattery + invBreathFilter + invSignalScrambler + invNeutralizer + invRepairKit + invFlare;
-    invText.push(`SUPPLIES: ${carriedCount}/8`);
-    if (itemAllowed('adrenaline') && invAdrenaline > 0) invText.push(`Adrenaline: ${invAdrenaline} (SPACE)`);
-    if (itemAllowed('flashbang') && invFlashbang > 0) invText.push(`Flashbang: ${invFlashbang} (F)`);
-    if (itemAllowed('noiseMaker') && invNoiseMaker > 0) invText.push(`Noise: ${invNoiseMaker} (N)`);
-    if (itemAllowed('bearTrap') && invBearTrap > 0) invText.push(`Trap: ${invBearTrap} (T)`);
-    if (itemAllowed('battery') && invBattery > 0) invText.push(`Battery: ${invBattery} (R)`);
-    if (itemAllowed('breathFilter') && invBreathFilter > 0) invText.push(`Filter: ${invBreathFilter}`);
-    if (itemAllowed('signalScrambler') && invSignalScrambler > 0) invText.push(`Scrambler: ${invSignalScrambler} (X)${scramblerTimer > 0 ? ' ACTIVE' : ''}`);
-    if (itemAllowed('neutralizer') && invNeutralizer > 0) invText.push(`Neutralizer: ${invNeutralizer} (G)`);
-    if (itemAllowed('repairKit') && invRepairKit > 0) invText.push(`Repair Kit: ${invRepairKit} (K)${repairAssist ? ' READY' : ''}`);
-    if (itemAllowed('flare') && invFlare > 0) invText.push(`Flare: ${invFlare} (L)${flareTimer > 0 ? ' LIT' : ''}`);
-    if (player.heat > 0) invText.push(`HEAT: ${Math.round(player.heat / 3)}/100`);
-    if (player.crouching) invText.push('CROUCHING');
-    if (player.breathing) invText.push(`BREATH: ${Math.ceil(player.breathTimer / 60)}s`);
-    if (fuses.some(fuse => !fuse.collected)) invText.push(`Fuses: ${fuses.filter(fuse => !fuse.collected).length}`);
-    if (currentMapId === 'subway' && subwayTornTicket?.collected && !subwayTornTicket.delivered) invText.push('TORN TICKET: CARRY TO CONTROL');
-    if (currentMapId === 'subway' && subwayGoldSphere?.collected) invText.push('GOLD FARE SPHERE: RECOVERED');
-    if (currentMapId === 'lucas' && lucasFragmentCount > 0) invText.push(`CALEB FRAGMENTS: ${lucasFragmentCount}/${lucasFragments.length || 3}`);
-    if (currentMapId === 'lucas' && lucasCarryFragment) invText.push('CARRYING LAST FRAGMENT · MOVEMENT SLOWED');
-    if (player.hidden) invText.push(`HIDDEN: ${Math.ceil(player.hideTimer / 60)}s`);
-    if (upgDash) invText.push(`Dash: ${dashCooldown > 0 ? `${Math.ceil(dashCooldown / 60)}s` : 'READY'} (LEFT SHIFT)`);
-    document.getElementById('inventory').innerText = invText.join(' | ');
-    
-    let mText = monsters.length > 1 ? '[Open roster]' : (monster.activeMutations.length > 0 ? `[${monster.activeMutations.join(', ')}]` : '[None]');
-    let title = monsters.length > 1 ? 'MULTIPLE MONSTERS' : ((monster.name === 'JORDAN' && jordanState === 'mimic') || (monster.name === 'BASSAM' && bassamState === 'disguised') ? '???' : monster.name);
-    const titleColor = monsters.length > 1 ? '#ffb0b0' : monster.textColor;
-    const modeText = gameMode === 'endless' ? `ROUND ${endlessRound}` : gameMode === 'survival' ? 'SURVIVAL' : gameMode.toUpperCase();
-    const multiNotice = monsters.length > 1 ? '<br><span style="color:#ffb0b0">Multiple monsters — open roster</span>' : '';
-    document.getElementById('mutations').innerHTML = `<span style="color:${titleColor}">${title}</span> <br> ${modeText} · Mutations: ${mText}${multiNotice}`;
-    const toggle = document.getElementById('monsterRosterToggle');
+
+    const nextText = getNextObjectiveSummary();
+    if (nextObjective && nextObjective.textContent !== nextText) nextObjective.textContent = nextText;
+    const objectiveContext = document.getElementById('objectiveContext');
+    if (objectiveContext) objectiveContext.textContent = `${modeText} · ${mapName}`;
+    const signature = `${objectiveText}\u241f${nextText}`;
+    if (lastObjectivePanelSignature !== null && signature !== lastObjectivePanelSignature && !objectiveText.startsWith('Objective signal corrupted')) {
+        const objectiveButton = document.getElementById('objectiveCollapse');
+        if (document.getElementById('mapTaskHUD').classList.contains('is-collapsed')) {
+            objectiveButton.dataset.update = 'true';
+            objectiveButton.setAttribute('aria-label', 'Expand objectives; a new directive is available');
+            objectiveButton.title = 'A new directive is available';
+        }
+    }
+    lastObjectivePanelSignature = signature;
+
+    const inventory = document.getElementById('inventory');
+    const supplyCount = document.getElementById('supplyCount');
+    const carriedCount = runLoadoutRemaining
+        ? Object.values(runLoadoutRemaining).reduce((sum, amount) => sum + amount, 0)
+        : invAdrenaline + invFlashbang + invNoiseMaker + invBearTrap + invBattery + invBreathFilter + invSignalScrambler + invNeutralizer + invRepairKit + invFlare;
+    if (supplyCount) supplyCount.textContent = `${carriedCount} / 8`;
+    if (inventory) {
+        const supplies = [];
+        if (itemAllowed('adrenaline') && invAdrenaline > 0) supplies.push(`Adrenaline ×${invAdrenaline} (SPACE)`);
+        if (itemAllowed('flashbang') && invFlashbang > 0) supplies.push(`Flashbang ×${invFlashbang} (F)`);
+        if (itemAllowed('noiseMaker') && invNoiseMaker > 0) supplies.push(`Noise Maker ×${invNoiseMaker} (N)`);
+        if (itemAllowed('bearTrap') && invBearTrap > 0) supplies.push(`Bear Trap ×${invBearTrap} (T)`);
+        if (itemAllowed('battery') && invBattery > 0) supplies.push(`Battery ×${invBattery} (R)`);
+        if (itemAllowed('breathFilter') && invBreathFilter > 0) supplies.push(`Breath Filter ×${invBreathFilter}`);
+        if (itemAllowed('signalScrambler') && invSignalScrambler > 0) supplies.push(`Signal Scrambler ×${invSignalScrambler} (X)${scramblerTimer > 0 ? ' · ACTIVE' : ''}`);
+        if (itemAllowed('neutralizer') && invNeutralizer > 0) supplies.push(`Neutralizer ×${invNeutralizer} (G)`);
+        if (itemAllowed('repairKit') && invRepairKit > 0) supplies.push(`Repair Kit ×${invRepairKit} (K)${repairAssist ? ' · READY' : ''}`);
+        if (itemAllowed('flare') && invFlare > 0) supplies.push(`Flare ×${invFlare} (L)${flareTimer > 0 ? ' · LIT' : ''}`);
+        inventory.replaceChildren();
+        if (!supplies.length) inventory.textContent = 'No supplies carried';
+        else supplies.forEach(label => {
+            const chip = document.createElement('span');
+            chip.className = 'field-supply-chip';
+            chip.textContent = label;
+            inventory.appendChild(chip);
+        });
+    }
+
+    const conditions = [];
+    if (player.heat > 0) conditions.push(`HEAT ${Math.round(player.heat / 3)}/100`);
+    if (player.crouching) conditions.push('CROUCHING');
+    if (player.breathing) conditions.push(`BREATH ${Math.ceil(player.breathTimer / 60)}s`);
+    const remainingFuses = fuses.filter(fuse => !fuse.collected).length;
+    if (remainingFuses > 0) conditions.push(`${remainingFuses} FUSES LEFT`);
+    if (currentMapId === 'subway' && subwayTornTicket?.collected && !subwayTornTicket.delivered) conditions.push('CARRY TICKET TO CONTROL');
+    if (currentMapId === 'subway' && subwayGoldSphere?.collected) conditions.push('GOLD FARE RECOVERED');
+    if (currentMapId === 'lucas' && lucasFragmentCount > 0) conditions.push(`FRAGMENTS ${lucasFragmentCount}/${lucasFragments.length || 3}`);
+    if (currentMapId === 'lucas' && lucasCarryFragment) conditions.push('CARRYING FRAGMENT · SLOWED');
+    if (player.hidden) conditions.push(`HIDDEN ${Math.ceil(player.hideTimer / 60)}s`);
+    if (upgDash) conditions.push(`DASH ${dashCooldown > 0 ? `${Math.ceil(dashCooldown / 60)}s` : 'READY'} · LEFT SHIFT`);
+    const conditionList = document.getElementById('fieldConditions');
+    if (conditionList) {
+        conditionList.replaceChildren();
+        conditions.forEach(label => {
+            const chip = document.createElement('span');
+            chip.className = 'field-condition-chip';
+            chip.textContent = label;
+            conditionList.appendChild(chip);
+        });
+    }
+
+    const mutations = document.getElementById('mutations');
+    const disguised = (monster.name === 'JORDAN' && jordanState === 'mimic') || (monster.name === 'BASSAM' && bassamState === 'disguised');
+    const title = monsters.length > 1 ? 'MULTIPLE HUNTERS' : disguised ? '???' : monster.name || 'NO THREAT DETECTED';
+    const threatName = document.createElement('strong');
+    threatName.className = 'field-threat-name';
+    threatName.textContent = title;
+    threatName.style.color = monsters.length > 1 ? '#ffb0b0' : monster.textColor || '#dce393';
+    const threatMeta = document.createElement('span');
+    threatMeta.className = 'field-threat-meta';
+    threatMeta.textContent = monsters.length > 1
+        ? `${monsters.length} active · Open roster for details`
+        : `${modeText} · ${monster.activeMutations?.length ? monster.activeMutations.join(', ') : 'No mutations'}`;
+    mutations.replaceChildren(threatName, threatMeta);
+
+    const rosterToggle = document.getElementById('monsterRosterToggle');
     const roster = document.getElementById('monsterRoster');
     if (monsters.length > 1) {
-        toggle.style.display = 'block';
-        roster.innerHTML = monsters.map((enemy, index) => `${index + 1}. <b style="color:${enemy.textColor}">${enemy.name}</b><br><span>${enemy.activeMutations.length ? enemy.activeMutations.join(', ') : 'No mutations'}</span>`).join('<hr>');
-    } else { toggle.style.display = 'none'; roster.style.display = 'none'; }
+        rosterToggle.style.display = 'flex';
+        const rosterSignature = monsters.map(enemy => `${enemy.name}:${enemy.activeMutations?.join(',') || ''}`).join('|');
+        if (rosterSignature !== lastThreatRosterSignature) {
+            roster.replaceChildren();
+            monsters.forEach((enemy, index) => {
+                const entry = document.createElement('div');
+                entry.className = 'field-roster-entry';
+                const name = document.createElement('strong');
+                name.textContent = `${index + 1}. ${enemy.name}`;
+                name.style.color = enemy.textColor || '#ffb0b0';
+                const detail = document.createElement('small');
+                detail.textContent = enemy.activeMutations?.length ? enemy.activeMutations.join(', ') : 'No mutations';
+                entry.append(name, detail);
+                roster.appendChild(entry);
+            });
+            lastThreatRosterSignature = rosterSignature;
+        }
+    } else {
+        rosterToggle.style.display = 'none';
+        roster.style.display = 'none';
+        rosterToggle.setAttribute('aria-expanded', 'false');
+        lastThreatRosterSignature = null;
+    }
 }
 
 function toggleMonsterRoster() {
     const roster = document.getElementById('monsterRoster');
     const expanded = roster.style.display === 'block';
     roster.style.display = expanded ? 'none' : 'block';
-    document.getElementById('monsterRosterToggle').textContent = expanded ? 'MONSTERS ▾' : 'MONSTERS ▴';
+    const button = document.getElementById('monsterRosterToggle');
+    button.setAttribute('aria-expanded', String(!expanded));
+    button.setAttribute('aria-label', expanded ? 'Show threat roster' : 'Hide threat roster');
+    const arrow = button.querySelector('span');
+    if (arrow) arrow.textContent = expanded ? '⌄' : '⌃';
 }
 
 function resolveNizarFrameCollision(ent, previousX = ent.x) {
@@ -7167,6 +8777,114 @@ function findPath(sc, sr, tc, tr) {
     return path;
 }
 
+function clearLevel0SearchMemory(enemy, clearSearchPath = false) {
+    if (clearSearchPath) {
+        const target = enemy.level0SearchTarget;
+        const lastSeenC = Number.isFinite(enemy.level0LastSeenX) ? Math.floor(enemy.level0LastSeenX / TS) : -1;
+        const lastSeenR = Number.isFinite(enemy.level0LastSeenY) ? Math.floor(enemy.level0LastSeenY / TS) : -1;
+        const searchC = target ? Math.floor(target.x / TS) : -1;
+        const searchR = target ? Math.floor(target.y / TS) : -1;
+        if ((enemy.lastTargetC === lastSeenC && enemy.lastTargetR === lastSeenR)
+            || (enemy.lastTargetC === searchC && enemy.lastTargetR === searchR)) {
+            enemy.path = [];
+            enemy.lastTargetC = -1;
+            enemy.lastTargetR = -1;
+        }
+    }
+    enemy.level0LastSeenX = null;
+    enemy.level0LastSeenY = null;
+    enemy.level0TrackTicks = 0;
+    enemy.level0SearchTicks = null;
+    enemy.level0SearchTarget = null;
+    enemy.level0SearchWaypointTicks = 0;
+}
+
+function updateLevel0SearchTarget(enemy, hasLineOfSight) {
+    if (currentMapId !== 'level0') return null;
+    const hasLastSeen = Number.isFinite(enemy.level0LastSeenX) && Number.isFinite(enemy.level0LastSeenY);
+    if (isSafeRoom(player.x, player.y)) {
+        if (hasLastSeen) clearLevel0SearchMemory(enemy, true);
+        return null;
+    }
+    if (hasLineOfSight && !player.hidden && !player.breathing) {
+        enemy.level0LastSeenX = player.x;
+        enemy.level0LastSeenY = player.y;
+        enemy.level0TrackTicks = 300;
+        enemy.level0SearchTicks = null;
+        enemy.level0SearchTarget = null;
+        return null;
+    }
+    if (!hasLastSeen) return null;
+
+    // For five seconds after sight breaks, keep updating the target through walls.
+    // Hiding or holding breath freezes that target at the last exposed position.
+    if (enemy.level0TrackTicks > 0) {
+        if (!player.hidden && !player.breathing) {
+            enemy.level0LastSeenX = player.x;
+            enemy.level0LastSeenY = player.y;
+        }
+        enemy.level0TrackTicks--;
+        return { x:enemy.level0LastSeenX, y:enemy.level0LastSeenY, phase:'tracking' };
+    }
+
+    if (enemy.level0SearchTicks == null) {
+        enemy.level0SearchTicks = 300;
+        enemy.level0SearchTarget = null;
+    }
+    if (enemy.level0SearchTicks <= 0) {
+        clearLevel0SearchMemory(enemy, true);
+        return null;
+    }
+    enemy.level0SearchTicks--;
+
+    const currentTarget = enemy.level0SearchTarget;
+    const reachedTarget = currentTarget && Math.hypot(enemy.x - currentTarget.x, enemy.y - currentTarget.y) < TS * 1.35;
+    if (!currentTarget || reachedTarget || enemy.level0SearchWaypointTicks <= 0) {
+        const searchTiles = floors.filter(tile => {
+            const x = tile.c * TS + TS / 2, y = tile.r * TS + TS / 2;
+            return !isProtectedRoom(x, y)
+                && Math.hypot(x - enemy.level0LastSeenX, y - enemy.level0LastSeenY) <= TS * 6
+                && Math.hypot(x - enemy.x, y - enemy.y) > TS * 2;
+        });
+        const tile = searchTiles[Math.floor(Math.random() * Math.max(1, searchTiles.length))]
+            || floors.find(candidate => !isProtectedRoom(candidate.c * TS + TS / 2, candidate.r * TS + TS / 2));
+        if (tile) enemy.level0SearchTarget = { x:tile.c * TS + TS / 2, y:tile.r * TS + TS / 2 };
+        enemy.level0SearchWaypointTicks = 72;
+    } else enemy.level0SearchWaypointTicks--;
+    return enemy.level0SearchTarget ? { ...enemy.level0SearchTarget, phase:'search' } : null;
+}
+
+function pickLevel0PatrolTile(enemy, candidates) {
+    const sectorFor = tile => Math.min(2, Math.floor(tile.r / ROWS * 3)) * 3 + Math.min(2, Math.floor(tile.c / COLS * 3));
+    const sectors = Array.from({ length:9 }, () => []);
+    for (const tile of candidates) sectors[sectorFor(tile)].push(tile);
+
+    if (!Array.isArray(enemy.level0PatrolRoute)) {
+        const routes = [
+            [0,1,2,5,4,3,6,7,8], [0,3,6,7,4,1,2,5,8],
+            [8,7,6,3,4,5,2,1,0], [8,5,2,1,4,7,6,3,0]
+        ];
+        enemy.level0PatrolRoute = routes[Math.floor(Math.random() * routes.length)];
+        enemy.level0PatrolIndex = enemy.level0PatrolRoute.indexOf(sectorFor({ c:Math.floor(enemy.x / TS), r:Math.floor(enemy.y / TS) }));
+    } else if (enemy.level0PatrolLastTarget) {
+        enemy.level0PatrolIndex = (enemy.level0PatrolIndex + 1) % enemy.level0PatrolRoute.length;
+    }
+
+    for (let attempt = 0; attempt < enemy.level0PatrolRoute.length; attempt++) {
+        const sectorIndex = enemy.level0PatrolRoute[enemy.level0PatrolIndex];
+        const zone = sectors[sectorIndex];
+        if (zone.length) {
+            const distantTiles = zone.filter(tile => Math.hypot(tile.c * TS + TS / 2 - enemy.x, tile.r * TS + TS / 2 - enemy.y) > TS * 2.5);
+            const choices = distantTiles.length ? distantTiles : zone;
+            const target = choices[Math.floor(Math.random() * choices.length)];
+            enemy.level0PatrolLastTarget = { c:target.c, r:target.r };
+            return target;
+        }
+        enemy.level0PatrolIndex = (enemy.level0PatrolIndex + 1) % enemy.level0PatrolRoute.length;
+    }
+    return candidates[Math.floor(Math.random() * Math.max(1, candidates.length))] || floors[0];
+}
+
 function pickMonsterWanderTile(enemy = monster) {
     const protectedPlayer = isSafeRoom(player.x, player.y);
     const candidates = floors.filter(tile => {
@@ -7176,7 +8894,9 @@ function pickMonsterWanderTile(enemy = monster) {
         return monsters.every(other => other === enemy || Math.hypot(other.x - x, other.y - y) > TS * 2);
     });
     const fallback = floors.filter(tile => !isProtectedRoom(tile.c * TS + TS / 2, tile.r * TS + TS / 2));
-    return (candidates.length ? candidates : fallback)[Math.floor(Math.random() * Math.max(1, candidates.length ? candidates.length : fallback.length))] || floors[0];
+    const available = candidates.length ? candidates : fallback;
+    if (currentMapId === 'level0') return pickLevel0PatrolTile(enemy, available);
+    return available[Math.floor(Math.random() * Math.max(1, available.length))] || floors[0];
 }
 
 function clearProtectedPlayerTarget(enemy) {
@@ -7450,7 +9170,10 @@ function updateExtraMonsters() {
         const tracksBlood = !protectedPlayer && enemy.name === 'MALAKAI' && enemy.bloodHuntTimer > 0;
         const tracksHeat = !protectedPlayer && enemy.name === 'AESON' && enemy.heatAlertTimer > 0;
         const alliedSight = monsters.some(other => other !== enemy && !player.hidden && !isSafeRoom(player.x, player.y) && (monsterCanSeeUnhiddenPlayer(other) || (other.name === 'AESON' && player.heat > 120)));
-        const tracksPlayer = !protectedPlayer && (emergencyTimer > 0 || enemy.allSeeing || alliedSight || monsterCanSeeUnhiddenPlayer(enemy) || (enemy.name === 'AESON' && player.heat > 120));
+        const hasLineOfSight = !player.hidden && !player.breathing && !isSafeRoom(player.x, player.y) && monsterCanSeeUnhiddenPlayer(enemy);
+        const level0TrackingTarget = state === 1 && currentMapId === 'level0' ? updateLevel0SearchTarget(enemy, hasLineOfSight) : null;
+        const directlyTracksPlayer = !protectedPlayer && (emergencyTimer > 0 || enemy.allSeeing || alliedSight || hasLineOfSight || (enemy.name === 'AESON' && player.heat > 120));
+        const tracksPlayer = directlyTracksPlayer || Boolean(level0TrackingTarget && state === 1);
         let targetC, targetR;
         if (sawHide) {
             targetC = Math.floor(player.x / TS); targetR = Math.floor(player.y / TS);
@@ -7462,7 +9185,8 @@ function updateExtraMonsters() {
         } else if (tracksHeat) {
             targetC = Math.floor(enemy.heatAlertX / TS); targetR = Math.floor(enemy.heatAlertY / TS);
         } else if (tracksPlayer) {
-            targetC = Math.floor(player.x / TS); targetR = Math.floor(player.y / TS);
+            const target = directlyTracksPlayer ? player : level0TrackingTarget;
+            targetC = Math.floor(target.x / TS); targetR = Math.floor(target.y / TS);
         } else if (noiseTarget && noiseTimer > 0) {
             targetC = Math.floor(noiseTarget.x / TS); targetR = Math.floor(noiseTarget.y / TS);
         } else if (enemy.path.length === 0) {
@@ -7515,6 +9239,7 @@ function update() {
     if (state === 22) { updateCalebBossEnding(); return; }
     if (state === 14) { updateSubwayControlPuzzle(); return; }
     if (state === 15) { updateSubwayFareCutscene(); return; }
+    if (winRoamActive) { updatePostCatchRoam(); return; }
     if (![1,3,5,6,7,9,10,11,13].includes(state)) return;
 
     if (flashAlpha > 0) flashAlpha -= 0.02;
@@ -7570,13 +9295,13 @@ function update() {
     if (currentMapId === 'amine' && state === 1 && activeGens >= totalGens && amineExitGate && Math.hypot(player.x - amineExitGate.x, player.y - amineExitGate.y) < 62) {
         beginAmineFinalChase();
     }
-    if(amineBurnTimer>0){heatOverlay||=document.getElementById('heatOverlay');if(heatOverlay){heatOverlay.style.opacity='.72';heatOverlay.style.backdropFilter=setOptimization?'blur(2px)':'blur(7px)';}}
+    if(amineBurnTimer>0){heatOverlay||=document.getElementById('heatOverlay');if(heatOverlay){heatOverlay.style.opacity='.72';heatOverlay.style.backdropFilter='blur(7px)';}}
     for (const zone of noahLightningZones) zone.life--;
     noahLightningZones = noahLightningZones.filter(zone => zone.life > 0);
     if (noahLightningZones.some(zone => Math.hypot(player.x - zone.x, player.y - zone.y) < zone.radius)) noahShockTimer = 18;
     else if (noahShockTimer > 0) noahShockTimer--;
     if (noahLightningFlashes > 0 && ambienceClock % 12 === 0) { flashAlpha = .72; noahLightningFlashes--; }
-    if (noahShockTimer > 0) { heatOverlay ||= document.getElementById('heatOverlay'); if (heatOverlay) { heatOverlay.style.opacity = '.48'; heatOverlay.style.backdropFilter = setOptimization ? 'blur(1px)' : 'blur(4px)'; } }
+    if (noahShockTimer > 0) { heatOverlay ||= document.getElementById('heatOverlay'); if (heatOverlay) { heatOverlay.style.opacity = '.48'; heatOverlay.style.backdropFilter = 'blur(4px)'; } }
     updateRhysHazards();
     updateLucasHazards();
     updateAesonEvents();
@@ -7706,12 +9431,12 @@ function update() {
         }
     }
 
-    camera.targetZoom = (empActive > 0) ? 1.4 : 1.0;
+    camera.targetZoom = (empActive > 0) ? 1.65 : 1.25;
     camera.zoom += (camera.targetZoom - camera.zoom) * 0.05;
-    camera.x = player.x - (canvas.width / (2 * camera.zoom));
-    camera.y = player.y - (canvas.height / (2 * camera.zoom));
-    camera.x = Math.max(0, Math.min(camera.x, COLS * TS - canvas.width / camera.zoom));
-    camera.y = Math.max(0, Math.min(camera.y, ROWS * TS - canvas.height / camera.zoom));
+    // Keep the survivor centered at every zoom level. The map can move beyond
+    // the viewport edges so following does not stop at a wall or map boundary.
+    camera.x = player.x - canvas.width / 2;
+    camera.y = player.y - canvas.height / 2;
 
     if (state === 5) {
         if (scDelay > 0) {
@@ -7735,6 +9460,10 @@ function update() {
         clearProtectedPlayerTarget(monster);
         const goldFareDetectable = currentMapId === 'subway' && monster.name === 'NIZAR' && subwayGoldPressure?.active && subwayGoldPressure.detectableTimer > 0;
         let canSeePlayer = !player.hidden && !player.breathing && (goldFareDetectable || (!isSafeRoom(player.x, player.y) && (monsterCanSeeUnhiddenPlayer() || (monster.name === 'AESON' && player.heat > 120))));
+        const level0TrackingTarget = state === 1 && currentMapId === 'level0'
+            ? updateLevel0SearchTarget(monster, !player.hidden && !player.breathing && !isSafeRoom(player.x, player.y) && monsterCanSeeUnhiddenPlayer(monster))
+            : null;
+        monster.level0TrackingTarget = level0TrackingTarget;
         let tracksBlood = !player.hidden && !isSafeRoom(player.x, player.y) && monster.name === 'MALAKAI' && monster.bloodHuntTimer > 0;
         let tracksHeat = !player.hidden && !isSafeRoom(player.x, player.y) && monster.name === 'AESON' && monster.heatAlertTimer > 0;
         
@@ -7807,7 +9536,7 @@ function update() {
             const dashing = updateRhysCombat(canSeePlayer);
             if (!dashing) {
                 const baitingWall = rhysBreakWall && !rhysBreakWall.broken && Math.hypot(player.x - rhysBreakWall.x, player.y - rhysBreakWall.y) < 170;
-                const target = baitingWall ? { x:rhysBreakWall.baitX, y:rhysBreakWall.baitY } : (canSeePlayer ? player : (noiseTarget && noiseTimer > 0 ? noiseTarget : null));
+                const target = baitingWall ? { x:rhysBreakWall.baitX, y:rhysBreakWall.baitY } : (canSeePlayer ? player : (noiseTarget && noiseTimer > 0 ? noiseTarget : level0TrackingTarget));
                 if (target) {
                     const targetC = Math.floor(target.x / TS), targetR = Math.floor(target.y / TS);
                     if (monster.lastTargetC !== targetC || monster.lastTargetR !== targetR || monster.path.length === 0) {
@@ -7815,7 +9544,7 @@ function update() {
                         monster.lastTargetC = targetC; monster.lastTargetR = targetR;
                     }
                 } else if (monster.path.length === 0) {
-                    const tile = floors[Math.floor(Math.random() * floors.length)];
+                    const tile = pickMonsterWanderTile(monster);
                     monster.path = findPath(Math.floor(monster.x / TS), Math.floor(monster.y / TS), tile.c, tile.r);
                 }
                 moveMonsterAlongPath(getMonsterSpeed(monster), monster);
@@ -7849,7 +9578,7 @@ function update() {
                     }
                 } else {
                     if (monster.path.length === 0) {
-                        let tile = floors[Math.floor(Math.random() * floors.length)];
+                        let tile = pickMonsterWanderTile(monster);
                         monster.path = findPath(Math.floor(monster.x/TS), Math.floor(monster.y/TS), tile.c, tile.r);
                     }
                     moveMonsterAlongPath(getMonsterSpeed());
@@ -7942,10 +9671,18 @@ function update() {
                     } else {
                     if (monster.path.length === 0 || (monster.allSeeing && Math.random() < 0.05)) {
                         const tracksPlayer = (monster.allSeeing || emergencyTimer > 0) && !player.breathing && !player.hidden && !isSafeRoom(player.x, player.y);
-                        const wanderTile = pickMonsterWanderTile(monster);
-                        let targetC = tracksPlayer ? Math.floor(player.x/TS) : wanderTile.c;
-                        let targetR = tracksPlayer ? Math.floor(player.y/TS) : wanderTile.r;
+                        const trackingTarget = tracksPlayer ? player : level0TrackingTarget;
+                        const wanderTile = trackingTarget ? null : pickMonsterWanderTile(monster);
+                        let targetC = trackingTarget ? Math.floor(trackingTarget.x/TS) : wanderTile.c;
+                        let targetR = trackingTarget ? Math.floor(trackingTarget.y/TS) : wanderTile.r;
                         monster.path = findPath(Math.floor(monster.x/TS), Math.floor(monster.y/TS), targetC, targetR);
+                        monster.lastTargetC = targetC; monster.lastTargetR = targetR;
+                    } else if (level0TrackingTarget && level0TrackingTarget.phase === 'tracking') {
+                        const targetC = Math.floor(level0TrackingTarget.x / TS), targetR = Math.floor(level0TrackingTarget.y / TS);
+                        if (monster.lastTargetC !== targetC || monster.lastTargetR !== targetR) {
+                            monster.path = findPath(Math.floor(monster.x / TS), Math.floor(monster.y / TS), targetC, targetR);
+                            monster.lastTargetC = targetC; monster.lastTargetR = targetR;
+                        }
                     }
                     moveMonsterAlongPath(getMonsterSpeed());
                     }
@@ -7975,16 +9712,16 @@ function update() {
 }
 
 function draw() {
-    if (state === 11 && amineRoad) { drawAmineRoadChase(); return; }
-    if (state === 16 && lucasFragmentPuzzle) { drawLucasFragmentPuzzle(); return; }
-    if (state === 17 && lucasEndingAnimation) { drawLucasEndingAnimation(); return; }
-    if (state === 18 && lucasShadowEvent) { drawLucasShadowDimension(); return; }
+    if (state === 11 && amineRoad) { drawAmineRoadChase(); drawSpeedrunTimer(); return; }
+    if (state === 16 && lucasFragmentPuzzle) { drawLucasFragmentPuzzle(); drawSpeedrunTimer(); return; }
+    if (state === 17 && lucasEndingAnimation) { drawLucasEndingAnimation(); drawSpeedrunTimer(); return; }
+    if (state === 18 && lucasShadowEvent) { drawLucasShadowDimension(); drawSpeedrunTimer(); return; }
     if (state === 19 && calebBoss) { drawCalebBossIntro(); return; }
     if (state === 20 && calebBoss) { drawCalebBossEncounter(); return; }
     if (state === 21 && calebBoss) { drawCalebBossDefeat(); return; }
     if (state === 22 && calebBoss) { drawCalebBossEnding(); return; }
-    if (state === 14 && subwayControlPuzzle) { drawSubwayControlPuzzle(); return; }
-    if (state === 15 && subwayFareCutscene) { drawSubwayFareCutscene(); return; }
+    if (state === 14 && subwayControlPuzzle) { drawSubwayControlPuzzle(); drawSpeedrunTimer(); return; }
+    if (state === 15 && subwayFareCutscene) { drawSubwayFareCutscene(); drawSpeedrunTimer(); return; }
     if (state === 0 || state === 4) {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         return;
@@ -7997,19 +9734,74 @@ function draw() {
     ctx.scale(camera.zoom, camera.zoom);
     ctx.translate(-camera.x - canvas.width/2, -camera.y - canvas.height/2);
 
-    for (let r = 0; r < ROWS; r++) {
-        for (let c = 0; c < COLS; c++) {
-            if (map[r][c] === 1) {
-                ctx.fillStyle = currentMapId === 'boilerworks' ? '#171a1d' : currentMapId === 'hotel' ? '#211a20' : currentMapId === 'crimson' ? '#241012' : currentMapId === 'forest' ? '#17351c' : currentMapId === 'amine' ? '#252525' : currentMapId === 'subway' ? '#15191d' : currentMapId === 'lucas' ? '#171326' : '#2d2216'; ctx.fillRect(c * TS, r * TS, TS, TS);
-                if (!setOptimization) { ctx.strokeStyle = currentMapId === 'boilerworks' ? '#0b0d0f' : currentMapId === 'hotel' ? '#0e0a10' : currentMapId === 'crimson' ? '#100506' : currentMapId === 'lucas' ? '#080610' : '#181109'; ctx.strokeRect(c * TS, r * TS, TS, TS); }
-            } else {
-                ctx.fillStyle = currentMapId === 'boilerworks' ? '#4b4540' : currentMapId === 'hotel' ? ((r + c) % 2 ? '#5b4850' : '#65505a') : currentMapId === 'crimson' ? ((r + c) % 2 ? '#6f2429' : '#7d2b30') : currentMapId === 'forest' ? ((r + c) % 2 ? '#326d36' : '#39793d') : currentMapId === 'amine' ? '#555555' : currentMapId === 'subway' ? ((r + c) % 2 ? '#31383d' : '#3a4247') : currentMapId === 'lucas' ? ((r + c) % 2 ? '#3d3156' : '#493968') : '#8b7355'; ctx.fillRect(c * TS, r * TS, TS, TS);
-                if (!setOptimization && currentMapId === 'boilerworks' && (r + c) % 7 === 0) {
-                    ctx.fillStyle = 'rgba(180,120,55,0.2)'; ctx.fillRect(c * TS + 5, r * TS + 7, TS - 10, 3);
+    // Continue each map's wall texture beyond its generated bounds. This gives
+    // the centered camera a themed backdrop instead of exposing a black void.
+    const mapBackdrop = currentMapId === 'boilerworks' ? ['#171a1d', '#0b0d0f']
+        : currentMapId === 'hotel' ? ['#211a20', '#0e0a10']
+        : currentMapId === 'crimson' ? ['#241012', '#100506']
+        : currentMapId === 'forest' ? ['#17351c', '#181109']
+        : currentMapId === 'amine' ? ['#252525', '#181109']
+        : currentMapId === 'subway' ? ['#15191d', '#181109']
+        : currentMapId === 'lucas' ? ['#171326', '#080610']
+        : ['#2d2216', '#181109'];
+    const isLevel0 = currentMapId === 'level0';
+    const viewLeft = camera.x + canvas.width / 2 - canvas.width / (2 * camera.zoom);
+    const viewTop = camera.y + canvas.height / 2 - canvas.height / (2 * camera.zoom);
+    const viewWidth = canvas.width / camera.zoom;
+    const viewHeight = canvas.height / camera.zoom;
+    ctx.fillStyle = isLevel0 ? LEVEL0_WALL_COLOR : mapBackdrop[0];
+    ctx.fillRect(viewLeft - TS, viewTop - TS, viewWidth + TS * 2, viewHeight + TS * 2);
+    if (!isLevel0) {
+        ctx.strokeStyle = mapBackdrop[1];
+        ctx.lineWidth = 1 / camera.zoom;
+        ctx.beginPath();
+        for (let x = Math.floor(viewLeft / TS) * TS; x <= viewLeft + viewWidth + TS; x += TS) {
+            ctx.moveTo(x, viewTop - TS);
+            ctx.lineTo(x, viewTop + viewHeight + TS);
+        }
+        for (let y = Math.floor(viewTop / TS) * TS; y <= viewTop + viewHeight + TS; y += TS) {
+            ctx.moveTo(viewLeft - TS, y);
+            ctx.lineTo(viewLeft + viewWidth + TS, y);
+        }
+        ctx.stroke();
+    }
+
+    if (isLevel0 && level0StaticLayer) {
+        ctx.drawImage(level0StaticLayer, 0, 0, COLS * TS, ROWS * TS);
+    } else {
+        for (let r = 0; r < ROWS; r++) {
+            for (let c = 0; c < COLS; c++) {
+                if (map[r][c] === 1) {
+                    ctx.fillStyle = isLevel0 ? LEVEL0_WALL_COLOR : currentMapId === 'boilerworks' ? '#171a1d' : currentMapId === 'hotel' ? '#211a20' : currentMapId === 'crimson' ? '#241012' : currentMapId === 'forest' ? '#17351c' : currentMapId === 'amine' ? '#252525' : currentMapId === 'subway' ? '#15191d' : currentMapId === 'lucas' ? '#171326' : '#2d2216';
+                    ctx.fillRect(c * TS, r * TS, TS, TS);
+                    if (!isLevel0) {
+                        ctx.strokeStyle = currentMapId === 'boilerworks' ? '#0b0d0f' : currentMapId === 'hotel' ? '#0e0a10' : currentMapId === 'crimson' ? '#100506' : currentMapId === 'lucas' ? '#080610' : '#181109';
+                        ctx.strokeRect(c * TS, r * TS, TS, TS);
+                    }
+                } else {
+                    ctx.fillStyle = isLevel0 ? LEVEL0_FLOOR_COLOR : currentMapId === 'boilerworks' ? '#4b4540' : currentMapId === 'hotel' ? ((r + c) % 2 ? '#5b4850' : '#65505a') : currentMapId === 'crimson' ? ((r + c) % 2 ? '#6f2429' : '#7d2b30') : currentMapId === 'forest' ? ((r + c) % 2 ? '#326d36' : '#39793d') : currentMapId === 'amine' ? '#555555' : currentMapId === 'subway' ? ((r + c) % 2 ? '#31383d' : '#3a4247') : currentMapId === 'lucas' ? ((r + c) % 2 ? '#3d3156' : '#493968') : '#8b7355';
+                    ctx.fillRect(c * TS, r * TS, TS, TS);
+                    if (currentMapId === 'boilerworks' && (r + c) % 7 === 0) {
+                        ctx.fillStyle = 'rgba(180,120,55,0.2)'; ctx.fillRect(c * TS + 5, r * TS + 7, TS - 10, 3);
+                    }
+                    if (currentMapId === 'hotel' && r % 3 === 0) { ctx.fillStyle = 'rgba(220,190,180,0.08)'; ctx.fillRect(c * TS + 4, r * TS + 18, TS - 8, 2); }
                 }
-                if (!setOptimization && currentMapId === 'hotel' && r % 3 === 0) { ctx.fillStyle = 'rgba(220,190,180,0.08)'; ctx.fillRect(c * TS + 4, r * TS + 18, TS - 8, 2); }
             }
         }
+    }
+
+    if (isLevel0) {
+        // Keep the ambience gradient continuous across the viewport, including
+        // the wall-colored space beyond the cached maze image.
+        const mazeCenterX = (MAZE_LEFT + MAZE_COLS / 2) * TS;
+        const mazeCenterY = (MAZE_TOP + MAZE_ROWS / 2) * TS;
+        const falloffRadius = Math.hypot(MAZE_COLS * TS, MAZE_ROWS * TS) * 0.62;
+        const cornerFalloff = ctx.createRadialGradient(mazeCenterX, mazeCenterY, falloffRadius * 0.16, mazeCenterX, mazeCenterY, falloffRadius);
+        cornerFalloff.addColorStop(0, 'rgba(42, 35, 15, 0)');
+        cornerFalloff.addColorStop(0.58, 'rgba(42, 35, 15, .025)');
+        cornerFalloff.addColorStop(1, 'rgba(42, 35, 15, .12)');
+        ctx.fillStyle = cornerFalloff;
+        ctx.fillRect(viewLeft - TS, viewTop - TS, viewWidth + TS * 2, viewHeight + TS * 2);
     }
 
     for (const room of rooms) {
@@ -8316,7 +10108,7 @@ function draw() {
         ctx.fillStyle = `rgba(255, 70, 0, ${Math.max(0.12, pulse)})`;
         ctx.beginPath(); ctx.arc(zone.x, zone.y, zone.radius, 0, Math.PI * 2); ctx.fill();
         ctx.strokeStyle = 'rgba(255,190,60,0.95)'; ctx.lineWidth = 4; ctx.stroke();
-        for (let flame = 0; flame < (setOptimization ? 2 : 5); flame++) {
+        for (let flame = 0; flame < 5; flame++) {
             const angle = ambienceClock * 0.02 + flame * 1.25;
             const fx = zone.x + Math.cos(angle) * (zone.radius * 0.65);
             const fy = zone.y + Math.sin(angle) * (zone.radius * 0.65);
@@ -8347,7 +10139,7 @@ function draw() {
         ctx.stroke();
     }
 
-    if (!setOptimization && monster.hasEcho && state === 1 && ambienceClock % 90 < 35) {
+    if (monster.hasEcho && state === 1 && ambienceClock % 90 < 35) {
         const echoTile = floors[(Math.floor(ambienceClock / 90) * 17) % Math.max(1, floors.length)];
         if (echoTile) {
             ctx.strokeStyle = 'rgba(210,180,255,0.5)'; ctx.lineWidth = 2;
@@ -8418,7 +10210,7 @@ function draw() {
         ctx.fillText('[E] POWER PANEL', nearbyRoom.x, nearbyRoom.y + 42);
     }
 
-    if (!setOptimization && monster.hasHallucinations && state === 1 && !player.hidden) {
+    if (monster.hasHallucinations && state === 1 && !player.hidden) {
         // Visual decoys only: hallucinations never collide and never affect monster AI.
         const hallucinationSeed = Math.floor(ambienceClock / 75);
         for (let i = 0; i < 2; i++) {
@@ -8443,9 +10235,10 @@ function draw() {
         }
     }
 
+    if (!monster.caught) {
     let dist = Math.hypot(player.x - monster.x, player.y - monster.y);
     const amineVisible = monster.name==='AMINE' && (amineFocus || amineVisibleTimer>0 || state===11 || state===8);
-    if (!setOptimization && monster.hasAfterimage && state === 1 && monster.path.length > 0) {
+    if (monster.hasAfterimage && state === 1 && monster.path.length > 0) {
         const previous = monster.path[0];
         const ax = previous.c * TS + TS / 2, ay = previous.r * TS + TS / 2;
         ctx.fillStyle = 'rgba(255,255,255,0.13)';
@@ -8479,6 +10272,7 @@ function draw() {
             ctx.beginPath(); ctx.arc(monster.x - monster.drawRadius * 0.3, monster.y - 2, 2, 0, Math.PI * 2); ctx.fill();
             ctx.beginPath(); ctx.arc(monster.x + monster.drawRadius * 0.3, monster.y - 2, 2, 0, Math.PI * 2); ctx.fill();
         }
+    }
     }
 
     for (const enemy of monsters.slice(1)) {
@@ -8541,7 +10335,7 @@ function draw() {
     }
     ctx.restore();
 
-    if(monsters.some(enemy => enemy.name === 'AMINE')&&amineFocus&&state===1){ctx.fillStyle='#000';ctx.fillRect(0,0,canvas.width,canvas.height);for(const enemy of monsters.filter(entry=>entry.name==='AMINE')){const sx=(enemy.x-camera.x)*camera.zoom,sy=(enemy.y-camera.y)*camera.zoom;ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(sx,sy,enemy.drawRadius*camera.zoom,0,Math.PI*2);ctx.fill();ctx.fillStyle='#111';ctx.beginPath();ctx.arc(sx-4,sy-2,2,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.arc(sx+4,sy-2,2,0,Math.PI*2);ctx.fill();}}
+    if(monsters.some(enemy => enemy.name === 'AMINE')&&amineFocus&&state===1){ctx.fillStyle='#000';ctx.fillRect(0,0,canvas.width,canvas.height);for(const enemy of monsters.filter(entry=>entry.name==='AMINE')){const sx=canvas.width/2+(enemy.x-camera.x-canvas.width/2)*camera.zoom,sy=canvas.height/2+(enemy.y-camera.y-canvas.height/2)*camera.zoom;ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(sx,sy,enemy.drawRadius*camera.zoom,0,Math.PI*2);ctx.fill();ctx.fillStyle='#111';ctx.beginPath();ctx.arc(sx-4,sy-2,2,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.arc(sx+4,sy-2,2,0,Math.PI*2);ctx.fill();}}
 
     drawHotelTaskArrows();
     drawForestGuidanceArrows();
@@ -8608,25 +10402,6 @@ function draw() {
         ctx.fillRect(0, 0, canvas.width, canvas.height);
     }
 
-    if (state === 2) {
-        let cx = canvas.width/2, cy = canvas.height/2;
-        ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.font = '24px Arial'; 
-        ctx.fillText(`WIRING...`, cx, cy - 40);
-        ctx.fillStyle = 'yellow'; ctx.font = '45px Arial'; 
-        ctx.fillText(`${puzzleSequence[0].toUpperCase()}`, cx, cy + 20);
-    }
-
-    if (state === 6) {
-        let cx = canvas.width/2, cy = canvas.height/2;
-        ctx.fillStyle = 'rgba(0,0,0,0.72)'; ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.fillStyle = '#ffcc00'; ctx.textAlign = 'center'; ctx.font = '24px Arial';
-        ctx.fillText(`${currentGen?.isSubway ? 'SIGNAL SWITCH' : 'CIRCUIT REPAIR'} · STAGE ${circuitStage + 1}/${currentGen.requiredStages}`, cx, cy - 55);
-        ctx.fillStyle = '#fff'; ctx.font = '18px Arial'; ctx.fillText('Enter the wire sequence', cx, cy - 20);
-        ctx.font = '38px Arial'; ctx.fillText(circuitSequence.map(key => key.toUpperCase()).join('  '), cx, cy + 35);
-        ctx.font = '16px Arial'; ctx.fillText('Use the W A S D buttons', cx, cy + 78);
-    }
-
     if (state === 13 && routeBoard) {
         const layout = getRouteBoardLayout();
         ctx.fillStyle = 'rgba(2,7,10,.92)'; ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -8645,40 +10420,7 @@ function draw() {
         });
     }
 
-    if (state === 5) {
-        let cx = canvas.width/2, cy = canvas.height/2, r = 100;
-        ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-        ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2);
-        ctx.strokeStyle = 'rgba(255,255,255,0.2)'; ctx.lineWidth = 25; ctx.stroke();
-        
-        ctx.beginPath(); ctx.arc(cx, cy, r, scZoneStart, scZoneEnd);
-        ctx.strokeStyle = '#0f0'; ctx.lineWidth = 25; ctx.stroke();
-
-        ctx.beginPath(); ctx.moveTo(cx, cy);
-        if (scDelay <= 0) {
-            ctx.lineTo(cx + Math.cos(scNeedle)*r, cy + Math.sin(scNeedle)*r);
-        } else {
-            ctx.lineTo(cx + Math.cos(0)*r, cy + Math.sin(0)*r); 
-        }
-        ctx.strokeStyle = '#fff'; ctx.lineWidth = 4; ctx.stroke();
-
-        ctx.fillStyle = '#fff'; ctx.textAlign = 'center';
-        ctx.font = '24px Arial'; ctx.fillText(`Hits: ${scHits} / ${scRequired}`, cx, cy - 140);
-        ctx.font = '18px Arial';
-        ctx.fillText(window.matchMedia?.('(pointer: coarse), (max-width: 700px)').matches ? 'TAP SKILL CHECK IN THE GREEN ZONE' : 'Press SPACE in the Green Zone', cx, cy + 140);
-    }
-    if (state === 7) {
-        const cx = canvas.width / 2, cy = canvas.height / 2, width = Math.min(420, canvas.width * .72), left = cx - width / 2;
-        ctx.fillStyle = 'rgba(0,0,0,.68)'; ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.fillStyle = '#9de4ff'; ctx.font = 'bold 23px Arial'; ctx.textAlign = 'center'; ctx.fillText(`FREQUENCY TUNE · ${tuneHits}/${tuneRequired}`, cx, cy - 62);
-        ctx.fillStyle = '#26323a'; ctx.fillRect(left, cy - 12, width, 24);
-        ctx.fillStyle = '#40d992'; ctx.fillRect(left + width * tuneZoneStart, cy - 12, width * (tuneZoneEnd - tuneZoneStart), 24);
-        ctx.fillStyle = '#fff'; ctx.fillRect(left + width * tuneNeedle - 3, cy - 27, 6, 54);
-        ctx.font = '16px Arial'; ctx.fillText(scDelay > 0 ? 'STABILIZING...' : 'TAP ALIGN WHEN THE NEEDLE IS GREEN', cx, cy + 62);
-    }
-    if(state===9){ctx.fillStyle='rgba(7,3,10,.9)';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.strokeStyle='#ff75d2';ctx.lineWidth=2;ctx.strokeRect(18,18,canvas.width-36,74);ctx.fillStyle='#fff';ctx.font='bold 22px Arial';ctx.textAlign='center';ctx.fillText('RESPONSE ARRAY',canvas.width/2,48);ctx.font='15px Arial';ctx.fillStyle='#ffc1e9';ctx.fillText(`CLICK THE SIGNALS · ${rapidHits}/${rapidRequired}`,canvas.width/2,74);if(rapidTarget){ctx.fillStyle='rgba(255,79,197,.25)';ctx.beginPath();ctx.arc(rapidTarget.x,rapidTarget.y,rapidTarget.r+13,0,Math.PI*2);ctx.fill();ctx.fillStyle='#ff4fc5';ctx.beginPath();ctx.arc(rapidTarget.x,rapidTarget.y,rapidTarget.r,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#fff';ctx.lineWidth=3;ctx.beginPath();ctx.arc(rapidTarget.x,rapidTarget.y,rapidTarget.r,0,Math.PI*2);ctx.stroke();ctx.fillStyle='#fff';ctx.font='bold 19px Arial';ctx.fillText('TAP',rapidTarget.x,rapidTarget.y+7);}}
-    if(state===10){ctx.fillStyle='rgba(0,0,0,.82)';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.fillStyle='#fff';ctx.font='bold 22px Arial';ctx.textAlign='center';ctx.fillText(`COLOR MEMORY · ROUND ${simonRound}/${simonSequence.length}`,canvas.width/2,70);const colors=['#e33','#38f','#3c5','#fd3'],symbols=['▲','●','■','★'],size=100,gap=14,left=canvas.width/2-size-gap/2,top=canvas.height/2-size-gap/2,active=simonPhase==='show'?simonSequence[Math.min(simonShowIndex,simonRound-1)]:-1;for(let i=0;i<4;i++){const x=left+(i%2)*(size+gap),y=top+Math.floor(i/2)*(size+gap),flashing=i===simonFlashChoice&&simonFlashTimer>0;ctx.fillStyle=i===active||flashing?'#fff':colors[i];ctx.fillRect(x,y,size,size);ctx.strokeStyle=flashing?'#fff':'rgba(255,255,255,.2)';ctx.lineWidth=flashing?5:1;ctx.strokeRect(x,y,size,size);ctx.fillStyle=i===active||flashing?colors[i]:'#111';ctx.font='bold 30px Arial';ctx.fillText(symbols[i],x+size/2,y+60);}ctx.fillStyle='#ddd';ctx.font='15px Arial';ctx.fillText(simonPhase==='show'?'WATCH THE PATTERN':'REPEAT THE PATTERN',canvas.width/2,top+size*2+gap+38);}
+    drawSpeedrunTimer();
 }
 
 let frameErrorStreak = 0;
@@ -8725,11 +10467,18 @@ function drawFrameRecoveryScreen() {
 
 function loop(timestamp) {
     if (setFPS) {
-        if (timestamp - lastTime >= 1000) {
-            document.getElementById('fpsCounter').innerText = `${frames} FPS`;
-            frames = 0; lastTime = timestamp;
-        }
+        if (!lastTime) lastTime = timestamp;
         frames++;
+        const fpsElapsed = timestamp - lastTime;
+        if (fpsElapsed >= 500) {
+            const fpsCounter = document.getElementById('fpsCounter');
+            if (fpsCounter) fpsCounter.textContent = `${Math.round(frames * 1000 / fpsElapsed)} FPS`;
+            frames = 0;
+            lastTime = timestamp;
+        }
+    } else {
+        lastTime = 0;
+        frames = 0;
     }
     if (!lastFrameTime) lastFrameTime = timestamp;
     gameAccumulator += Math.min(100, timestamp - lastFrameTime);
@@ -8748,15 +10497,17 @@ function loop(timestamp) {
         gameAccumulator -= fixedStep;
         updatesThisFrame++;
     }
-    if (!setOptimization || timestamp - lastDrawTime >= 33) {
-        try {
-            draw();
-        } catch (error) {
-            reportFrameError(error, 'draw');
-            advanceCalebSceneAfterFrameError();
-            drawFrameRecoveryScreen();
-        }
-        lastDrawTime = timestamp;
+    try {
+        draw();
+    } catch (error) {
+        reportFrameError(error, 'draw');
+        advanceCalebSceneAfterFrameError();
+        drawFrameRecoveryScreen();
+    }
+    try {
+        updateGeneratorInterface();
+    } catch (error) {
+        reportFrameError(error, 'generator interface');
     }
     requestAnimationFrame(loop);
 }
@@ -8766,6 +10517,7 @@ document.addEventListener('change', event => { if (event.target?.id?.startsWith(
 applySettings();
 updateMenuData();
 setupDeveloperStudio();
+setupGeneratorInterface();
 requestAnimationFrame(loop);
 
 function mobileKey(key) {
@@ -8802,16 +10554,10 @@ function openMobileActionMenu(kind) {
     }
 }
 
-function updateMobileSkillCheckButton() {
-    const button = document.getElementById('touchSkillCheck');
-    if (!button) return;
-    const active = state === 5 || state === 7;
-    button.style.display = active ? 'block' : 'none';
-    button.disabled = !active || scDelay > 0;
-    button.textContent = scDelay > 0 ? 'READY...' : state === 7 ? 'ALIGN' : 'HIT';
+function updateMobileGameActions() {
     const focus=document.getElementById('touchFocus'); if(focus) focus.style.display=monsters.some(enemy => enemy.name === 'AMINE')&&state===1?'block':'none';
-    const dash=document.getElementById('touchDash'); if(dash) { dash.style.display=upgDash && (state===1 || state===3) ? 'block' : 'none'; dash.disabled=!upgDash || dashCooldown>0; dash.textContent=dashCooldown>0 ? `${Math.ceil(dashCooldown/60)}s` : 'DASH'; }
-    const mapButton=document.getElementById('mapButton'); if(mapButton) mapButton.style.display=mapIntel.includes(currentMapId) && (state===1 || state===3) ? 'block' : 'none';
+    const dash=document.getElementById('touchDash'); if(dash) { dash.style.display=!winRoamActive && upgDash && (state===1 || state===3) ? 'block' : 'none'; dash.disabled=!upgDash || dashCooldown>0; dash.textContent=dashCooldown>0 ? `${Math.ceil(dashCooldown/60)}s` : 'DASH'; }
+    const mapButton=document.getElementById('mapButton'); if(mapButton) mapButton.style.display=!winRoamActive && mapIntel.includes(currentMapId) && (state===1 || state===3) ? 'block' : 'none';
     const roadControls=document.getElementById('amineRoadControls'); if(roadControls) roadControls.style.display=state===11 && isMobileClient()?'flex':'none';
 }
 
@@ -8919,32 +10665,20 @@ function updateMobileSkillCheckButton() {
     document.getElementById('touchDash')?.addEventListener('pointerdown', event => { event.preventDefault(); useDash(); });
     document.getElementById('touchAbilities')?.addEventListener('pointerdown', event => { event.preventDefault(); openMobileActionMenu('abilities'); });
     document.getElementById('touchItems')?.addEventListener('pointerdown', event => { event.preventDefault(); openMobileActionMenu('items'); });
-    document.getElementById('touchSkillCheck')?.addEventListener('pointerdown', event => {
-        event.preventDefault();
-        if ((state === 5 || state === 7) && scDelay <= 0) mobileKey(' ');
-    });
     const focus=document.getElementById('touchFocus');
     const releaseFocus=event=>{event.preventDefault();amineFocus=false;};
     focus?.addEventListener('pointerdown',event=>{event.preventDefault();if(monsters.some(enemy => enemy.name === 'AMINE')&&state===1)amineFocus=true;});
     focus?.addEventListener('pointerup',releaseFocus); focus?.addEventListener('pointercancel',releaseFocus); focus?.addEventListener('pointerleave',releaseFocus);
 
-    document.querySelectorAll('[data-puzzle-key]').forEach(button => {
-        button.addEventListener('pointerdown', event => {
-            event.preventDefault();
-            triggerKey(button.dataset.puzzleKey);
-        });
-    });
-
-    const puzzlePad = document.getElementById('touchPuzzle');
     function updatePuzzlePad() {
-        if (puzzlePad) puzzlePad.style.display = (state === 2 || state === 6) ? 'grid' : 'none';
         const touchActions = document.querySelector('.touch-actions');
         const joystickElement = document.getElementById('joystick');
-        const canvasPuzzle = state === 9 || state === 10 || state === 11 || state === 14 || state === 16 || state === 17;
+        const generatorTaskActive = GENERATOR_INTERFACE_STATES.has(state);
+        const canvasPuzzle = generatorTaskActive || state === 11 || state === 14 || state === 16 || state === 17;
         const shadowDimension = state === 18;
         const bossFight = state === 20;
         const bossScene = state === 19 || state === 21 || state === 22;
-        if (touchActions) touchActions.style.visibility = canvasPuzzle || shadowDimension || bossScene ? 'hidden' : 'visible';
+        if (touchActions) touchActions.style.visibility = canvasPuzzle || shadowDimension || bossScene || winRoamActive ? 'hidden' : 'visible';
         const touchInteract = document.getElementById('touchInteract');
         const touchAbilities = document.getElementById('touchAbilities');
         const touchItems = document.getElementById('touchItems');
@@ -8952,7 +10686,7 @@ function updateMobileSkillCheckButton() {
         if (touchAbilities) touchAbilities.style.display = bossFight ? 'none' : '';
         if (touchItems) touchItems.style.display = bossFight ? 'none' : '';
         if (joystickElement) joystickElement.style.visibility = canvasPuzzle || bossScene ? 'hidden' : 'visible';
-        updateMobileSkillCheckButton();
+        updateMobileGameActions();
     }
     setInterval(updatePuzzlePad, 100);
 
@@ -8960,14 +10694,7 @@ function updateMobileSkillCheckButton() {
 document.addEventListener('contextmenu', event => event.preventDefault());
 })();
 
-document.addEventListener('pointerover', event => {
-    if (event.target.closest('.menu-panel button:not(:disabled)')) playSound('menuHover');
-});
 document.addEventListener('click', event => {
-    const button = event.target.closest('.menu-panel button');
-    if (!button) return;
-    if (button.disabled) { playSound('fail'); return; }
-    playSound(/\bBACK\b/i.test(button.textContent) ? 'menuBack' : 'menuSelect');
     if (state === 1) updateSpecialMonsterAudio(true);
 });
 

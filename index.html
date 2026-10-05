@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <meta name="theme-color" content="#0a0a0a">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#17190e">
     <link rel="manifest" href="manifest.json">
     <link rel="icon" href="assets/icon.svg">
     <meta name="mobile-web-app-capable" content="yes">
@@ -12,26 +12,57 @@
     <meta name="apple-mobile-web-app-title" content="Caleb's Shift">
     <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
     <meta name="description" content="Repair the generators, survive the Backrooms, and catch the monster before it catches you.">
-    <title>The Backrooms: Caleb's Shift</title>
+        <title>Caleb's Shift</title>
         <link rel="stylesheet" href="css/style.css">
+        <link rel="stylesheet" href="css/archive.css">
+        <link rel="stylesheet" href="css/wardrobe.css">
+        <link rel="stylesheet" href="css/market.css">
+        <link rel="stylesheet" href="css/loadouts.css">
+        <link rel="stylesheet" href="css/play.css">
+        <link rel="stylesheet" href="css/run-flow.css">
+        <link rel="stylesheet" href="css/generator-ui.css">
 </head>
-<body>
+<body data-active-menu="mainMenu">
 
     <div id="menuBackdrop" aria-hidden="true"></div>
     <div id="crtFilter"></div>
+    <div id="vhsFilter" aria-hidden="true"></div>
     <div id="heatOverlay" aria-hidden="true"></div>
     <div id="fpsCounter">60 FPS</div>
     <div id="notificationStack" aria-live="polite"></div>
 
-    <div id="gameHUD">
-        <button id="hudCollapse" onclick="toggleHUDCollapsed()" aria-label="Hide HUD">‹</button>
-        Generators: <span id="genCount">0/0</span>
-        <div id="inventory"></div>
-        <div id="mutations"></div>
-        <button id="monsterRosterToggle" onclick="toggleMonsterRoster()" style="display:none;">MONSTERS ▾</button>
-        <div id="monsterRoster" style="display:none;"></div>
+    <div id="gameHudGroup" class="game-hud-group">
+        <aside id="gameHUD" class="field-status-panel" aria-label="Field status">
+            <header class="field-status-heading">
+                <div><span>FIELD STATUS</span><small id="hudContext">CAMPAIGN · LEVEL 0</small></div>
+                <button id="hudCollapse" class="hud-panel-toggle" type="button" onclick="toggleHUDCollapsed()" aria-label="Collapse field status" aria-expanded="true" aria-controls="gameHUDContent">‹</button>
+            </header>
+            <div id="gameHUDContent" class="field-status-content">
+                <div class="field-primary-stat"><span id="genCountLabel">GENERATORS</span><strong id="genCount">0 / 0</strong></div>
+                <details class="field-supplies">
+                    <summary><span>SUPPLIES</span><strong id="supplyCount">0 / 8</strong><i aria-hidden="true">+</i></summary>
+                    <div id="inventory" aria-label="Carried supplies"></div>
+                </details>
+                <section class="field-threat-section" aria-label="Current threat">
+                    <span class="field-status-caption">ACTIVE THREAT</span>
+                    <div id="mutations"></div>
+                    <button id="monsterRosterToggle" class="field-roster-toggle" type="button" onclick="toggleMonsterRoster()" style="display:none;" aria-expanded="false" aria-controls="monsterRoster">THREAT ROSTER <span aria-hidden="true">⌄</span></button>
+                    <div id="monsterRoster" style="display:none;"></div>
+                </section>
+                <div id="fieldConditions" class="field-condition-list" aria-label="Active player conditions"></div>
+            </div>
+        </aside>
+        <aside id="mapTaskHUD" class="objective-panel" aria-label="Active objective" aria-live="off" style="display:none;">
+            <header class="objective-panel-heading">
+                <div><span>ACTIVE DIRECTIVE</span><small id="objectiveContext">CURRENT SHIFT</small></div>
+                <button id="objectiveCollapse" class="hud-panel-toggle" type="button" onclick="toggleObjectiveCollapsed()" aria-label="Collapse objective" aria-expanded="true" aria-controls="objectiveContent">›</button>
+            </header>
+            <div id="objectiveContent" class="objective-panel-content">
+                <div class="objective-current"><span>NOW</span><strong id="mapObjective" aria-live="polite" aria-atomic="true">Find and repair every generator</strong></div>
+                <div class="objective-next"><span>NEXT</span><strong id="mapNextObjective">Catch the fleeing threat</strong></div>
+            </div>
+        </aside>
     </div>
-    <aside id="mapTaskHUD" aria-live="polite" style="display:none;"><div id="mapObjective"></div></aside>
     <button id="mapButton" onclick="toggleMapOverlay()" aria-label="Open map">MAP</button>
     <div id="mapOverlay" role="dialog" aria-label="Map" style="display:none;"><div class="map-card"><button onclick="toggleMapOverlay()">CLOSE MAP</button><canvas id="mapCanvas" width="640" height="440"></canvas><p>Viewing the map does not pause the hunt.</p></div></div>
     <aside id="hotelTaskHUD" aria-live="polite" style="display:none;">
@@ -53,21 +84,168 @@
     <div id="message" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(10, 10, 10, 0.85); backdrop-filter: blur(10px); padding: 30px 50px; border: 2px solid rgba(255,255,255,0.3); border-radius: 15px; font-size: 30px; text-align: center; display: none; pointer-events: none; z-index: 200; box-shadow: 0 10px 30px rgba(0,0,0,0.8);"></div>
 
     <!-- Main Menu -->
-    <div id="mainMenu" class="menu-panel" style="display: flex;">
-        <h1>THE BACKROOMS</h1>
-        <div class="subtitle">CALEB'S SHIFT</div>
-        <div id="menuStatusRow" class="menu-status-row"></div>
-        <div class="token-display" id="tokenDisplayMain">Tokens: 0</div>
-        <button class="todays-shift-button" onclick="showMenu('objectivesMenu')">TODAY'S SHIFT <span id="dailyBadge"></span></button>
-        <button onclick="showMenu('modeMenu')">PLAY</button>
-        <button onclick="openShop()">SHOP</button>
-        <button onclick="showMenu('infoMenu')">INFO</button>
-        <button onclick="showMenu('recordsMenu')">RECORDS</button>
-        <button onclick="showMenu('loadoutsMenu')">LOADOUTS</button>
-        <button onclick="showMenu('cosmeticsMenu')">COSMETICS BOOK</button>
-        <button onclick="showMenu('settingsMenu')">SETTINGS</button>
-        <button id="developerStudioButton" class="developer-menu-button" onclick="openDeveloperStudio()" style="display:none;">DEVELOPER STUDIO</button>
+    <div id="mainMenu" class="menu-panel lobby-menu" style="display: flex;" aria-label="Main menu">
+        <div class="lobby-menu-background" aria-hidden="true">
+            <div class="lobby-wallpaper-parallax"><div class="lobby-wallpaper-scroll"></div></div>
+            <div class="lobby-light-pools"></div>
+            <div class="lobby-color-wash"></div>
+            <div class="lobby-vignette"></div>
+        </div>
+
+        <section class="lobby-menu-panel">
+            <header class="lobby-menu-header">
+                <div class="lobby-menu-kicker"><span class="lobby-status-light"></span> LEVEL 0 <span class="lobby-kicker-divider">/</span> THE LOBBY</div>
+                <h1 class="lobby-menu-title">CALEB'S<br>SHIFT</h1>
+                <div class="lobby-menu-rule" aria-hidden="true"><span></span></div>
+            </header>
+
+            <nav class="lobby-primary-nav" aria-label="Main destinations">
+                <button type="button" id="lobbyPlayButton" class="lobby-primary-button" aria-label="Play" aria-controls="modeMenu">
+                    <span class="lobby-primary-label">PLAY</span><span class="lobby-primary-arrow" aria-hidden="true">↗</span>
+                </button>
+                <button type="button" class="lobby-primary-button lobby-market-button" aria-label="Market" aria-controls="marketMenu">
+                    <span class="lobby-primary-label">MARKET</span><span class="lobby-market-balance" id="tokenDisplayMain">Tokens: 0</span>
+                </button>
+                <button type="button" id="lobbyWardrobeButton" class="lobby-primary-button" aria-label="Wardrobe" aria-controls="cosmeticsMenu">
+                    <span class="lobby-primary-label">WARDROBE</span><span class="lobby-primary-arrow" aria-hidden="true">↗</span>
+                </button>
+            </nav>
+
+            <nav class="lobby-icon-nav" aria-label="More destinations">
+                <button type="button" id="lobbyDailyShiftButton" class="lobby-icon-button" aria-label="Today's Shift" aria-controls="objectivesMenu">
+                    <img src="assets/ui/icons/daily-shift.svg" class="lobby-icon-glyph" alt="" aria-hidden="true"><span class="lobby-icon-label">Today's Shift</span>
+                </button>
+                <button type="button" id="lobbyLoadoutsButton" class="lobby-icon-button" aria-label="Loadouts" aria-controls="loadoutsMenu" onclick="openLoadouts()">
+                    <img src="assets/ui/icons/loadouts.svg" class="lobby-icon-glyph" alt="" aria-hidden="true"><span class="lobby-icon-label">Loadouts</span>
+                </button>
+                <button type="button" id="lobbyArchiveButton" class="lobby-icon-button" aria-label="Archive" aria-controls="infoMenu">
+                    <img src="assets/ui/icons/archive.svg" class="lobby-icon-glyph" alt="" aria-hidden="true"><span class="lobby-icon-label">Archive</span>
+                </button>
+                <button type="button" id="lobbyRecordsButton" class="lobby-icon-button" aria-label="Records">
+                    <img src="assets/ui/icons/records.svg" class="lobby-icon-glyph" alt="" aria-hidden="true"><span class="lobby-icon-label">Records</span>
+                </button>
+                <button type="button" id="lobbySettingsButton" class="lobby-icon-button" aria-label="Settings">
+                    <img src="assets/ui/icons/settings.svg" class="lobby-icon-glyph" alt="" aria-hidden="true"><span class="lobby-icon-label">Settings</span>
+                </button>
+            </nav>
+
+            <footer class="lobby-menu-footer">
+                <div class="lobby-menu-footer-topline">
+                    <div class="lobby-version">VERSION <span id="menuVersion">—</span></div>
+                    <div class="lobby-track-readout" aria-live="polite">
+                        <span class="lobby-track-kicker">NOW PLAYING</span>
+                        <strong id="menuMusicTrackName">Still Life</strong>
+                    </div>
+                </div>
+                <div class="lobby-music-player" role="group" aria-label="Menu music controls">
+                    <span class="lobby-music-note" aria-hidden="true">♪</span>
+                    <div class="lobby-music-transport">
+                        <button id="menuMusicPrevious" class="lobby-music-button" type="button" data-ui-sound="switch" aria-label="Previous song" title="Previous song"><img class="lobby-music-glyph" src="assets/ui/icons/audio-controls/skip-previous.svg" alt="" aria-hidden="true"></button>
+                        <button id="menuMusicToggle" class="lobby-music-button lobby-music-toggle" type="button" data-ui-sound="switch" aria-label="Play menu music" aria-pressed="false" title="Play menu music"><img id="menuMusicToggleIcon" class="lobby-music-glyph" src="assets/ui/icons/audio-controls/play.svg" alt="" aria-hidden="true"></button>
+                        <button id="menuMusicNext" class="lobby-music-button" type="button" data-ui-sound="switch" aria-label="Next song" title="Next song"><img class="lobby-music-glyph" src="assets/ui/icons/audio-controls/skip-next.svg" alt="" aria-hidden="true"></button>
+                    </div>
+                    <label class="lobby-music-volume">
+                        <span>VOL</span>
+                        <input id="menuMusicVolume" type="range" min="0" max="100" value="35" aria-label="Menu music volume">
+                        <output id="menuMusicVolumeValue" for="menuMusicVolume">35%</output>
+                    </label>
+                </div>
+            </footer>
+            <audio id="menuMusicAudio" preload="metadata"></audio>
+
+            <button id="developerStudioButton" class="developer-menu-button" onclick="openDeveloperStudio()" style="display:none;">DEVELOPER STUDIO</button>
+        </section>
+
+        <button type="button" class="lobby-menu-style-button" aria-label="Customize Menu Style" aria-controls="menuStyleMenu" title="Menu Style">
+            <img src="assets/ui/icons/menu-style.svg" class="lobby-menu-style-glyph" alt="" aria-hidden="true"><span class="lobby-menu-style-label">MENU STYLE</span>
+        </button>
         <button id="developerDisableButton" class="developer-disable-button" onclick="disableDeveloperAccess()" aria-label="Disable developer mode" title="Disable developer mode" style="display:none;">×</button>
+    </div>
+
+    <div id="menuStyleMenu" class="menu-panel lobby-style-screen" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="lobbyStyleTitle">
+        <div class="lobby-style-atmosphere" aria-hidden="true"></div>
+        <header class="lobby-style-topbar">
+            <button id="menuStyleBack" class="lobby-style-back" type="button"><span class="lobby-style-back-arrow" aria-hidden="true">←</span><span>BACK TO LOBBY</span></button>
+            <div class="lobby-style-heading"><span class="lobby-style-eyebrow">APPEARANCE SYSTEM <i>01</i></span><h2 id="lobbyStyleTitle">MENU STYLE</h2></div>
+            <div class="lobby-style-live-state" aria-live="polite"><span class="lobby-style-live-dot"></span><span id="menuStyleStatusText">PREVIEW MODE</span></div>
+        </header>
+
+        <main class="lobby-style-workspace">
+            <aside class="lobby-style-controls" aria-label="Menu appearance settings">
+                <div class="lobby-style-control-scroll">
+                    <div class="lobby-style-intro"><span>SHAPE YOUR ARRIVAL</span><p>Set the mood before the shift begins.</p></div>
+
+                    <section class="lobby-style-section" aria-labelledby="lobbyPositionHeading">
+                        <div class="lobby-style-section-heading"><span class="lobby-style-index">01</span><div><h3 id="lobbyPositionHeading">POSITION</h3><p>Where the menu rests</p></div></div>
+                        <div class="lobby-position-options" role="group" aria-label="Menu position">
+                            <button type="button" class="lobby-position-option is-selected" data-position="left" aria-pressed="true">
+                                <span class="lobby-position-diagram" aria-hidden="true"><i class="lobby-position-screen"><b class="lobby-position-panel"></b><b class="lobby-position-style"></b></i></span><span class="lobby-position-name">LEFT</span>
+                            </button>
+                            <button type="button" class="lobby-position-option" data-position="center" aria-pressed="false">
+                                <span class="lobby-position-diagram" aria-hidden="true"><i class="lobby-position-screen"><b class="lobby-position-panel"></b><b class="lobby-position-style"></b></i></span><span class="lobby-position-name">CENTER</span>
+                            </button>
+                            <button type="button" class="lobby-position-option" data-position="right" aria-pressed="false">
+                                <span class="lobby-position-diagram" aria-hidden="true"><i class="lobby-position-screen"><b class="lobby-position-panel"></b><b class="lobby-position-style"></b></i></span><span class="lobby-position-name">RIGHT</span>
+                            </button>
+                        </div>
+                    </section>
+
+                    <section class="lobby-style-section" aria-labelledby="lobbyThemeHeading">
+                        <div class="lobby-style-section-heading"><span class="lobby-style-index">02</span><div><h3 id="lobbyThemeHeading">THEME</h3><p>Selected environment</p></div><button type="button" id="menuThemeToggle" class="lobby-theme-toggle" aria-expanded="true" aria-controls="menuThemeList" aria-label="Collapse theme choices"><span class="lobby-theme-toggle-chevron" aria-hidden="true"></span></button></div>
+                        <div id="menuThemeList" class="lobby-theme-list" aria-hidden="false">
+                            <button type="button" id="menuThemeLobby" class="lobby-theme-choice" aria-pressed="true">
+                                <span class="lobby-theme-swatch" aria-hidden="true"></span><span class="lobby-theme-copy"><strong>THE LOBBY</strong><small>LEVEL 0 · THE BACKROOMS</small></span><span class="lobby-theme-check" aria-hidden="true">✓</span>
+                            </button>
+                        </div>
+                    </section>
+
+                    <section class="lobby-style-section" aria-labelledby="lobbyMotionHeading">
+                        <div class="lobby-style-section-heading"><span class="lobby-style-index">03</span><div><h3 id="lobbyMotionHeading">MOTION</h3><p>Ambient movement</p></div></div>
+                        <div class="lobby-motion-options" role="group" aria-label="Menu motion">
+                            <button type="button" class="lobby-motion-option is-selected" data-motion="full" aria-pressed="true"><span class="lobby-motion-glyph motion-glyph-full" aria-hidden="true">≈</span><span>FULL</span></button>
+                            <button type="button" class="lobby-motion-option" data-motion="reduced" aria-pressed="false"><span class="lobby-motion-glyph motion-glyph-reduced" aria-hidden="true">~</span><span>REDUCED</span></button>
+                            <button type="button" class="lobby-motion-option" data-motion="off" aria-pressed="false"><span class="lobby-motion-glyph motion-glyph-off" aria-hidden="true">—</span><span>OFF</span></button>
+                        </div>
+                    </section>
+
+                    <section class="lobby-style-section lobby-transparency-section" aria-labelledby="lobbyTransparencyHeading">
+                        <div class="lobby-style-section-heading"><span class="lobby-style-index">04</span><div><h3 id="lobbyTransparencyHeading">PANEL TRANSPARENCY</h3><p>Let more of Level 0 through</p></div><output id="menuTransparencyValue" for="menuTransparency">12%</output></div>
+                        <input id="menuTransparency" class="lobby-transparency-slider" type="range" min="0" max="55" step="1" value="12" aria-label="Panel transparency">
+                        <div class="lobby-slider-scale"><span>OPAQUE</span><span>GLASS-LIKE</span></div>
+                    </section>
+
+                    <section class="lobby-style-section lobby-labels-section" aria-labelledby="lobbyLabelsHeading">
+                        <div class="lobby-style-section-heading"><span class="lobby-style-index">05</span><div><h3 id="lobbyLabelsHeading">ICON LABELS</h3><p>Show names below the icons</p></div>
+                            <button id="menuIconLabelsToggle" class="lobby-toggle" type="button" role="switch" aria-checked="true" aria-label="Show icon labels"><span></span></button>
+                        </div>
+                    </section>
+                </div>
+
+                <footer class="lobby-style-actions">
+                    <button id="menuStyleReset" class="lobby-style-reset" type="button"><span aria-hidden="true">↺</span> RESET DEFAULTS</button>
+                    <button id="menuStyleSave" class="lobby-style-save" type="button"><span>SAVE STYLE</span><span aria-hidden="true">↗</span></button>
+                    <p id="menuStyleSaveHint">PREVIEW CHANGES · SAVE TO KEEP THEM</p>
+                </footer>
+            </aside>
+
+            <section class="lobby-style-preview" aria-label="Live menu preview">
+                <header class="lobby-preview-heading"><span><i></i> LIVE PREVIEW</span><span id="lobbyPreviewPosition">MENU / LEFT</span></header>
+                <div id="menuStylePreviewStage" class="lobby-preview-stage" data-position="left">
+                    <div class="lobby-preview-coordinate" aria-hidden="true"><span>01</span><span>THE LOBBY · LEVEL 0</span></div>
+                    <div id="menuStylePreviewPanel" class="lobby-preview-panel">
+                        <div class="lobby-preview-kicker">LEVEL 0 <span>/</span> THE LOBBY</div>
+                        <h2>CALEB'S<br>SHIFT</h2>
+                        <div class="lobby-preview-rule"><i></i></div>
+                        <div class="lobby-preview-primary"><span>PLAY</span><span>MARKET <small id="menuStylePreviewTokens">TOKENS: 0</small></span><span>WARDROBE</span></div>
+                        <div class="lobby-preview-icons" aria-label="Daily Shift, Loadouts, Archive, Records, Settings">
+                            <span><img src="assets/ui/icons/daily-shift.svg" alt=""><i>SHIFT</i></span><span><img src="assets/ui/icons/loadouts.svg" alt=""><i>KITS</i></span><span><img src="assets/ui/icons/archive.svg" alt=""><i>ARCHIVE</i></span><span><img src="assets/ui/icons/records.svg" alt=""><i>RECORDS</i></span><span><img src="assets/ui/icons/settings.svg" alt=""><i>SETTINGS</i></span>
+                        </div>
+                        <div class="lobby-preview-footer"><span>VERSION <b id="menuStylePreviewVersion">—</b></span><span>♪ MENU MUSIC</span></div>
+                    </div>
+                    <div class="lobby-preview-style-orbit" aria-hidden="true"><img src="assets/ui/icons/menu-style.svg" alt=""></div>
+                </div>
+            </section>
+        </main>
     </div>
 
     <div id="developerUnlockDialog" class="developer-dialog-backdrop" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="developerUnlockTitle">
@@ -132,11 +310,32 @@
         <button onclick="showMenu('mainMenu')">BACK</button>
     </div>
 
-    <div id="cosmeticsMenu" class="menu-panel" style="max-height:80vh; overflow-y:auto;">
-        <h2>COLLECTOR'S BOOK</h2>
-        <div class="cosmetic-tabs"><button onclick="setCosmeticTab('colors')">COLORS</button><button onclick="setCosmeticTab('trails')">TRAILS</button><button onclick="setCosmeticTab('hats')">HATS</button><button onclick="setCosmeticTab('masks')">MASKS</button><button onclick="setCosmeticTab('skins')">SKINS</button></div>
-        <div id="cosmeticsContent" style="text-align:left; line-height:1.7;"></div>
-        <button onclick="showMenu('mainMenu')">BACK</button>
+    <div id="cosmeticsMenu" class="menu-panel lobby-wardrobe-screen" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="wardrobeTitle">
+        <div class="lobby-wardrobe-atmosphere" aria-hidden="true"></div>
+        <header class="lobby-wardrobe-topbar">
+            <button id="wardrobeBack" class="lobby-wardrobe-back" type="button"><span aria-hidden="true">←</span> RETURN TO LOBBY</button>
+            <div class="lobby-wardrobe-heading"><span>PERSONAL EQUIPMENT <i>LEVEL 0</i></span><h1 id="wardrobeTitle" tabindex="-1">WARDROBE</h1></div>
+            <div class="lobby-wardrobe-balance"><span class="lobby-wardrobe-balance-mark" aria-hidden="true">T</span><span id="wardrobeTokenCount">0</span><small>TOKENS</small></div>
+        </header>
+        <nav id="wardrobeTabs" class="lobby-wardrobe-tabs" role="tablist" aria-label="Wardrobe categories">
+            <button id="wardrobeTabColors" type="button" role="tab" class="lobby-wardrobe-tab is-active" data-wardrobe-tab="colors" aria-controls="cosmeticsContent" aria-selected="true"><span>01</span> COLORS</button>
+            <button id="wardrobeTabTrails" type="button" role="tab" class="lobby-wardrobe-tab" data-wardrobe-tab="trails" aria-controls="cosmeticsContent" aria-selected="false" tabindex="-1"><span>02</span> TRAILS</button>
+            <button id="wardrobeTabHats" type="button" role="tab" class="lobby-wardrobe-tab" data-wardrobe-tab="hats" aria-controls="cosmeticsContent" aria-selected="false" tabindex="-1"><span>03</span> HATS</button>
+            <button id="wardrobeTabMasks" type="button" role="tab" class="lobby-wardrobe-tab" data-wardrobe-tab="masks" aria-controls="cosmeticsContent" aria-selected="false" tabindex="-1"><span>04</span> MASKS</button>
+            <button id="wardrobeTabSkins" type="button" role="tab" class="lobby-wardrobe-tab" data-wardrobe-tab="skins" aria-controls="cosmeticsContent" aria-selected="false" tabindex="-1"><span>05</span> SKINS</button>
+            <button id="wardrobeTabThemes" type="button" role="tab" class="lobby-wardrobe-tab" data-wardrobe-tab="menuThemes" aria-controls="cosmeticsContent" aria-selected="false" tabindex="-1"><span>06</span> MENU THEMES</button>
+        </nav>
+        <main class="lobby-wardrobe-workspace">
+            <section class="lobby-wardrobe-preview" aria-label="Survivor preview">
+                <div class="lobby-wardrobe-preview-topline"><span><i aria-hidden="true"></i> FITTING ROOM</span><span id="wardrobePreviewStatus">EQUIPPED LOOK</span></div>
+                <div class="lobby-wardrobe-preview-stage"><canvas id="wardrobePreviewCanvas" width="320" height="320" aria-label="Animated top-down preview of the survivor outfit and trail"></canvas><span class="lobby-wardrobe-stage-corner lobby-wardrobe-stage-corner-a" aria-hidden="true"></span><span class="lobby-wardrobe-stage-corner lobby-wardrobe-stage-corner-b" aria-hidden="true"></span></div>
+                <div class="lobby-wardrobe-preview-caption"><span>PREVIEWING</span><strong id="wardrobePreviewName">DEFAULT SURVIVOR</strong><small id="wardrobePreviewDetail">Your current equipped look.</small></div>
+                <div class="lobby-wardrobe-preview-footer"><span><i aria-hidden="true"></i> EQUIPMENT PREVIEW</span><span id="wardrobeTrailReadout">TRAIL · NONE</span></div>
+            </section>
+            <section class="lobby-wardrobe-catalog" aria-label="Wardrobe items">
+                <div id="cosmeticsContent" class="lobby-wardrobe-catalog-content" role="tabpanel" aria-labelledby="wardrobeTabColors" aria-live="polite"></div>
+            </section>
+        </main>
     </div>
 
     <div id="collectionMenu" class="menu-panel" style="max-height:80vh; overflow-y:auto;">
@@ -145,24 +344,80 @@
         <button onclick="showMenu('mainMenu')">BACK</button>
     </div>
 
-    <div id="recordsMenu" class="menu-panel" style="max-height:84vh; overflow-y:auto;">
-        <h2>RECORDS</h2>
-        <div id="recordsContent" style="text-align:left; line-height:1.55;"></div>
-        <button onclick="showMenu('mainMenu')">BACK</button>
+    <div id="recordsMenu" class="menu-panel lobby-records-screen" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="recordsScreenTitle">
+        <div class="lobby-records-atmosphere" aria-hidden="true"></div>
+        <header class="lobby-records-topbar">
+            <button id="recordsBack" class="lobby-records-back" type="button"><span aria-hidden="true">←</span> RETURN TO LOBBY</button>
+            <div class="lobby-records-heading"><span>FACILITY ARCHIVE <i>LEVEL 0</i></span><h1 id="recordsScreenTitle" tabindex="-1">SHIFT RECORDS</h1></div>
+            <div class="lobby-records-status"><span class="lobby-records-status-light" aria-hidden="true"></span> LOCAL LEDGER</div>
+        </header>
+
+        <div class="lobby-records-workspace">
+            <nav id="recordsCategoryNav" class="lobby-records-index" aria-label="Records sections">
+                <div class="lobby-records-index-heading"><span>REPORT INDEX</span><i aria-hidden="true"></i></div>
+                <button type="button" class="lobby-records-category is-active" data-record-target="recordsOverview" aria-current="location"><span class="lobby-records-category-index">01</span><span class="lobby-records-category-copy"><strong>SHIFT LEDGER</strong><small>Lifetime activity</small></span><span class="lobby-records-category-mark" aria-hidden="true">↗</span></button>
+                <button type="button" class="lobby-records-category" data-record-target="recordsMaps"><span class="lobby-records-category-index">02</span><span class="lobby-records-category-copy"><strong>MAP REPORTS</strong><small>Endless records</small></span><span class="lobby-records-category-mark" aria-hidden="true">↗</span></button>
+                <button type="button" class="lobby-records-category" data-record-target="recordsEntities"><span class="lobby-records-category-index">03</span><span class="lobby-records-category-copy"><strong>ENTITY CONTACTS</strong><small>Logged sightings</small></span><span class="lobby-records-category-mark" aria-hidden="true">↗</span></button>
+                <button type="button" class="lobby-records-category" data-record-target="recordsMilestones"><span class="lobby-records-category-index">04</span><span class="lobby-records-category-copy"><strong>FIELD MILESTONES</strong><small>Personal bests</small></span><span class="lobby-records-category-mark" aria-hidden="true">↗</span></button>
+                <div class="lobby-records-index-note"><span class="lobby-records-index-dot"></span> STORED ON THIS DEVICE</div>
+            </nav>
+
+            <main id="recordsContent" class="lobby-records-content" tabindex="0" aria-label="Shift reports"></main>
+        </div>
     </div>
 
-    <div id="objectivesMenu" class="menu-panel" style="max-height:80vh; overflow-y:auto;">
-        <h2>DAILY OBJECTIVES</h2>
-        <div id="dailyObjectivesContent" style="text-align:left; line-height:1.5;"></div>
-        <p style="font-size:12px;color:#888">Objectives refresh each day on this device.</p>
-        <button onclick="showMenu('mainMenu')">BACK</button>
+    <div id="objectivesMenu" class="menu-panel lobby-shift-screen" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="dailyShiftTitle">
+        <div class="lobby-shift-atmosphere" aria-hidden="true"></div>
+        <header class="lobby-shift-topbar">
+            <button id="dailyShiftBack" class="lobby-shift-back" type="button"><span aria-hidden="true">←</span> RETURN TO LOBBY</button>
+            <div class="lobby-shift-heading"><span>SHIFT DISPATCH <i>LEVEL 0</i></span><h1 id="dailyShiftTitle" tabindex="-1">TODAY’S SHIFT</h1></div>
+            <div class="lobby-shift-date"><span class="lobby-shift-live-dot" aria-hidden="true"></span><span class="lobby-shift-date-copy"><span id="dailyShiftDate">LOCAL ROTATION</span><small>NEW SHIFT IN <strong id="dailyShiftCountdown">--:--:--</strong></small></span></div>
+        </header>
+        <div class="lobby-shift-workspace">
+            <aside class="lobby-shift-briefing" aria-label="Shift briefing">
+                <div class="lobby-shift-briefing-kicker"><span>INCOMING WORK ORDER</span><i aria-hidden="true">01</i></div>
+                <h2>THE DAILY<br>ASSIGNMENT</h2>
+                <p>Complete the listed tasks during your shifts. Claim each reward here to unlock the full-shift bonus.</p>
+                <div class="lobby-shift-progress-block"><div class="lobby-shift-progress-label"><span>TASKS COMPLETE</span><strong id="dailyShiftProgress">0 / 3</strong></div><div class="lobby-shift-progress-track" role="progressbar" aria-label="Daily tasks completed" aria-valuemin="0" aria-valuemax="3" aria-valuenow="0"><i id="dailyShiftProgressFill"></i></div></div>
+                <div class="lobby-shift-briefing-divider"></div>
+                <div class="lobby-shift-reward"><span>FULL-SHIFT BONUS</span><strong>+35 <i>T</i></strong><small id="dailyShiftBonusStatus">LOCKED · CLAIM ALL 3 TASKS</small></div>
+                <div class="lobby-shift-footnote"><span aria-hidden="true">⌁</span><p>Assignments rotate using this device’s local date. Individual task rewards must be claimed before the shift bonus.</p></div>
+            </aside>
+            <main class="lobby-shift-main">
+                <header class="lobby-shift-main-heading"><div><span>ASSIGNMENT REGISTER</span><h2>Work Orders</h2></div><span class="lobby-shift-main-note">3 TASKS <i>·</i> LOCAL ROTATION</span></header>
+                <div id="dailyObjectivesContent" class="lobby-shift-assignments" aria-live="polite"></div>
+                <footer class="lobby-shift-main-footer"><span class="lobby-shift-footer-light" aria-hidden="true"></span> PROGRESS SAVES AUTOMATICALLY ON THIS DEVICE</footer>
+            </main>
+        </div>
     </div>
 
-    <div id="loadoutsMenu" class="menu-panel" style="max-height:80vh; overflow-y:auto;">
-        <h2>LOADOUTS</h2>
-        <p style="font-size:12px;color:#aaa">Choose which owned item types are available during your next run. Items still leave your inventory when used.</p>
-        <div id="loadoutsContent"></div>
-        <button onclick="showMenu('mainMenu')">BACK</button>
+    <div id="loadoutsMenu" class="menu-panel lobby-loadout-screen" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="loadoutsScreenTitle">
+        <div class="lobby-loadout-atmosphere" aria-hidden="true"></div>
+        <header class="lobby-loadout-topbar">
+            <button id="loadoutsBackButton" class="lobby-loadout-back" type="button" onclick="returnToLoadoutsLobby()"><span aria-hidden="true">←</span> RETURN TO LOBBY</button>
+            <div class="lobby-loadout-heading"><span>FIELD PREPARATION <i>LEVEL 0</i></span><h1 id="loadoutsScreenTitle" tabindex="-1">LOADOUTS</h1></div>
+            <div class="lobby-loadout-record"><span class="lobby-loadout-live-dot" aria-hidden="true"></span> KIT SAVES AUTOMATICALLY</div>
+        </header>
+        <main class="lobby-loadout-main">
+            <header class="lobby-loadout-intro">
+                <div><span>DEPLOYMENT CHECK</span><h2>Prepare your field kit</h2><p>Choose what you can carry into the next shift. Supplies are spent when used in a run.</p></div>
+                <div class="lobby-loadout-selected"><span>READY FOR NEXT RUN</span><strong id="loadoutSelectedName">FREE CARRY</strong></div>
+            </header>
+            <div class="lobby-loadout-workspace">
+                <nav class="lobby-loadout-kit-rail" aria-label="Choose a loadout">
+                    <div class="lobby-loadout-rail-heading"><span>FIELD KITS</span><i aria-hidden="true">01—06</i></div>
+                    <div id="loadoutsContent" class="lobby-loadout-kit-list"></div>
+                </nav>
+                <section class="lobby-loadout-equipment" aria-labelledby="loadoutDetailTitle">
+                    <header class="lobby-loadout-equipment-heading">
+                        <div><span id="loadoutDetailKicker">AVAILABLE SUPPLIES</span><h2 id="loadoutDetailTitle">Free Carry</h2><p id="loadoutDetailDescription">Use any items in your field inventory.</p><div id="loadoutCustomTools" class="lobby-loadout-custom-tools" hidden></div></div>
+                        <div id="loadoutCapacity" class="lobby-loadout-capacity" aria-live="polite"></div>
+                    </header>
+                    <div id="loadoutItemGrid" class="lobby-loadout-item-grid" aria-live="polite"></div>
+                </section>
+            </div>
+            <footer class="lobby-loadout-footer"><span><i aria-hidden="true"></i> <strong id="loadoutSaveNote">Selected for your next run</strong></span><span>ONLY SUPPLIES YOU OWN ARE SHOWN</span></footer>
+        </main>
     </div>
 
     <div id="updateBanner" role="status">
@@ -170,93 +425,244 @@
         <button id="updateButton">RELOAD</button>
     </div>
 
-    <div id="installMenu" class="menu-panel">
-        <h2>PHONE SETUP</h2>
-        <div style="text-align:left; font-size:14px; line-height:1.5;">
-            <b>Best fullscreen:</b> install the game from your browser's menu, then launch it from the Home Screen.<br><br>
-            <b>iPhone:</b> open in Safari → Share → Add to Home Screen → Add.<br><br>
-            <b>Android:</b> open in Chrome → menu ⋮ → Install app or Add to Home screen.<br><br>
-            Once installed, the browser bar should disappear and the game can work offline after its first online load.
-        </div>
-        <button id="installButton" style="display:none; border-color:#0f0; color:#0f0;">INSTALL APP</button>
-        <button onclick="showMenu('settingsMenu')" style="margin-top:15px; border-color:#ff4444; color:#ff4444;">BACK</button>
+    <div id="installMenu" class="menu-panel lobby-install-screen" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="installScreenTitle">
+        <div class="lobby-install-atmosphere" aria-hidden="true"></div>
+        <header class="lobby-install-topbar"><button type="button" onclick="showMenu('settingsMenu')"><span aria-hidden="true">←</span> BACK TO SETTINGS</button><span>DEVICE SUPPORT <i>LEVEL 0</i></span></header>
+        <main class="lobby-install-content">
+            <span class="lobby-install-eyebrow">TAKE THE SHIFT WITH YOU</span>
+            <h2 id="installScreenTitle">PHONE SETUP</h2>
+            <p class="lobby-install-intro">Install Caleb’s Shift for a cleaner fullscreen view. After the first online load, the game can work offline on this device.</p>
+            <div class="lobby-install-steps">
+                <section><span>01 / IPHONE</span><p>Open the game in Safari, tap <b>Share</b>, choose <b>Add to Home Screen</b>, then tap <b>Add</b>.</p></section>
+                <section><span>02 / ANDROID</span><p>Open the game in Chrome, tap the menu <b>⋮</b>, then choose <b>Install app</b> or <b>Add to Home screen</b>.</p></section>
+                <section><span>03 / DESKTOP</span><p>Use your browser’s install control if it appears, then launch the game from its app shortcut.</p></section>
+            </div>
+            <button id="installButton" class="lobby-install-action" style="display:none;">INSTALL APP <span aria-hidden="true">↗</span></button>
+            <p class="lobby-install-footnote">The browser bar should disappear when you open the installed game.</p>
+        </main>
     </div>
 
-    <!-- End Menu -->
-    <div id="endMenu" class="menu-panel">
-        <h1 id="endTitle">YOU WIN</h1>
-        <h2 id="endDesc" style="font-weight: normal; margin-bottom: 25px;"></h2>
-        <button onclick="playAgainFromEnd()">PLAY AGAIN</button>
-        <button onclick="returnToMainMenu()">MAIN MENU</button>
+    <!-- Post-run report -->
+    <aside id="winSequenceBanner" class="win-sequence-banner" aria-live="polite" hidden>
+        <span>THREAT REMOVED</span>
+        <strong>REPORT FILING IN <b id="winSequenceCountdown">03</b></strong>
+    </aside>
+    <div id="endMenu" class="menu-panel post-run-screen" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="endTitle" aria-describedby="postRunNarrative">
+        <header class="post-run-topbar">
+            <span>FACILITY RECORDS <i>/ POST-SHIFT</i></span>
+            <span id="postRunFileStatus">FILED · LOCAL COPY</span>
+        </header>
+        <main class="post-run-content">
+            <section class="post-run-heading">
+                <span id="postRunEyebrow">INCIDENT REPORT / FILED</span>
+                <h1 id="endTitle" tabindex="-1">SHIFT COMPLETE</h1>
+                <p id="postRunNarrative">The shift has been recorded.</p>
+            </section>
+            <div class="post-run-context" aria-label="Run details">
+                <div><span>MODE</span><strong id="postRunMode">CAMPAIGN</strong></div>
+                <div><span>LOCATION</span><strong id="postRunMap">LEVEL 0 — THE MAZE</strong></div>
+                <div><span>DIFFICULTY</span><strong id="postRunDifficulty">EASY</strong></div>
+            </div>
+            <section class="post-run-ledger" aria-labelledby="postRunLedgerTitle">
+                <div class="post-run-ledger-heading"><span>RUN LEDGER</span><h2 id="postRunLedgerTitle">Shift summary</h2></div>
+                <div class="post-run-metrics">
+                    <article><span>TIME SURVIVED</span><strong id="postRunTime">00:00</strong></article>
+                    <article><span id="postRunObjectiveLabel">GENERATORS</span><strong id="postRunObjective">0 / 0</strong></article>
+                    <article><span>ENTITIES CAUGHT</span><strong id="postRunEntities">0 / 1</strong></article>
+                    <article><span>SUPPLIES USED</span><strong id="postRunSupplies">0</strong></article>
+                    <article class="post-run-reward"><span>TOKENS SECURED</span><strong id="postRunTokens">0 T</strong></article>
+                </div>
+                <p id="postRunLedgerNote" class="post-run-ledger-note">Run details are stored with your local records.</p>
+            </section>
+            <footer class="post-run-actions">
+                <button class="post-run-primary" type="button" onclick="continuePostRun()"><b id="postRunPrimaryLabel">PLAY AGAIN</b> <span aria-hidden="true">↻</span></button>
+                <button class="post-run-secondary" type="button" onclick="returnToMainMenu()">RETURN TO LOBBY <span aria-hidden="true">←</span></button>
+            </footer>
+        </main>
+        <div class="post-run-bottomline"><span>CALEB’S SHIFT · LOCAL ARCHIVE</span><span id="postRunIndex">RUN FILE / 01</span></div>
     </div>
 
-    <!-- Mode Menu -->
-    <div id="modeMenu" class="menu-panel">
-        <h2>CHOOSE MODE</h2>
-        <button onclick="chooseMode('campaign')">CAMPAIGN<br><span style="font-size:12px;color:#aaa">Unlock maps and progress through the story.</span></button>
-        <button onclick="openChallengeMode()">CHALLENGE MODE<br><span style="font-size:12px;color:#aaa">Three rotating altered contracts with token rewards.</span></button>
-        <button onclick="chooseMode('endless')">ENDLESS MODE<br><span style="font-size:12px;color:#aaa">Each completed round gets more dangerous.</span></button>
-        <button onclick="chooseMode('survival')">SURVIVAL MODE<br><span style="font-size:12px;color:#aaa">Build your own monster challenge.</span></button>
-        <button onclick="showMenu('mainMenu')" style="margin-top:15px; border-color:#ff4444; color:#ff4444;">BACK</button>
+    <!-- Full-screen mode dispatch -->
+    <div id="modeMenu" class="menu-panel lobby-play-screen" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="playScreenTitle">
+        <header class="lobby-play-topbar">
+            <button id="playScreenBack" class="lobby-play-back" type="button"><span aria-hidden="true">←</span> BACK TO LOBBY</button>
+            <div class="lobby-play-heading"><span>SHIFT DISPATCH <i>LEVEL 0</i></span><h1 id="playScreenTitle" tabindex="-1">CHOOSE A MODE</h1></div>
+            <div class="lobby-play-index"><span class="lobby-play-live-dot" aria-hidden="true"></span><span id="playModeCount">04 ACTIVE MODES</span></div>
+        </header>
+        <main class="lobby-play-workspace">
+            <section class="play-campaign-feature" aria-labelledby="campaignModeTitle">
+                <div class="play-feature-topline"><span class="play-section-tag"><i>01</i> PRIMARY ROUTE</span><span id="campaignProgressText" class="play-feature-status">0 / 8 SITES CLEARED</span></div>
+                <div class="play-campaign-seal" aria-hidden="true"><img src="assets/ui/icons/modes/CampaignModeIcon.svg" alt=""><i></i></div>
+                <div class="play-campaign-copy">
+                    <span class="play-eyebrow">CAMPAIGN FILE · THE LONG WAY DOWN</span>
+                    <h2 id="campaignModeTitle">Campaign</h2>
+                    <p>Follow the route through the known levels. Each clear opens the next site.</p>
+                    <div class="play-campaign-next"><span>NEXT AVAILABLE SITE</span><strong id="campaignNextMap">LEVEL 0 — THE MAZE</strong><small id="campaignNextDescription">The original shifting maze.</small></div>
+                    <div id="campaignRouteProgress" class="play-route-progress" role="progressbar" aria-label="Campaign sites cleared" aria-valuemin="0" aria-valuemax="8" aria-valuenow="0"><i id="campaignRouteFill"></i></div>
+                    <div id="campaignRouteNodes" class="play-route-nodes" aria-hidden="true"></div>
+                    <button id="campaignLaunchButton" class="play-primary-action" type="button">OPEN CAMPAIGN ROUTE <span aria-hidden="true">↗</span></button>
+                </div>
+                <div class="play-feature-index" aria-hidden="true">01 <i id="playModeTotal">/ 04</i></div>
+            </section>
+
+            <section class="play-mode-directory" aria-labelledby="playDirectoryTitle">
+                <header class="play-directory-heading"><div><span class="play-eyebrow">ALTERNATE SHIFT PROTOCOLS</span><h2 id="playDirectoryTitle">Other ways in</h2></div><span class="play-directory-caption">SELECT TO SET UP</span></header>
+                <div class="play-mode-grid">
+                    <button class="play-mode-card play-mode-endless" type="button" data-play-mode="endless" aria-label="Choose Endless mode">
+                        <span class="play-card-topline"><i>02</i><b id="endlessBestReadout">BEST · —</b></span><span class="play-mode-glyph" aria-hidden="true"><img src="assets/ui/icons/modes/EndlessModeIcon.svg" alt=""></span>
+                        <strong>Endless</strong><span class="play-mode-description">One site. Each clear makes the next round more dangerous.</span><span class="play-card-action">CHOOSE A SITE <i aria-hidden="true">↗</i></span>
+                    </button>
+                    <button class="play-mode-card play-mode-survival" type="button" data-play-mode="survival" aria-label="Choose Survival mode">
+                        <span class="play-card-topline"><i>03</i><b id="survivalSiteReadout">1 SITE AVAILABLE</b></span><span class="play-mode-glyph" aria-hidden="true"><img src="assets/ui/icons/modes/SurvivalIcon.svg" alt=""></span>
+                        <strong>Survival</strong><span class="play-mode-description">Build a custom run: choose the hunters, site, and rules.</span><span class="play-card-action">BUILD A RUN <i aria-hidden="true">↗</i></span>
+                    </button>
+                    <button class="play-mode-card play-mode-challenge" type="button" data-play-mode="challenge" aria-label="Open Daily Challenges">
+                        <span class="play-card-topline"><i>04</i><b id="challengeProgressReadout">0 / 3 CLEARED</b></span><span class="play-mode-glyph" aria-hidden="true"><img src="assets/ui/icons/modes/DailyChallengeIcon.svg" alt=""></span>
+                        <strong>Daily Challenges</strong><span class="play-mode-description">Three altered contracts. The board renews at local midnight.</span><span class="play-card-action"><span id="playChallengeCountdown">RESET IN --:--:--</span><i aria-hidden="true">↗</i></span>
+                    </button>
+                </div>
+                <p class="play-directory-note"><span aria-hidden="true">⌁</span> More shift types may be added to this dispatch board as the facility expands.</p>
+            </section>
+        </main>
+        <footer class="lobby-play-footer"><span><i aria-hidden="true"></i> YOUR ROUTE PROGRESS IS SAVED ON THIS DEVICE</span><span>SELECT A MODE TO CONTINUE</span></footer>
     </div>
 
-    <div id="challengeMenu" class="menu-panel" style="max-height:80vh; overflow-y:auto;">
-        <h2>CHALLENGE BOARD</h2>
-        <p style="font-size:12px;color:#aaa">Complete altered contracts. Each one has its own map rule and reward.</p>
-        <div id="challengeContent"></div>
-        <button onclick="showMenu('modeMenu')" style="border-color:#ff4444;color:#ff4444;">BACK</button>
+    <!-- Daily challenge contracts -->
+    <div id="challengeMenu" class="menu-panel lobby-challenge-screen" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="challengeScreenTitle">
+        <header class="lobby-play-topbar lobby-challenge-topbar">
+            <button id="challengeScreenBack" class="lobby-play-back" type="button"><span aria-hidden="true">←</span> MODE SELECT</button>
+            <div class="lobby-play-heading"><span>CONTRACT ARCHIVE <i>LOCAL ROTATION</i></span><h1 id="challengeScreenTitle" tabindex="-1">DAILY CONTRACTS</h1></div>
+            <div class="challenge-reset-readout"><span>NEW BOARD IN</span><strong id="challengeResetCountdown">--:--:--</strong></div>
+        </header>
+        <main class="lobby-challenge-workspace">
+            <section class="challenge-board-summary" aria-label="Daily contract progress">
+                <div><span class="play-eyebrow">TODAY’S ASSIGNMENTS</span><p>Each contract can be cleared once. Completed files stay marked until the local daily reset.</p></div>
+                <div class="challenge-board-progress"><strong id="challengeCompletedCount">0 / 3</strong><span>CONTRACTS CLEARED</span><div class="challenge-progress-track" role="progressbar" aria-label="Daily challenges cleared" aria-valuemin="0" aria-valuemax="3" aria-valuenow="0"><i id="challengeProgressFill"></i></div></div>
+            </section>
+            <div id="challengeContent" class="challenge-contract-grid" aria-live="polite"></div>
+            <footer class="challenge-board-footer"><span><i aria-hidden="true"></i> CONTRACTS RESET AT LOCAL MIDNIGHT</span><span>REWARDS ARE PAID ONCE PER CONTRACT</span></footer>
+        </main>
     </div>
 
-    <!-- Map Select -->
-    <div id="mapMenu" class="menu-panel" style="max-height:80vh; overflow-y:auto;">
-        <h2>SELECT MAP</h2>
-        <div id="mapOptions"></div>
-        <button onclick="showMenu('modeMenu')" style="margin-top:15px; border-color:#ff4444; color:#ff4444;">BACK</button>
+    <!-- Full-screen route selection -->
+    <div id="mapSelectScreen" class="menu-panel lobby-runflow-screen lobby-map-screen" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="mapSelectTitle">
+        <header class="lobby-runflow-topbar">
+            <button class="lobby-runflow-back" type="button" data-run-back="modeMenu"><span aria-hidden="true">←</span> PLAY MODES</button>
+            <div class="lobby-runflow-heading"><span id="mapSelectKicker">SHIFT ROUTE <i>01 / SITE INDEX</i></span><h1 id="mapSelectTitle" tabindex="-1">CHOOSE A SITE</h1></div>
+            <div class="lobby-runflow-status"><i aria-hidden="true"></i><span id="mapSelectProgress">1 SITE OPEN</span></div>
+        </header>
+        <main class="lobby-map-workspace">
+            <aside class="lobby-map-rail" aria-label="Map sites">
+                <div class="lobby-map-rail-heading"><span>LOCATION INDEX</span><small id="mapListModeLabel">CAMPAIGN ROUTE</small></div>
+                <nav id="runMapList" class="lobby-map-list" aria-label="Choose a location"></nav>
+                <section id="mapEquippedLoadout" class="run-equipped-strip" aria-label="Currently equipped loadout"></section>
+            </aside>
+            <section class="lobby-map-detail" aria-live="polite">
+                <div id="runMapIllustration" class="run-map-illustration" aria-hidden="true">
+                    <span class="run-map-illustration-tag">FIELD MAP / <i id="runMapSerial">01</i></span>
+                    <div class="run-map-contours"><i></i><i></i><i></i><i></i><i></i></div>
+                    <span id="runMapMark" class="run-map-mark">0</span>
+                    <span class="run-map-coordinate run-map-coordinate-a">49° 26′ N</span><span class="run-map-coordinate run-map-coordinate-b">ROUTE FILE</span>
+                </div>
+                <div class="run-map-copy">
+                    <div class="run-map-copy-topline"><span id="runMapStatus" class="run-map-status">AVAILABLE</span><span id="runMapOrder">SITE 01 / 08</span></div>
+                    <h2 id="runMapTitle">LEVEL 0 — THE MAZE</h2>
+                    <p id="runMapDescription">The original shifting maze.</p>
+                    <div class="run-map-data-grid">
+                        <div><span id="runMapMetricLabel">ROUTE RECORD</span><strong id="runMapMetricValue">NOT CLEARED</strong></div>
+                        <div><span>DIFFICULTIES MASTERED</span><strong id="runMapMastery">0 / 3</strong></div>
+                    </div>
+                    <button id="mapContinueButton" class="run-flow-primary" type="button">SET UP THIS RUN <span aria-hidden="true">↗</span></button>
+                </div>
+            </section>
+        </main>
+        <footer class="lobby-runflow-footer"><span><i aria-hidden="true"></i> PROGRESS AND UNLOCKS ARE SAVED ON THIS DEVICE</span><span>CHOOSE A SITE TO REVIEW ITS FILE</span></footer>
     </div>
 
-    <!-- Lucas campaign replay choice; this is only opened after Lucas has been cleared. -->
-    <div id="lucasCampaignChoice" class="menu-panel">
-        <h2>LUCAS'S ROUTE</h2>
-        <p style="font-size:13px;color:#aaa;line-height:1.45;margin:0;">You have already completed Lucas's level. Choose where this campaign run should begin.</p>
-        <button onclick="chooseLucasCampaignStart(false)" ontouchend="event.preventDefault(); chooseLucasCampaignStart(false)">START LUCAS'S LEVEL<br><span style="font-size:12px;color:#aaa">Collect the fragments and open the gate.</span></button>
-        <button onclick="chooseLucasCampaignStart(true)" ontouchend="event.preventDefault(); chooseLucasCampaignStart(true)" style="border-color:#c5a9ff;color:#e4d8ff;">START CALEB BOSS<br><span style="font-size:12px;color:#aaa">Skip straight to the boss encounter.</span></button>
-        <button onclick="showMenu('mapMenu')" style="margin-top:5px;border-color:#ff4444;color:#ff4444;">BACK TO MAPS</button>
+    <!-- Mode-specific run briefing. Equipped kits are shown read-only here. -->
+    <div id="runSetupScreen" class="menu-panel lobby-runflow-screen lobby-setup-screen" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="runSetupTitle">
+        <header class="lobby-runflow-topbar">
+            <button class="lobby-runflow-back" type="button" data-run-back="mapSelectScreen"><span aria-hidden="true">←</span> CHANGE SITE</button>
+            <div class="lobby-runflow-heading"><span id="runSetupKicker">DEPARTURE BRIEF <i>ROUTE PREPARATION</i></span><h1 id="runSetupTitle" tabindex="-1">RUN BRIEFING</h1></div>
+            <div class="lobby-runflow-status"><i aria-hidden="true"></i><span id="runSetupModeReadout">CAMPAIGN</span></div>
+        </header>
+        <main class="lobby-setup-workspace">
+            <section class="lobby-setup-controls">
+                <div class="run-destination-card">
+                    <div class="run-destination-symbol" aria-hidden="true"><span id="runDestinationMark">0</span></div>
+                    <div><span>SELECTED DESTINATION</span><h2 id="runSetupMapTitle">LEVEL 0 — THE MAZE</h2><p id="runSetupMapDescription">The original shifting maze.</p></div>
+                    <span id="runSetupMapOrder" class="run-destination-index">SITE 01</span>
+                </div>
+
+                <section id="standardRunControls" class="run-setup-section" aria-labelledby="runDifficultyTitle">
+                    <div class="run-setup-section-heading"><span>01 <i>/ SHIFT CONDITIONS</i></span><h2 id="runDifficultyTitle">Choose difficulty</h2><p>Set the pace and the reward for a successful clear.</p></div>
+                    <div id="runDifficultyChoices" class="run-difficulty-grid" role="radiogroup" aria-label="Run difficulty">
+                        <button type="button" class="run-difficulty-option" data-run-difficulty="0" role="radio" aria-checked="false"><span class="run-difficulty-index">01 / CALM</span><strong>EASY</strong><small>Slower hunter · typing puzzles · 0–1 mutations</small><b>+10 T ON CLEAR</b></button>
+                        <button type="button" class="run-difficulty-option is-selected" data-run-difficulty="1" role="radio" aria-checked="true"><span class="run-difficulty-index">02 / STANDARD</span><strong>NORMAL</strong><small>Standard pace · mixed puzzles · 1–2 mutations</small><b>+25 T ON CLEAR</b></button>
+                        <button type="button" class="run-difficulty-option" data-run-difficulty="2" role="radio" aria-checked="false"><span class="run-difficulty-index">03 / SEVERE</span><strong>HARD</strong><small>Faster hunter · skill checks · 2–3 mutations</small><b>+40 T ON CLEAR</b></button>
+                    </div>
+                    <input id="runDifficultyValue" type="hidden" value="1">
+                    <div id="lucasRouteChoice" class="run-lucas-route" hidden>
+                        <div><span>SHADOW GATE ROUTE</span><strong>Choose your entry point</strong><small>You have already cleared this campaign site.</small></div>
+                        <div class="run-lucas-route-options" role="radiogroup" aria-label="Campaign entry point"><button type="button" data-lucas-entry="false" class="is-selected" aria-checked="true">LUCAS’S LEVEL</button><button type="button" data-lucas-entry="true" aria-checked="false">CALEB BOSS</button></div>
+                    </div>
+                </section>
+
+                <section id="survivalRunControls" class="run-setup-section run-survival-controls" aria-labelledby="survivalRunTitle" hidden>
+                    <div class="run-setup-section-heading"><span>01 <i>/ CUSTOM HUNT</i></span><h2 id="survivalRunTitle">Build your survival run</h2><p>Choose the hunter pool, then set how many enter the site.</p></div>
+                    <p id="survivalSummary" class="run-survival-summary" role="status">Choose a hunter pool and run rules.</p>
+                    <div class="run-survival-layout">
+                        <fieldset class="run-hunter-fieldset"><legend>HUNTER POOL</legend><div class="run-hunter-grid">
+                            <label><input id="survivalCaleb" type="checkbox" checked><span>Caleb</span></label><label><input id="survivalMalakai" type="checkbox"><span>Malakai</span></label><label><input id="survivalJordan" type="checkbox"><span>Jordan</span></label><label><input id="survivalAeson" type="checkbox"><span>Aeson</span></label><label><input id="survivalBassam" type="checkbox"><span>Bassam</span></label><label><input id="survivalRhys" type="checkbox"><span>Rhys</span></label><label><input id="survivalNoah" type="checkbox"><span>Noah</span></label><label><input id="survivalAmine" type="checkbox"><span>Amine</span></label><label><input id="survivalNizar" type="checkbox"><span>Nizar</span></label>
+                        </div></fieldset>
+                        <div class="run-survival-rules">
+                            <div class="run-stepper-control"><span>ACTIVE HUNTERS<small>How many enter the run</small></span><div class="run-stepper"><button type="button" data-stepper-target="survivalCount" data-stepper-delta="-1" aria-label="One fewer active hunter">−</button><output id="survivalCountOutput" for="survivalCount">1</output><button type="button" data-stepper-target="survivalCount" data-stepper-delta="1" aria-label="One more active hunter">+</button></div><input id="survivalCount" type="hidden" value="1"></div>
+                            <div class="run-stepper-control"><span>GENERATORS<small>Repair objectives</small></span><div class="run-stepper"><button type="button" data-stepper-target="survivalGens" data-stepper-delta="-1" aria-label="One fewer generator">−</button><output id="survivalGensOutput" for="survivalGens">4</output><button type="button" data-stepper-target="survivalGens" data-stepper-delta="1" aria-label="One more generator">+</button></div><input id="survivalGens" type="hidden" value="4"></div>
+                            <div class="run-survival-difficulty"><span>DIFFICULTY</span><div role="radiogroup" aria-label="Survival difficulty"><button type="button" data-survival-difficulty="0" aria-checked="false">EASY</button><button type="button" data-survival-difficulty="1" class="is-selected" aria-checked="true">NORMAL</button><button type="button" data-survival-difficulty="2" aria-checked="false">HARD</button></div><input id="survivalDiff" type="hidden" value="1"></div>
+                            <label class="run-events-toggle"><input id="survivalEvents" type="checkbox" checked><span><strong>MAP EVENTS</strong><small>Outages and environmental events</small></span><i aria-hidden="true"></i></label>
+                            <input id="survivalMuts" type="hidden" value="0">
+                        </div>
+                    </div>
+                </section>
+            </section>
+
+            <aside class="lobby-setup-brief" aria-label="Run summary">
+                <div class="run-brief-stamp"><span>SHIFT ORDER</span><strong id="runOrderCode">CS / 01</strong><i aria-hidden="true"></i></div>
+                <div class="run-brief-copy"><span>READY CHECK</span><h2 id="runBriefTitle">Campaign</h2><p id="runBriefDescription">Clear the site to continue your route.</p></div>
+                <div id="runSetupSummary" class="run-setup-summary"></div>
+                <section id="runEquippedLoadout" class="run-equipped-strip run-equipped-strip-card" aria-label="Currently equipped loadout"></section>
+                <button id="startRunButton" class="run-flow-primary run-start-button" type="button">BEGIN SHIFT <span aria-hidden="true">↗</span></button>
+                <p class="run-loadout-note">LOADOUT IS EQUIPPED FROM THE LOADOUTS SCREEN</p>
+            </aside>
+        </main>
+        <footer class="lobby-runflow-footer"><span><i aria-hidden="true"></i> RUN SETTINGS APPLY TO THIS SHIFT ONLY</span><span id="runSetupFooterNote">YOUR CURRENT KIT WILL BE BROUGHT ALONG</span></footer>
     </div>
 
-    <!-- Difficulty Menu -->
-    <div id="diffMenu" class="menu-panel">
-        <h2>SELECT DIFFICULTY</h2>
-        <div id="standardDifficultyOptions">
-            <button onclick="startSelectedGame(0)">EASY (10 Tokens)<br><span style="font-size:12px;color:#aaa">Slow Speed | Typing Puzzles | 0-1 Mutations</span></button>
-            <button onclick="startSelectedGame(1)">NORMAL (25 Tokens)<br><span style="font-size:12px;color:#aaa">Standard Speed | Mixed Puzzles | 1-2 Mutations</span></button>
-            <button onclick="startSelectedGame(2)">HARD (40 Tokens)<br><span style="font-size:12px;color:#aaa">Fast Speed | Skill Checks | 2-3 Mutations</span></button>
-        </div>
-        <div id="runSetupOptions">
-            <h3>LOADOUT</h3>
-            <div id="runLoadoutOptions"></div>
-        </div>
-        <button id="startSurvivalButton" onclick="startSurvival()" style="display:none;">START SURVIVAL</button>
-        <button onclick="showMenu('modeMenu')" style="margin-top: 15px; border-color: #ff4444; color: #ff4444;">BACK</button>
-    </div>
-
-    <!-- Survival Setup -->
-    <div id="survivalMenu" class="menu-panel" style="max-height:80vh; overflow-y:auto;">
-        <h2>SURVIVAL SETUP</h2>
-        <div class="survival-setup">
-            <div class="survival-summary" id="survivalSummary">Choose a map, hunter team, and difficulty.</div>
-            <section><b>1 · MAP</b><label>Run location <select id="survivalMap"><option value="level0">Level 0 — The Maze</option><option value="boilerworks">Level 3 — The Boilerworks</option><option value="hotel">THE ENDLESS HOTEL</option><option value="crimson">THE CRIMSON CONTAINMENT</option><option value="forest">THE BLACKWOOD FOREST</option><option value="amine">THE PARTED GRID</option><option value="subway">THE LAST LINE</option></select></label></section>
-            <section><b>2 · HUNTERS</b><div class="monster-picks"><label><input id="survivalCaleb" type="checkbox" checked> Caleb</label><label><input id="survivalMalakai" type="checkbox"> Malakai</label><label><input id="survivalJordan" type="checkbox"> Jordan</label><label><input id="survivalAeson" type="checkbox"> Aeson</label><label><input id="survivalBassam" type="checkbox"> Bassam</label><label><input id="survivalRhys" type="checkbox"> Rhys</label><label><input id="survivalNoah" type="checkbox"> Noah</label><label><input id="survivalAmine" type="checkbox"> Amine</label><label><input id="survivalNizar" type="checkbox"> Nizar</label></div><label>Active hunters <select id="survivalCount"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option></select></label></section>
-            <section><b>3 · RULES</b><label>Difficulty <select id="survivalDiff"><option value="0">Easy</option><option value="1" selected>Normal</option><option value="2">Hard</option></select></label><label>Generators <select id="survivalGens"><option value="3">3</option><option value="4" selected>4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option></select></label><label><input id="survivalEvents" type="checkbox" checked> Map events enabled</label><input id="survivalMuts" type="hidden" value="0"></section>
-        </div>
-        <button onclick="startSurvival()">START SURVIVAL</button>
-        <button onclick="showMenu('modeMenu')" style="margin-top:15px; border-color:#ff4444; color:#ff4444;">BACK</button>
-    </div>
-
-    <!-- Info/Database Menu -->
-    <div id="infoMenu" class="menu-panel" style="max-height: 80vh; overflow-y: auto;">
-        <h2>DATABASE & TIPS</h2>
-        <div class="info-tabs" role="tablist"><button onclick="setInfoTab('start')">START</button><button onclick="setInfoTab('maps')">MAPS</button><button onclick="setInfoTab('monsters')">MONSTERS</button><button onclick="setInfoTab('systems')">SYSTEMS</button></div>
-        <div class="info-sections">
+    <!-- Archive field index -->
+    <div id="infoMenu" class="menu-panel lobby-archive-screen" style="display:none;" aria-label="Archive">
+        <header class="lobby-archive-topbar">
+            <button type="button" class="lobby-archive-back" id="archiveBackButton"><span aria-hidden="true">←</span> BACK TO LOBBY</button>
+            <div class="lobby-archive-title"><span>FIELD INDEX <i>·</i> LEVEL 0</span><h1>ARCHIVE</h1></div>
+            <div class="lobby-archive-file-count" aria-live="polite"><i></i><span id="archiveFileCount">— FILES</span></div>
+        </header>
+        <div class="lobby-archive-workspace">
+            <aside class="lobby-archive-rail" aria-label="Archive categories">
+                <div class="lobby-archive-rail-heading"><span>DIRECTORY</span><i></i></div>
+                <nav class="lobby-archive-category-list">
+                    <button type="button" class="lobby-archive-category is-active" data-archive-target="archiveOrientation"><span>01</span><span><b>FIELD NOTES</b><small>How to survive</small></span><i aria-hidden="true">↗</i></button>
+                    <button type="button" class="lobby-archive-category" data-archive-target="archiveLocations"><span>02</span><span><b>LOCATIONS</b><small>Unlocked map files</small></span><i aria-hidden="true">↗</i></button>
+                    <button type="button" class="lobby-archive-category" data-archive-target="archiveEntities"><span>03</span><span><b>ENTITIES</b><small>Known encounters</small></span><i aria-hidden="true">↗</i></button>
+                    <button type="button" class="lobby-archive-category" data-archive-target="archiveSystems"><span>04</span><span><b>SYSTEMS</b><small>Progress & modifiers</small></span><i aria-hidden="true">↗</i></button>
+                </nav>
+                <div class="lobby-archive-rail-foot"><span class="lobby-archive-status-light"></span> LOCAL FIELD RECORD</div>
+            </aside>
+            <main class="lobby-archive-main" id="archiveScrollArea" tabindex="0" aria-label="Archive files">
+                <div class="lobby-archive-intro">
+                    <div><span class="lobby-archive-kicker">CALEB'S SHIFT <i> / </i> REFERENCE DESK</span><h2>Know what waits<br>in the dark.</h2><p>Field notes, location records, and encounter reports gathered from the shift.</p></div>
+                    <label class="lobby-archive-search"><span aria-hidden="true">⌕</span><span class="visually-hidden">Search unlocked Archive files</span><input id="archiveSearch" type="search" placeholder="SEARCH UNLOCKED FILES" autocomplete="off"><kbd>ENTER</kbd></label>
+                </div>
+                <p class="lobby-archive-no-results" id="archiveNoResults" role="status" hidden>No unlocked files match that search.</p>
+                <div class="info-sections lobby-archive-sections">
             <details class="info-section" data-info-tab="start" open><summary style="color:#0ff;">HOW TO PLAY</summary><div>
             <b>Desktop:</b> WASD moves · E interacts · SPACE uses Adrenaline / hits skill checks · F uses Flashbang · LEFT SHIFT dashes · hold B to hold breath · H hides near a cabinet · N throws a Noise Maker.<br>
             <b>Phone:</b> Joystick moves · E interacts · ◎ Abilities · ▣ Items · HIT Skill Check when repairing. Install from the Home Screen for the cleanest fullscreen experience.<br>
@@ -267,16 +673,17 @@
             <b>Endless:</b> Each win immediately begins the next round. Generators, speed, mutations, outages, false generators, and monster count increase; round 4 introduces a second monster.<br>
             <b>Survival:</b> Choose the map, monster roster, difficulty, generators, event setting, and a saved loadout. Every monster uses its core chase behavior on every map; home-map mechanics remain special.</div></details>
 
-            <details class="info-section" data-info-tab="monsters"><summary style="color:#ff4444;">MONSTERS</summary><div>
-            <b>CALEB — The Disruptor</b><br>Patrols normally and periodically releases an EMP that makes the map difficult to read.<br><span style="color:#aaa">Counter:</span> Keep moving after the warning and use landmarks to reorient yourself.<br><br>
-            <b>MALAKAI — The Blood Hunter</b><br>Fast and aggressive. Repairs, failed skill checks, false generators, and other mistakes can give him your last known trail for a short time.<br><span style="color:#aaa">Counter:</span> Crouch, break line of sight, use a Noise Maker, or let a trap slow him down.<br><br>
-            <b>JORDAN — The Mimic</b><br>Can disguise himself as a generator. Interacting with him reveals the trick and eventually triggers an enraged chase.<br><span style="color:#aaa">Counter:</span> Watch for the suspicious visual offset and be ready to run after checking a generator.<br><br>
-            <b>AESON — The Firestarter</b><br>Ignites circular zones that slow you and alert him to heat on every level. In the Boilerworks he also controls the central boiler.<br><span style="color:#aaa">Counter:</span> Keep moving, use cold routes, and watch the heat meter.<br><br>
-            <b>BASSAM — The Concierge</b><br>Disguises himself as a hotel employee and offers believable but dangerous directions. Outside the Hotel, he sends false employees after you every 10–20 seconds.<br><span style="color:#aaa">Counter:</span> Check badges, shadows, and directions before trusting an employee. False employees can be outrun or stunned with a well-timed escape.<br><br>
-            <b>RHYS — The Contained</b><br>Spits short-range goop that slows you, creates slowing puddles, and charges in a straight line after a brief brace on every level. On Crimson Containment, restore the generators before recovering the seal and arming the vault trap.<br><span style="color:#aaa">Counter:</span> Dodge sideways during the brace, use the Goop Neutralizer, and bait his special charge into the cracked wall when that route is active.<br></div></details>
-            <details class="info-section" data-info-tab="monsters"><summary style="color:#9ad7dd;">NOAH — THE STALKER</summary><div>Invisible for most of the run, Noah closes in nearby, briefly reveals himself, then makes a short intercept burst before fading back into the forest. He can call lightning circles that heavily slow and blur you.<br><span style="color:#aaa">Counter:</span> Stay in lit cabins, break line of sight, move out of lightning circles, and use a Flashbang to scatter him. Audio hooks are intentionally ready but silent until custom files are added.</div></details>
-            <details class="info-section" data-info-tab="monsters"><summary style="color:#ddd;">AMINE — THE PARTED</summary><div>Invisible normally. Hold Focus Vision to hide the map and reveal only Amine. He flashes periodically and teleports behind you. His Parted Grid chase is unique to his home map.<br><span style="color:#aaa">Counter:</span> Alternate normal sight and Focus Vision, keep moving after a teleport, and reach the exit gate for the exposed final chase.</div></details>
-            <details class="info-section" data-info-tab="monsters"><summary style="color:#9cd6ff;">NIZAR — THE CONTROLLER</summary><div>Uses signal distortion on every level. His Closing Frames appear on both sides and push inward; move before they pin you. He can also split into two False Nizars that chase you without a shadow. The real Nizar always casts one. The Last Line control chase is unique to the Subway.<br><span style="color:#aaa">Counter:</span> Restore signal panels, keep moving when the frames appear, and use the real shadow to identify the hunter.</div></details>
+            <details class="info-section" data-info-tab="monsters" data-archive-map="level0"><summary style="color:#ff4444;">CALEB — THE DISRUPTOR</summary><div>
+            Caleb patrols normally and periodically releases an EMP that makes the map difficult to read.<br><span style="color:#aaa">Counter:</span> Keep moving after the warning and use landmarks to reorient yourself.</div></details>
+            <details class="info-section" data-info-tab="monsters" data-archive-map="level0"><summary style="color:#b8aaff;">MALAKAI — THE BLOOD HUNTER</summary><div>Fast and aggressive. Repairs, failed skill checks, false generators, and other mistakes can give him your last known trail for a short time.<br><span style="color:#aaa">Counter:</span> Crouch, break line of sight, use a Noise Maker, or let a trap slow him down.</div></details>
+            <details class="info-section" data-info-tab="monsters" data-archive-map="level0"><summary style="color:#d8e0c0;">JORDAN — THE MIMIC</summary><div>Can disguise himself as a generator. Interacting with him reveals the trick and eventually triggers an enraged chase.<br><span style="color:#aaa">Counter:</span> Watch for the suspicious visual offset and be ready to run after checking a generator.</div></details>
+            <details class="info-section" data-info-tab="monsters" data-archive-map="boilerworks"><summary style="color:#ff9a5f;">AESON — THE FIRESTARTER</summary><div>Ignites circular zones that slow you and alert him to heat on every level. In the Boilerworks he also controls the central boiler.<br><span style="color:#aaa">Counter:</span> Keep moving, use cold routes, and watch the heat meter.</div></details>
+            <details class="info-section" data-info-tab="monsters" data-archive-map="hotel"><summary style="color:#d4c09a;">BASSAM — THE CONCIERGE</summary><div>Disguises himself as a hotel employee and offers believable but dangerous directions. Outside the Hotel, he sends false employees after you every 10–20 seconds.<br><span style="color:#aaa">Counter:</span> Check badges, shadows, and directions before trusting an employee. False employees can be outrun or stunned with a well-timed escape.</div></details>
+            <details class="info-section" data-info-tab="monsters" data-archive-map="crimson"><summary style="color:#ff7979;">RHYS — THE CONTAINED</summary><div>Spits short-range goop that slows you, creates slowing puddles, and charges in a straight line after a brief brace on every level. On Crimson Containment, restore the generators before recovering the seal and arming the vault trap.<br><span style="color:#aaa">Counter:</span> Dodge sideways during the brace, use the Goop Neutralizer, and bait his special charge into the cracked wall when that route is active.</div></details>
+            <details class="info-section" data-info-tab="monsters" data-archive-map="forest"><summary style="color:#9ad7dd;">NOAH — THE STALKER</summary><div>Invisible for most of the run, Noah closes in nearby, briefly reveals himself, then makes a short intercept burst before fading back into the forest. He can call lightning circles that heavily slow and blur you.<br><span style="color:#aaa">Counter:</span> Stay in lit cabins, break line of sight, move out of lightning circles, and use a Flashbang to scatter him. Audio hooks are intentionally ready but silent until custom files are added.</div></details>
+            <details class="info-section" data-info-tab="monsters" data-archive-map="amine"><summary style="color:#ddd;">AMINE — THE PARTED</summary><div>Invisible normally. Hold Focus Vision to hide the map and reveal only Amine. He flashes periodically and teleports behind you. His Parted Grid chase is unique to his home map.<br><span style="color:#aaa">Counter:</span> Alternate normal sight and Focus Vision, keep moving after a teleport, and reach the exit gate for the exposed final chase.</div></details>
+            <details class="info-section" data-info-tab="monsters" data-archive-map="subway"><summary style="color:#9cd6ff;">NIZAR — THE CONTROLLER</summary><div>Uses signal distortion on every level. His Closing Frames appear on both sides and push inward; move before they pin you. He can also split into two False Nizars that chase you without a shadow. The real Nizar always casts one. The Last Line control chase is unique to the Subway.<br><span style="color:#aaa">Counter:</span> Restore signal panels, keep moving when the frames appear, and use the real shadow to identify the hunter.</div></details>
+            <details class="info-section" data-info-tab="monsters" data-archive-map="lucas"><summary style="color:#c5a9ff;">LUCAS — THE SHADOW AT THE GATE</summary><div>At the Shadow Gate, Lucas seals routes, fires shadow arrows, pulls you toward him, and can emerge from a nearby shadow pool. Recover and carry the fragments to the Caleb Vessel to finish the encounter.<br><span style="color:#aaa">Counter:</span> Keep moving when the route seals or arrows appear, and resist each fragment pull before it rises beyond reach.</div></details>
             
             <details class="info-section" data-info-tab="monsters"><summary style="color:#ff4444;">MUTATIONS</summary><div>
             <b>Speed Demon:</b> Flat speed boost.<br>
@@ -292,7 +699,7 @@
             <b>Scrambler:</b> Hides your generator progress UI.<br>
             <b>Hexed:</b> Player boosts (Adrenaline) only last half as long.<br>
             <b>Hallucinations:</b> Creates harmless visual decoys nearby. Do not chase every shape you see.<br>
-            <b>Locked In:</b> Hotel lockdowns can seal a nearby doorway for longer.<br>
+            <b>Locked In:</b> Can seal a nearby doorway for longer.<br>
             <b>Echo:</b> False sound rings can appear away from the real danger.<br>
             <b>False Objective:</b> Periodically corrupts the objective text on your HUD.<br>
             <b>Watcher:</b> Camera and mirror routes reveal your position more often.<br>
@@ -305,12 +712,15 @@
             <b>Cosmetics:</b> Colors, trails, hats, masks, and body skins are cosmetic-only rewards for Hard wins, monster catches, Endless progress, special challenges, and long-term career milestones. Equip skins from the SKINS tab in the Collector’s Book; image previews appear there.<br>
             <b>Statistics:</b> The Statistics screen records wins, losses, generators, catches, Endless best, fastest win, item use, and favorite monster.<br>
             <b>Inventory:</b> You can carry up to eight consumables. Ground supplies only fit when a slot is free. Custom loadouts choose exact item quantities, up to eight total; Free Carry permits any owned supply.<br>
-            <b>Specialist Gear:</b> Signal Scramblers block tracking alerts with X, Goop Neutralizers clear Rhys hazards, Repair Kits widen the next skill-check zone, and Flares brighten the area but reveal your location. The permanent Dash Module uses LEFT SHIFT and has a five-second cooldown.<br></div></details>
+            <b>Specialist Gear:</b> Signal Scramblers block tracking alerts with X, Goop Neutralizers clear slowing hazards, Repair Kits widen the next skill-check zone, and Flares brighten the area but reveal your location. The permanent Dash Module uses LEFT SHIFT and has a five-second cooldown.<br></div></details>
             
             <details class="info-section" data-info-tab="start"><summary style="color:#0f0;">TIPS</summary><div>
             - Use <b>'E'</b> to repair generators.<br>
             - Skill check needles now loop endlessly! Take your time to hit the green zone.<br>
             - Jordan has a 30-second cooldown before he can sabotage multiple generators.<br></div></details>
+            <details class="info-section" data-info-tab="maps" data-archive-map="level0"><summary style="color:#d9df92;">THE LOBBY — LEVEL 0</summary><div>
+            <b>Objective:</b> Repair every generator, then catch the fleeing monster.<br>
+            <b>Field note:</b> Level 0 is the starting location and the baseline for the shift. Use the generator, hiding, and safety guidance in the field notes while you learn its routes.<br></div></details>
             <details class="info-section" data-info-tab="maps"><summary style="color:#ffcc00;">MAP EVENTS & GENERATORS</summary><div>
             <b>Power Outage:</b> The map darkens for a short time. Maintenance rooms can restore the lights early.<br>
             <b>Emergency Lights:</b> Red alarms reveal both locations and let the monster track you through the maze too.<br>
@@ -326,19 +736,19 @@
             <b>Hold Breath:</b> Hold your breath briefly to avoid the All-Seeing mutation. It has a cooldown.<br>
             <b>Noise Maker:</b> Throw a sound somewhere else to pull the monster away. Completed generators also make noise.<br>
             <b>Bear Trap:</b> Press T or use Items to place one at your feet. It briefly stuns a monster, then disappears. Only two can be active.<br></div></details>
-            <details class="info-section" data-info-tab="maps"><summary style="color:#ff6b2b;">THE BOILERWORKS</summary><div>
+            <details class="info-section" data-info-tab="maps" data-archive-map="boilerworks"><summary style="color:#ff6b2b;">THE BOILERWORKS</summary><div>
             <b>Objective:</b> Repair every generator, activate all three cooling valves, then find and shut down the central boiler.<br>
             <b>Heat:</b> Burning sections build heat and slightly slow you. Leave the area to cool down. The Boilerworks uses long procedural halls and rooms, so routes change every run.<br>
             <b>Monsters:</b> Aeson is most likely here, but Jordan, Caleb, Malakai, and rare two-monster runs are possible.<br></div></details>
-            <details class="info-section" data-info-tab="maps"><summary style="color:#d4c09a;">THE ENDLESS HOTEL</summary><div>
+            <details class="info-section" data-info-tab="maps" data-archive-map="hotel"><summary style="color:#d4c09a;">THE ENDLESS HOTEL</summary><div>
             <b>Objective:</b> Repair the hotel generators, complete and report staff assignments, evacuate the employees through the elevator, then catch Bassam.<br>
             <b>Employees:</b> Speak to staff to accept up to two assignments. Complete the work, then return to the same staff member to report it.<br>
             <b>Events:</b> Hotel Lockdown seals a whole corridor section temporarily. Bassam can impersonate staff and place a false assignment among your real ones. Dialogue and employee tasks pause the hunt; hiding remains usable even while Bassam or multiple monsters are active.<br></div></details>
-            <details class="info-section" data-info-tab="maps"><summary style="color:#ffe06b;">THE CRIMSON CONTAINMENT</summary><div><b>Objective:</b> Repair generators, locate the Crimson Seal through a changing route, then lure Rhys into the containment trap.<br><b>Events:</b> Containment alarms, pressure releases, a sweeping emergency-light circle, and seal resonance. This level does not use power outages.</div></details>
-            <details class="info-section" data-info-tab="maps"><summary style="color:#9ad7dd;">THE BLACKWOOD FOREST</summary><div><b>Objective:</b> Repair remote generators, restore two dark cabin breakers, recover the Ranger Beacon battery, then install it at the watchtower to expose Noah. Lit cabins are safe zones because Noah cannot stalk through strong light.<br><b>Events:</b> Fog Roll darkens the woods for a short time. <b>Layout:</b> Procedural clearings, woodland trails, tree barriers, and cabin interiors change each run. Flashbangs scatter Noah to a distant unlit location.</div></details>
-            <details class="info-section" data-info-tab="maps"><summary style="color:#ddd;">THE PARTED GRID</summary><div><b>Objective:</b> Repair every generator, find the exit gate, then pursue Amine in the turret car. Steer around roadblocks and fire carefully—eight repetitive shots jam the turret, and Amine can vanish from the road for short periods.<br><b>Hazards:</b> Falling into random sinkholes is fatal. Burning zones heavily slow and blur you. Before the final pursuit, Amine flashes into view and teleports nearby.</div></details>
-             <details class="info-section" data-info-tab="maps"><summary style="color:#9cd6ff;">THE LAST LINE</summary><div><b>Objective:</b> Restore the signal panels, then reach the control room. From there, route one of several trains through the moving hunter's track within two minutes by opening and closing lane switches. The hunter can dodge between tracks, so watch the whole board and adapt.<br><b>Features:</b> Each run assembles three or four stations along a readable connected spine, with two-track tunnels, ticket booths, service rooms, stopped cars, moving trains, and different objective locations. Route Boards are tap/click puzzles that rotate track pieces into one connected line.<br><b>Subway rewards:</b> Earn the Stop Sign Mask first by recovering and delivering the torn ticket before restoring any signal. Then earn the Headlight by letting three trains miss Nizar, allowing the passenger train to pass while he is alive, and catching him. Finally, after both are earned, recover the gold fare sphere as Nizar before restoring any signal to unlock the Train Skin through the Gold Fare cutscene.<br><b>Gold pressure:</b> The sphere broadcasts your position for five seconds every 25 seconds, drains outside lit stations, starts a three-minute validation timer, flickers a completed signal every 25 seconds, locks station doors, and accelerates passing trains. Re-stabilize flickering signals before Rail Control will accept the fare.</div></details>
-             <details class="info-section" data-info-tab="maps"><summary style="color:#c5a9ff;">THE SHADOW GATE</summary><div><b>Objective:</b> Recover the first Caleb fragment, activate the three shadow relays, recover the released second fragment, then carry the final fragment to the Caleb Vessel at the sealed gate.<br><b>Fragment pull:</b> Every fragment opens a touch/mouse challenge. Hold or drag below it to pull it back down before the shadow takes it upward.<br><b>Encounter:</b> Lucas can seal routes, fire shadow arrows, pull you toward him, and emerge from a shadow pool near you. After the fragments are placed, step into his sight: a tether comes out of the gate and drags him into the darkness while the round resolves. Caleb's boss arena is reserved for a later patch.</div></details>
+            <details class="info-section" data-info-tab="maps" data-archive-map="crimson"><summary style="color:#ffe06b;">THE CRIMSON CONTAINMENT</summary><div><b>Objective:</b> Repair generators, locate the Crimson Seal through a changing route, then lure Rhys into the containment trap.<br><b>Events:</b> Containment alarms, pressure releases, a sweeping emergency-light circle, and seal resonance. This level does not use power outages.</div></details>
+            <details class="info-section" data-info-tab="maps" data-archive-map="forest"><summary style="color:#9ad7dd;">THE BLACKWOOD FOREST</summary><div><b>Objective:</b> Repair remote generators, restore two dark cabin breakers, recover the Ranger Beacon battery, then install it at the watchtower to expose Noah. Lit cabins are safe zones because Noah cannot stalk through strong light.<br><b>Events:</b> Fog Roll darkens the woods for a short time. <b>Layout:</b> Procedural clearings, woodland trails, tree barriers, and cabin interiors change each run. Flashbangs scatter Noah to a distant unlit location.</div></details>
+            <details class="info-section" data-info-tab="maps" data-archive-map="amine"><summary style="color:#ddd;">THE PARTED GRID</summary><div><b>Objective:</b> Repair every generator, find the exit gate, then pursue Amine in the turret car. Steer around roadblocks and fire carefully—eight repetitive shots jam the turret, and Amine can vanish from the road for short periods.<br><b>Hazards:</b> Falling into random sinkholes is fatal. Burning zones heavily slow and blur you. Before the final pursuit, Amine flashes into view and teleports nearby.</div></details>
+             <details class="info-section" data-info-tab="maps" data-archive-map="subway"><summary style="color:#9cd6ff;">THE LAST LINE</summary><div><b>Objective:</b> Restore the signal panels, then reach the control room. From there, route one of several trains through the moving hunter's track within two minutes by opening and closing lane switches. The hunter can dodge between tracks, so watch the whole board and adapt.<br><b>Features:</b> Each run assembles three or four stations along a readable connected spine, with two-track tunnels, ticket booths, service rooms, stopped cars, moving trains, and different objective locations. Route Boards are tap/click puzzles that rotate track pieces into one connected line.<br><b>Subway rewards:</b> Earn the Stop Sign Mask first by recovering and delivering the torn ticket before restoring any signal. Then earn the Headlight by letting three trains miss Nizar, allowing the passenger train to pass while he is alive, and catching him. Finally, after both are earned, recover the gold fare sphere as Nizar before restoring any signal to unlock the Train Skin through the Gold Fare cutscene.<br><b>Gold pressure:</b> The sphere broadcasts your position for five seconds every 25 seconds, drains outside lit stations, starts a three-minute validation timer, flickers a completed signal every 25 seconds, locks station doors, and accelerates passing trains. Re-stabilize flickering signals before Rail Control will accept the fare.</div></details>
+             <details class="info-section" data-info-tab="maps" data-archive-map="lucas"><summary style="color:#c5a9ff;">THE SHADOW GATE</summary><div><b>Objective:</b> Recover the first Caleb fragment, activate the three shadow relays, recover the released second fragment, then carry the final fragment to the Caleb Vessel at the sealed gate.<br><b>Fragment pull:</b> Every fragment opens a touch/mouse challenge. Hold or drag below it to pull it back down before the shadow takes it upward.<br><b>Encounter:</b> Lucas can seal routes, fire shadow arrows, pull you toward him, and emerge from a shadow pool near you. After the fragments are placed, step into his sight: a tether comes out of the gate and drags him into the darkness while the round resolves. Caleb's boss arena is reserved for a later patch.</div></details>
             <details class="info-section" data-info-tab="systems"><summary style="color:#8cd9d0;">MAP INTEL</summary><div>Clear a map on Easy, Normal, and Hard, then buy its Map Intel in the Shop. Press <b>M</b> on desktop or tap <b>MAP</b> on mobile to open the full layout without pausing the danger.</div></details>
             <details class="info-section" data-info-tab="start"><summary style="color:#0ff;">MOBILE CONTROLS</summary><div>
             <b>Joystick:</b> Move freely in any direction.<br>
@@ -349,145 +759,195 @@
             <details class="info-section" data-info-tab="systems"><summary style="color:#d8b4ff;">OBJECTIVES & LOADOUTS</summary><div>
             <b>Daily Objectives:</b> Complete rotating local objectives for bonus tokens from the main menu.<br>
             <b>Loadouts:</b> Build a custom kit from owned supplies, choosing exact quantities up to the eight-slot carry limit. Items are still consumed normally when used.<br></div></details>
-            <br><span style="color:#888;">Version <span id="infoVersion">1.0.0</span> · Created for local play with friends.</span>
+                    <br><span class="lobby-archive-provenance">Version <span id="infoVersion">1.0.0</span> · Local field reference</span>
+                </div>
+                <footer class="lobby-archive-main-footer"><span class="lobby-archive-status-light"></span> FILE ACCESS UPDATES WITH YOUR UNLOCKED LOCATIONS</footer>
+            </main>
         </div>
-        <button onclick="showMenu('mainMenu')" style="margin-top: 15px; border-color: #ff4444; color: #ff4444;">BACK</button>
     </div>
 
-    <!-- Shop Menu -->
-    <div id="shopMenu" class="menu-panel" style="max-height: 80vh; overflow-y: auto;">
-        <h2>BLACK MARKET</h2>
-        <div class="token-display" id="tokenDisplayShop">Tokens: 0</div>
-        <div id="shopCarryStatus" class="shop-carry-status"></div>
-        <div class="shop-tabs"><button onclick="setShopTab('upgrades')">UPGRADES</button><button onclick="setShopTab('supplies')">SUPPLIES</button><button onclick="setShopTab('maps')">MAP INTEL</button></div>
-        <div id="mapIntelShop"></div>
-        
-        <div class="shop-item">
-            <div>
-                <div>Running Shoes (Tier <span id="shoeTier">0</span>/3)</div>
-                <div class="shop-desc">+5% permanent speed</div>
+    <!-- Market directory -->
+    <div id="marketMenu" class="menu-panel market-screen market-hub" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="marketTitle">
+        <div class="market-atmosphere" aria-hidden="true"></div>
+        <header class="market-topbar">
+            <button class="market-back-button" type="button" onclick="returnToLobbyFromMarket()"><span aria-hidden="true">←</span> RETURN TO LOBBY</button>
+            <div class="market-top-title"><span>THE LOBBY · PROVISION DESK</span><h1 id="marketTitle">MARKET</h1></div>
+            <div class="market-wallet"><span>TOKEN RESERVE</span><strong id="tokenDisplayMarket">0 <i>T</i></strong></div>
+        </header>
+        <main class="market-hub-content">
+            <div class="market-intro"><span class="market-eyebrow"><i></i> FIELD SERVICES / OPEN</span><p>Choose a counter. Your gear and upgrades stay with your local field record.</p></div>
+            <div class="market-department-grid" role="group" aria-label="Market departments">
+                <button class="market-department market-department-shop" type="button" onclick="openShop()">
+                    <span class="market-department-index">01 / SUPPLY COUNTER</span><span class="market-department-symbol" aria-hidden="true"><img src="assets/ui/icons/market/ShopIcon.svg" alt=""></span>
+                    <strong>SHOP</strong><span class="market-department-description">Permanent upgrades and run supplies.</span><span class="market-department-enter">ENTER COUNTER <i aria-hidden="true">↗</i></span>
+                </button>
+                <button class="market-department market-department-maps" type="button" onclick="openMapIntel()">
+                    <span class="market-department-index">02 / SURVEY DESK</span><span class="market-department-symbol" aria-hidden="true"><img src="assets/ui/icons/market/MapsIcon.svg" alt=""></span>
+                    <strong>MAP INTEL</strong><span class="market-department-description">Purchase live minimaps for sites you know.</span><span class="market-department-enter">VIEW SITE FILES <i aria-hidden="true">↗</i></span>
+                </button>
+                <button class="market-department market-department-black" type="button" onclick="openBlackMarket()">
+                    <span class="market-department-index">03 / UNOFFICIAL COUNTER</span><span class="market-department-symbol" aria-hidden="true"><img src="assets/ui/icons/market/BlackMarketIcon.svg" alt=""></span>
+                    <strong>BLACK MARKET</strong><span class="market-department-description">Rotating supplies, lower prices, limited stock.</span><span class="market-department-enter">CHECK TODAY'S STOCK <i aria-hidden="true">↗</i></span>
+                </button>
             </div>
-            <button id="btnShoe" onclick="buyUpgrade('shoe', 50)">50 T</button>
-        </div>
-        <div class="shop-item"><div><div>Emergency Battery</div><div class="shop-desc">Press R to restore the lights during an outage.</div></div><span class="shop-actions"><button onclick="buyConsumable('battery', 22)">22 T</button><button class="discard-button" onclick="discardConsumable('battery')">DISCARD</button></span></div>
-        <div class="shop-item"><div><div>Breath Filter</div><div class="shop-desc">Your next breath hold lasts longer.</div></div><span class="shop-actions"><button onclick="buyConsumable('breathFilter', 16)">16 T</button><button class="discard-button" onclick="discardConsumable('breathFilter')">DISCARD</button></span></div>
-        <div class="shop-item">
-            <div>
-                <div>Hacker Gloves (Tier <span id="hackTier">0</span>/2)</div>
-                <div class="shop-desc">-1 key/skill hit required</div>
-            </div>
-            <button id="btnHack" onclick="buyUpgrade('hack', 75)">75 T</button>
-        </div>
-        <div class="shop-item">
-            <div>
-                <div>Quick Hands (Tier <span id="quickTier">0</span>/3)</div>
-                <div class="shop-desc">-10% skill check needle speed</div>
-            </div>
-            <button id="btnQuick" onclick="buyUpgrade('quick', 40)">40 T</button>
-        </div>
-        <div class="shop-item">
-            <div>
-                <div>Lucky Coin (Tier <span id="coinTier">0</span>/1)</div>
-                <div class="shop-desc">+50% tokens earned</div>
-            </div>
-            <button id="btnCoin" onclick="buyUpgrade('coin', 150)">150 T</button>
-        </div>
-        <div class="shop-item">
-            <div>
-                <div>Dash Module</div>
-                <div class="shop-desc">Permanent LEFT SHIFT / mobile dash. Five-second cooldown; creates noise.</div>
-            </div>
-            <button id="btnDash" onclick="buyUpgrade('dash', 300)">300 T</button>
-        </div>
-        <div class="shop-item">
-            <div>
-                <div>Adrenaline Syringe</div>
-                <div class="shop-desc">Press SPACE for 4s speed boost.</div>
-            </div>
-            <span class="shop-actions"><button onclick="buyConsumable('adrenaline', 15)">15 T</button><button class="discard-button" onclick="discardConsumable('adrenaline')">DISCARD</button></span>
-        </div>
-        <div class="shop-item">
-            <div>
-                <div>Flashbang</div>
-                <div class="shop-desc">Press F to stun monster for 4s.</div>
-            </div>
-            <span class="shop-actions"><button onclick="buyConsumable('flashbang', 20)">20 T</button><button class="discard-button" onclick="discardConsumable('flashbang')">DISCARD</button></span>
-        </div>
-        <div class="shop-item">
-            <div>
-                <div>Noise Maker</div>
-                <div class="shop-desc">Press N or ♬ to lure the monster away.</div>
-            </div>
-            <span class="shop-actions"><button onclick="buyConsumable('noiseMaker', 18)">18 T</button><button class="discard-button" onclick="discardConsumable('noiseMaker')">DISCARD</button></span>
-        </div>
-        <div class="shop-item">
-            <div>
-                <div>Bear Trap</div>
-                <div class="shop-desc">Press T or choose it from Items to place a trap. Monsters are briefly stunned.</div>
-            </div>
-            <span class="shop-actions"><button onclick="buyConsumable('bearTrap', 24)">24 T</button><button class="discard-button" onclick="discardConsumable('bearTrap')">DISCARD</button></span>
-        </div>
-        <div class="shop-item"><div><div>Signal Scrambler</div><div class="shop-desc">X / Items: blocks tracking alerts briefly. Physical sight still works.</div></div><span class="shop-actions"><button onclick="buyConsumable('signalScrambler', 26)">26 T</button><button class="discard-button" onclick="discardConsumable('signalScrambler')">DISCARD</button></span></div>
-        <div class="shop-item"><div><div>Goop Neutralizer</div><div class="shop-desc">G / Items: clears nearby goop and pressure hazards in Crimson Containment.</div></div><span class="shop-actions"><button onclick="buyConsumable('neutralizer', 14)">14 T</button><button class="discard-button" onclick="discardConsumable('neutralizer')">DISCARD</button></span></div>
-        <div class="shop-item"><div><div>Repair Kit</div><div class="shop-desc">K / Items: shortens circuit patterns and widens timing windows on the next generator task.</div></div><span class="shop-actions"><button onclick="buyConsumable('repairKit', 19)">19 T</button><button class="discard-button" onclick="discardConsumable('repairKit')">DISCARD</button></span></div>
-        <div class="shop-item"><div><div>Emergency Flare</div><div class="shop-desc">L / Items: brightens the area, but alerts nearby monsters.</div></div><span class="shop-actions"><button onclick="buyConsumable('flare', 12)">12 T</button><button class="discard-button" onclick="discardConsumable('flare')">DISCARD</button></span></div>
-        <button onclick="showMenu('mainMenu')" style="margin-top: 15px; border-color: #ff4444; color: #ff4444;">BACK</button>
+            <footer class="market-hub-footer"><span><i></i> INVENTORY LIMIT: 8 CARRIED ITEMS</span><span>LOCAL MARKET ACCESS · LEVEL 0</span></footer>
+        </main>
     </div>
 
-    <!-- Settings Menu -->
-    <div id="settingsMenu" class="menu-panel">
-        <h2>SETTINGS</h2>
-        <div class="setting-item">
-            <span>Master Volume</span>
-            <input type="range" id="volMaster" min="0" max="100" value="100" oninput="saveSettings()">
+    <!-- Permanent upgrades and standard supplies -->
+    <div id="shopMenu" class="menu-panel market-screen market-shop-screen" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="shopScreenTitle">
+        <div class="market-atmosphere" aria-hidden="true"></div>
+        <header class="market-topbar">
+            <button class="market-back-button" type="button" onclick="openMarket()"><span aria-hidden="true">←</span> MARKET</button>
+            <div class="market-top-title"><span>AUTHORIZED SUPPLY COUNTER</span><h1 id="shopScreenTitle">SHOP</h1></div>
+            <div class="market-wallet"><span>TOKEN RESERVE</span><strong id="tokenDisplayShop">0 <i>T</i></strong></div>
+        </header>
+        <main class="market-department-content market-shop-content">
+            <div class="market-department-heading"><div><span class="market-eyebrow"><i></i> PROVISIONS & EQUIPMENT</span><h2>The Shop</h2><p>Permanent upgrades stay with you. Supplies go into your carry inventory.</p></div><div class="market-carry-counter"><span>CARRY CAPACITY</span><strong id="shopCarryStatus">0 / 8</strong></div></div>
+            <div class="market-shop-tabs" role="tablist" aria-label="Shop categories">
+                <button id="shopTabUpgrades" type="button" role="tab" aria-controls="shopUpgradeShelf" data-market-shop-tab="upgrades" aria-selected="true" onclick="setShopTab('upgrades')"><span>01</span> UPGRADES</button>
+                <button id="shopTabSupplies" type="button" role="tab" aria-controls="shopSupplyShelf" data-market-shop-tab="supplies" aria-selected="false" onclick="setShopTab('supplies')"><span>02</span> SUPPLIES</button>
+            </div>
+            <section id="shopUpgradeShelf" class="market-product-grid" role="tabpanel" aria-labelledby="shopTabUpgrades" tabindex="0" aria-label="Permanent upgrades">
+                <article class="market-product-card market-upgrade-card"><span class="market-product-mark" aria-hidden="true"><img src="assets/ui/icons/market/RunningShoesIcon.svg" alt=""></span><span class="market-product-kind">MOBILITY / PERMANENT</span><h3>Running Shoes <small>Tier <span id="shoeTier">0</span>/3</small></h3><p>Increase your movement speed by 5% per tier.</p><button id="btnShoe" class="market-buy-button" type="button" onclick="buyUpgrade('shoe', 50)">50 T</button></article>
+                <article class="market-product-card market-upgrade-card"><span class="market-product-mark" aria-hidden="true"><img src="assets/ui/icons/market/HackerGlovesIcon.svg" alt=""></span><span class="market-product-kind">REPAIR / PERMANENT</span><h3>Hacker Gloves <small>Tier <span id="hackTier">0</span>/2</small></h3><p>Reduce the number of key and skill hits required.</p><button id="btnHack" class="market-buy-button" type="button" onclick="buyUpgrade('hack', 75)">75 T</button></article>
+                <article class="market-product-card market-upgrade-card"><span class="market-product-mark" aria-hidden="true"><img src="assets/ui/icons/market/QuickHandsIcon.svg" alt=""></span><span class="market-product-kind">TIMING / PERMANENT</span><h3>Quick Hands <small>Tier <span id="quickTier">0</span>/3</small></h3><p>Slow skill check needles by 10% per tier.</p><button id="btnQuick" class="market-buy-button" type="button" onclick="buyUpgrade('quick', 40)">40 T</button></article>
+                <article class="market-product-card market-upgrade-card"><span class="market-product-mark" aria-hidden="true"><img src="assets/ui/icons/market/LuckyCoinIcon.svg" alt=""></span><span class="market-product-kind">PAY / PERMANENT</span><h3>Lucky Coin <small>Tier <span id="coinTier">0</span>/1</small></h3><p>Earn 50% more tokens from completed runs.</p><button id="btnCoin" class="market-buy-button" type="button" onclick="buyUpgrade('coin', 150)">150 T</button></article>
+                <article class="market-product-card market-upgrade-card"><span class="market-product-mark" aria-hidden="true"><img src="assets/ui/icons/market/DashIcon.svg" alt=""></span><span class="market-product-kind">EVASION / PERMANENT</span><h3>Dash Module</h3><p>Unlock a noisy dash with a five-second cooldown.</p><button id="btnDash" class="market-buy-button" type="button" onclick="buyUpgrade('dash', 300)">300 T</button></article>
+            </section>
+            <section id="shopSupplyShelf" class="market-product-grid" role="tabpanel" aria-labelledby="shopTabSupplies" tabindex="0" aria-label="Run supplies" hidden>
+                <article class="market-product-card market-supply-card"><span class="market-product-mark" aria-hidden="true"><img src="assets/ui/icons/market/AdrenalineSyringeIcon.svg" alt=""></span><span class="market-product-kind">BOOST / CARRY <b id="count-adrenaline">0 OWNED</b></span><h3>Adrenaline Syringe</h3><p>Press SPACE for a four-second speed boost.</p><div class="market-product-actions"><button class="market-buy-button" type="button" onclick="buyConsumable('adrenaline', 15)">15 T</button><button class="market-discard-button" type="button" onclick="discardConsumable('adrenaline')">DISCARD</button></div></article>
+                <article class="market-product-card market-supply-card"><span class="market-product-mark" aria-hidden="true"><img src="assets/ui/icons/market/FlashbangIcon.svg" alt=""></span><span class="market-product-kind">STUN / CARRY <b id="count-flashbang">0 OWNED</b></span><h3>Flashbang</h3><p>Press F to stun a monster for four seconds.</p><div class="market-product-actions"><button class="market-buy-button" type="button" onclick="buyConsumable('flashbang', 20)">20 T</button><button class="market-discard-button" type="button" onclick="discardConsumable('flashbang')">DISCARD</button></div></article>
+                <article class="market-product-card market-supply-card"><span class="market-product-mark" aria-hidden="true"><img src="assets/ui/icons/market/NoiseMakerIcon.svg" alt=""></span><span class="market-product-kind">DISTRACTION / CARRY <b id="count-noiseMaker">0 OWNED</b></span><h3>Noise Maker</h3><p>Press N or choose it from Items to lure a monster away.</p><div class="market-product-actions"><button class="market-buy-button" type="button" onclick="buyConsumable('noiseMaker', 18)">18 T</button><button class="market-discard-button" type="button" onclick="discardConsumable('noiseMaker')">DISCARD</button></div></article>
+                <article class="market-product-card market-supply-card"><span class="market-product-mark" aria-hidden="true"><img src="assets/ui/icons/market/BearTrapIcon.svg" alt=""></span><span class="market-product-kind">TRAP / CARRY <b id="count-bearTrap">0 OWNED</b></span><h3>Bear Trap</h3><p>Place a trap to briefly stun a monster.</p><div class="market-product-actions"><button class="market-buy-button" type="button" onclick="buyConsumable('bearTrap', 24)">24 T</button><button class="market-discard-button" type="button" onclick="discardConsumable('bearTrap')">DISCARD</button></div></article>
+                <article class="market-product-card market-supply-card"><span class="market-product-mark" aria-hidden="true"><img src="assets/ui/icons/market/EmergencyBatteryIcon.svg" alt=""></span><span class="market-product-kind">LIGHTS / CARRY <b id="count-battery">0 OWNED</b></span><h3>Emergency Battery</h3><p>Press R to restore the lights during an outage.</p><div class="market-product-actions"><button class="market-buy-button" type="button" onclick="buyConsumable('battery', 22)">22 T</button><button class="market-discard-button" type="button" onclick="discardConsumable('battery')">DISCARD</button></div></article>
+                <article class="market-product-card market-supply-card"><span class="market-product-mark" aria-hidden="true"><img src="assets/ui/icons/market/SignalScramblerIcon.svg" alt=""></span><span class="market-product-kind">SIGNAL / CARRY <b id="count-signalScrambler">0 OWNED</b></span><h3>Signal Scrambler</h3><p>Blocks tracking alerts briefly. Direct sight still works.</p><div class="market-product-actions"><button class="market-buy-button" type="button" onclick="buyConsumable('signalScrambler', 26)">26 T</button><button class="market-discard-button" type="button" onclick="discardConsumable('signalScrambler')">DISCARD</button></div></article>
+                <article class="market-product-card market-supply-card"><span class="market-product-mark" aria-hidden="true"><img src="assets/ui/icons/market/EmergencyFlareIcon.svg" alt=""></span><span class="market-product-kind">LIGHT / CARRY <b id="count-flare">0 OWNED</b></span><h3>Emergency Flare</h3><p>Brightens the area, but may alert nearby monsters.</p><div class="market-product-actions"><button class="market-buy-button" type="button" onclick="buyConsumable('flare', 12)">12 T</button><button class="market-discard-button" type="button" onclick="discardConsumable('flare')">DISCARD</button></div></article>
+            </section>
+            <p id="marketShopNotice" class="market-live-notice" role="status" aria-live="polite"></p>
+        </main>
+    </div>
+
+    <!-- Purchasable live minimap intel -->
+    <div id="mapIntelMenu" class="menu-panel market-screen market-map-screen" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="mapIntelTitle">
+        <div class="market-atmosphere" aria-hidden="true"></div>
+        <header class="market-topbar">
+            <button class="market-back-button" type="button" onclick="openMarket()"><span aria-hidden="true">←</span> MARKET</button>
+            <div class="market-top-title"><span>SURVEY & ROUTE INTELLIGENCE</span><h1 id="mapIntelTitle">MAP INTEL</h1></div>
+            <div class="market-wallet"><span>TOKEN RESERVE</span><strong id="tokenDisplayMaps">0 <i>T</i></strong></div>
+        </header>
+        <main class="market-department-content market-map-content">
+            <div class="market-department-heading"><div><span class="market-eyebrow"><i></i> MAP INTEL</span><h2>Minimaps</h2><p>Buy a live minimap after clearing every difficulty at that unlocked site.</p></div><div class="market-map-legend"><span><i class="is-clear"></i> CLEARED</span><span><i></i> NOT CLEARED</span></div></div>
+            <div id="mapIntelCards" class="market-map-grid" aria-live="polite"></div>
+            <p id="marketMapNotice" class="market-live-notice" role="status" aria-live="polite"></p>
+        </main>
+    </div>
+
+    <!-- Daily discounted rotation of normal shop supplies -->
+    <div id="blackMarketMenu" class="menu-panel market-screen market-black-screen" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="blackMarketTitle">
+        <div class="market-atmosphere" aria-hidden="true"></div>
+        <header class="market-topbar">
+            <button class="market-back-button" type="button" onclick="openMarket()"><span aria-hidden="true">←</span> MARKET</button>
+            <div class="market-top-title"><span>UNOFFICIAL TRADE / LEVEL 0</span><h1 id="blackMarketTitle">BLACK MARKET</h1></div>
+            <div class="market-wallet"><span>TOKEN RESERVE</span><strong id="tokenDisplayBlackMarket">0 <i>T</i></strong></div>
+        </header>
+        <main class="market-department-content market-black-content">
+            <div class="market-black-intro"><div><span class="market-eyebrow"><i></i> TODAY'S ROTATION</span><h2>The Black Market</h2><p>Ordinary supplies from an unlisted counter, offered below the usual price.</p></div><div class="market-restock"><span>NEXT RESTOCK</span><strong id="blackMarketCountdown">--:--:--</strong><small>LOCAL MIDNIGHT</small></div></div>
+            <div id="blackMarketOffers" class="market-black-grid" aria-live="polite"></div>
+            <p id="blackMarketNotice" class="market-live-notice" role="status" aria-live="polite"></p>
+            <footer class="market-black-footnote"><span>LIMITED DAILY QUANTITIES</span><span>STOCK & ROTATION SAVED ON THIS DEVICE</span></footer>
+        </main>
+    </div>
+
+    <!-- Full-screen Settings -->
+    <div id="settingsMenu" class="menu-panel lobby-settings-screen" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="settingsScreenTitle">
+        <div class="lobby-settings-atmosphere" aria-hidden="true"></div>
+        <header class="lobby-settings-topbar">
+            <button id="settingsBack" class="lobby-settings-back" type="button"><span aria-hidden="true">←</span> RETURN TO LOBBY</button>
+            <div class="lobby-settings-heading"><span>SYSTEMS CONTROL <i>LEVEL 0</i></span><h1 id="settingsScreenTitle">SETTINGS</h1></div>
+            <div class="lobby-settings-version">BUILD <span id="settingsVersion">1.0.0</span></div>
+        </header>
+
+        <div class="lobby-settings-workspace">
+            <nav id="settingsCategoryNav" class="lobby-settings-categories" aria-label="Settings categories">
+                <div class="lobby-settings-nav-heading"><span>CONTROL INDEX</span><i aria-hidden="true"></i></div>
+                <button type="button" class="lobby-settings-category is-active" data-settings-target="settingsAudio" aria-current="location"><span class="lobby-settings-category-index">01</span><span class="lobby-settings-category-copy"><strong>AUDIO</strong><small>Volume & signals</small></span><span class="lobby-settings-category-mark" aria-hidden="true">↗</span></button>
+                <button type="button" class="lobby-settings-category" data-settings-target="settingsDisplay"><span class="lobby-settings-category-index">02</span><span class="lobby-settings-category-copy"><strong>DISPLAY</strong><small>Image & interface</small></span><span class="lobby-settings-category-mark" aria-hidden="true">↗</span></button>
+                <button type="button" class="lobby-settings-category" data-settings-target="settingsGameplay"><span class="lobby-settings-category-index">03</span><span class="lobby-settings-category-copy"><strong>GAMEPLAY</strong><small>Run preferences</small></span><span class="lobby-settings-category-mark" aria-hidden="true">↗</span></button>
+                <button type="button" class="lobby-settings-category" data-settings-target="settingsDeviceSaves"><span class="lobby-settings-category-index">04</span><span class="lobby-settings-category-copy"><strong>DEVICES & SAVES</strong><small>Local data & setup</small></span><span class="lobby-settings-category-mark" aria-hidden="true">↗</span></button>
+                <div class="lobby-settings-nav-note"><span class="lobby-settings-nav-dot"></span> LOCAL CONFIGURATION</div>
+            </nav>
+
+            <main id="settingsContent" class="lobby-settings-content" tabindex="0" aria-label="Settings options">
+                <section id="settingsAudio" class="lobby-settings-section" aria-labelledby="settingsAudioTitle">
+                    <header class="lobby-settings-section-heading"><span>01 <i>/ SIGNAL</i></span><h2 id="settingsAudioTitle">AUDIO</h2><p>Set the levels for the sounds that follow you through the shift.</p></header>
+                    <div class="lobby-settings-rows">
+                        <div class="lobby-setting-row"><div class="lobby-setting-copy"><label for="volMaster">MASTER</label><p>Overall volume for every sound.</p></div><div class="lobby-setting-range"><output id="volMasterValue" for="volMaster">100%</output><input class="lobby-volume-range" type="range" id="volMaster" min="0" max="100" value="100" aria-label="Master volume"></div></div>
+                        <div class="lobby-setting-row"><div class="lobby-setting-copy"><label for="volSFX">SOUND EFFECTS</label><p>Repairs, alerts, menu cues, and item sounds.</p></div><div class="lobby-setting-range"><output id="volSFXValue" for="volSFX">100%</output><input class="lobby-volume-range" type="range" id="volSFX" min="0" max="100" value="100" aria-label="Sound effects volume"></div></div>
+                        <div class="lobby-setting-row"><div class="lobby-setting-copy"><label for="volGameplay">GAMEPLAY AUDIO</label><p>Monster voices, chase loops, and encounter music.</p></div><div class="lobby-setting-range"><output id="volGameplayValue" for="volGameplay">100%</output><input class="lobby-volume-range" type="range" id="volGameplay" min="0" max="100" value="100" aria-label="Gameplay audio volume"></div></div>
+                    </div>
+                    <div class="lobby-settings-section-action"><div><span>SIGNAL CHECK</span><p>Play a short tone using your current sound settings.</p></div><button id="settingsTestSound" class="lobby-settings-action-button" type="button"><span aria-hidden="true">♪</span> TEST SOUND</button></div>
+                </section>
+
+                <section id="settingsDisplay" class="lobby-settings-section" aria-labelledby="settingsDisplayTitle">
+                    <header class="lobby-settings-section-heading"><span>02 <i>/ IMAGE</i></span><h2 id="settingsDisplayTitle">DISPLAY</h2><p>Adjust the picture and the information around it.</p></header>
+                    <div class="lobby-settings-rows">
+                        <div class="lobby-setting-row"><div class="lobby-setting-copy"><label for="btnFPS">FPS COUNTER</label><p>Show the current frame rate in the corner.</p></div><button id="btnFPS" class="lobby-setting-switch" type="button" role="switch" aria-checked="false"><span>OFF</span><i aria-hidden="true"></i></button></div>
+                        <div class="lobby-setting-row"><div class="lobby-setting-copy"><label for="btnCRT">RETRO CRT FILTER</label><p>Add scanlines and a soft color fringe.</p></div><button id="btnCRT" class="lobby-setting-switch" type="button" role="switch" aria-checked="false"><span>OFF</span><i aria-hidden="true"></i></button></div>
+                        <div class="lobby-setting-row"><div class="lobby-setting-copy"><label for="btnVHS">VHS FILTER</label><p>Add subtle tape grain, tracking lines, and color bleed.</p></div><button id="btnVHS" class="lobby-setting-switch" type="button" role="switch" aria-checked="false"><span>OFF</span><i aria-hidden="true"></i></button></div>
+                    </div>
+                    <div class="lobby-settings-section-action"><div><span>MENU APPEARANCE</span><p>Choose the Lobby theme, menu position, and motion.</p></div><button id="settingsMenuStyleLink" class="lobby-settings-action-button" type="button">OPEN MENU STYLE <span aria-hidden="true">↗</span></button></div>
+                </section>
+
+                <section id="settingsGameplay" class="lobby-settings-section" aria-labelledby="settingsGameplayTitle">
+                    <header class="lobby-settings-section-heading"><span>03 <i>/ FIELD</i></span><h2 id="settingsGameplayTitle">GAMEPLAY</h2><p>Small adjustments for how each run feels.</p></header>
+                    <div class="lobby-settings-rows">
+                        <div class="lobby-setting-row"><div class="lobby-setting-copy"><label for="btnSpeedrunTimer">SPEEDRUN TIMER</label><p>Keep an elapsed run timer on screen while playing.</p></div><button id="btnSpeedrunTimer" class="lobby-setting-switch" type="button" role="switch" aria-checked="false"><span>OFF</span><i aria-hidden="true"></i></button></div>
+                        <div class="lobby-setting-row"><div class="lobby-setting-copy"><label for="btnReduceShake">REDUCE SCREEN SHAKE</label><p>Turn off camera shake from impacts and encounters.</p></div><button id="btnReduceShake" class="lobby-setting-switch" type="button" role="switch" aria-checked="false"><span>OFF</span><i aria-hidden="true"></i></button></div>
+                    </div>
+                    <div class="lobby-settings-footnote"><span aria-hidden="true">✳</span><p>These preferences are saved on this device and can be changed between runs.</p></div>
+                </section>
+
+                <section id="settingsDeviceSaves" class="lobby-settings-section" aria-labelledby="settingsDeviceSavesTitle">
+                    <header class="lobby-settings-section-heading"><span>04 <i>/ LOCAL STORAGE</i></span><h2 id="settingsDeviceSavesTitle">DEVICES & SAVES</h2><p>Keep a copy of your progress and set up the game on this device.</p></header>
+                    <div class="lobby-settings-subsection"><div class="lobby-settings-subheading"><span>DEVICE SETUP</span><p>Install for a cleaner fullscreen view and offline play after the first load.</p></div><button id="settingsInstallHelp" class="lobby-settings-action-button" type="button">PHONE / INSTALL <span aria-hidden="true">↗</span></button></div>
+                    <div class="lobby-settings-subsection lobby-save-subsection"><div class="lobby-settings-subheading"><span>LOCAL SAVE STATUS</span><p id="saveStatus" class="lobby-save-status" role="status" aria-live="polite">Progress is stored locally on this device.</p></div><div class="lobby-save-actions"><button id="settingsExportSave" class="lobby-settings-action-button" type="button">EXPORT SAVE <span aria-hidden="true">↓</span></button><button id="settingsImportSave" class="lobby-settings-action-button" type="button">IMPORT SAVE <span aria-hidden="true">↑</span></button><input id="saveFileInput" type="file" accept="application/json,.json" hidden></div></div>
+                    <div class="lobby-settings-danger"><div><span>IRREVERSIBLE ACTION</span><h3>RESET PROGRESS</h3><p>Reset map unlocks, tokens, cosmetics, upgrades, loadouts, records, and daily progress. Level 0 remains available. A backup of your current save stays on this device.</p></div><button id="settingsResetProgress" type="button">RESET EVERYTHING <span aria-hidden="true">↗</span></button></div>
+                </section>
+            </main>
         </div>
-        <div class="setting-item">
-            <span>SFX Volume</span>
-            <input type="range" id="volSFX" min="0" max="100" value="100" oninput="saveSettings()">
+
+        <div id="settingsResetDialog" class="lobby-reset-dialog" style="display:none;" role="alertdialog" aria-modal="true" aria-labelledby="settingsResetTitle" aria-describedby="settingsResetWarning">
+            <div class="lobby-reset-card"><span class="lobby-reset-mark" aria-hidden="true">!</span><span class="lobby-reset-eyebrow">PROGRESS WIPE / CONFIRMATION</span><h2 id="settingsResetTitle">RESET THE SHIFT?</h2><p id="settingsResetWarning">This will clear your unlocked maps, tokens, upgrades, owned cosmetics, loadouts, records, campaign clears, map mastery, and daily progress. Only Level 0 remains unlocked. Your previous save will be kept in the local backup slot.</p><div class="lobby-reset-actions"><button id="settingsResetCancel" type="button">KEEP MY PROGRESS</button><button id="settingsResetConfirm" type="button">RESET EVERYTHING</button></div></div>
         </div>
-        <div class="setting-item">
-            <span>Show FPS</span>
-            <button id="btnFPS" onclick="toggleSetting('fps')" style="padding: 5px 10px; font-size:14px;">OFF</button>
-        </div>
-        <div class="setting-item">
-            <span>Retro CRT Filter</span>
-            <button id="btnCRT" onclick="toggleSetting('crt')" style="padding: 5px 10px; font-size:14px;">OFF</button>
-        </div>
-        <div class="setting-item">
-            <span>Optimization Mode</span>
-            <button id="btnOptimization" onclick="toggleSetting('optimization')" style="padding: 5px 10px; font-size:14px;">OFF</button>
-        </div>
-        <button onclick="testSound()" style="border-color:#0ff; color:#0ff;">TEST SOUND</button>
-        <button onclick="showInstallHelp()" style="border-color:#d4c09a; color:#d4c09a;">PHONE / INSTALL</button>
-        <div class="save-tools">
-            <div class="save-status" id="saveStatus">Progress saves on purchases and completed runs.</div>
-            <button onclick="exportSave()">EXPORT SAVE</button>
-            <button onclick="document.getElementById('saveFileInput').click()">IMPORT SAVE</button>
-            <button onclick="resetProgress()" style="border-color:#ff4444; color:#ff4444;">RESET PROGRESS</button>
-            <input id="saveFileInput" type="file" accept="application/json,.json" style="display:none" onchange="importSave(event)">
-        </div>
-        <div class="version-label">Version <span id="settingsVersion">1.0.0</span></div>
-        <button onclick="showMenu('mainMenu')" style="margin-top: 15px; border-color: #ff4444; color: #ff4444;">BACK</button>
     </div>
 
     <canvas id="gameCanvas" width="800" height="600"></canvas>
 
+    <div id="generatorInterfaceRoot" class="generator-interface" hidden aria-hidden="true" data-task="">
+        <div class="generator-interface-veil" aria-hidden="true"></div>
+        <section class="generator-console" role="dialog" aria-modal="true" aria-labelledby="generatorUiTitle">
+            <header class="generator-console-header">
+                <div class="generator-console-heading">
+                    <h2 id="generatorUiTitle">Circuit Repair</h2>
+                </div>
+                <button id="generatorUiBack" class="generator-back-button" type="button" data-generator-action="back" aria-label="Return to the shift" title="Return to the shift">
+                    <span aria-hidden="true">←</span>
+                </button>
+            </header>
+            <div id="generatorTaskContent" class="generator-task-content"></div>
+        </section>
+    </div>
+
     <div id="touchControls" aria-label="Touch controls">
         <div id="joystick" class="joystick" aria-label="Movement joystick">
             <div id="joystickKnob" class="joystick-knob"></div>
-        </div>
-        <div id="touchPuzzle" class="touch-puzzle" aria-label="Wiring buttons">
-            <button class="puzzle-button" data-puzzle-key="w">W</button>
-            <button class="puzzle-button" data-puzzle-key="a">A</button>
-            <button class="puzzle-button" data-puzzle-key="s">S</button>
-            <button class="puzzle-button" data-puzzle-key="d">D</button>
         </div>
         <div class="touch-actions">
             <button id="touchInteract" class="touch-button interact-button" aria-label="Interact">E</button>
             <button id="touchDash" class="touch-button dash-button" aria-label="Dash" style="display:none;">DASH</button>
             <button id="touchAbilities" class="touch-button boost-button" aria-label="Abilities">◎</button>
             <button id="touchItems" class="touch-button flash-button" aria-label="Items">▣</button>
-            <button id="touchSkillCheck" class="touch-button skill-check-button" aria-label="Skill check" style="display:none;">HIT</button>
             <button id="touchFocus" class="touch-button focus-button" aria-label="Focus vision" style="display:none;">FOCUS</button>
         </div>
     </div>
@@ -507,6 +967,16 @@
     </div>
 
     <!-- Version query lets a page controlled by an older broken service worker fetch the repaired script. -->
-    <script src="js/game.js?v=2.18.20"></script>
+    <script src="js/game.js?v=2.18.82"></script>
+    <script src="js/ui-sounds.js"></script>
+    <script src="js/market-ui.js"></script>
+    <script src="js/menu-music.js"></script>
+    <script src="js/menu-ui.js"></script>
+    <script src="js/play-ui.js"></script>
+    <script src="js/settings-ui.js"></script>
+    <script src="js/records-ui.js"></script>
+    <script src="js/daily-shift-ui.js"></script>
+    <script src="js/archive-ui.js"></script>
+    <script src="js/wardrobe-ui.js"></script>
 </body>
 </html>
